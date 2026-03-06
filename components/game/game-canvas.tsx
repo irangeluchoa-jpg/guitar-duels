@@ -1,0 +1,286 @@
+"use client"
+
+import { useRef, useEffect, useCallback, useState } from "react"
+import type { ChartData as Chart, SongMeta } from "@/lib/songs/types"
+import type { GameStats } from "@/lib/game/engine"
+import { useGameEngine } from "@/hooks/use-game-engine"
+import { GameCountdown } from "./game-countdown"
+import { GameOverScreen } from "./game-over-screen"
+import { PauseOverlay } from "./pause-overlay"
+import { loadSettings, toGain } from "@/lib/settings"
+
+function getMimeType(src: string): string {
+  if (src.endsWith(".mp3"))  return "audio/mpeg"
+  if (src.endsWith(".opus")) return "audio/ogg; codecs=opus"
+  if (src.endsWith(".wav"))  return "audio/wav"
+  return "audio/ogg"
+}
+
+
+
+interface GameCanvasProps {
+  chart: Chart
+  meta: SongMeta
+  audioUrls?: Record<string, string>
+  speed?: number
+  onBack?: () => void
+  onScoreUpdate?: (stats: GameStats) => void
+  onSongEnd?: () => void
+  externalPaused?: boolean
+}
+
+export function GameCanvas({ chart, meta, audioUrls, speed, onBack, onScoreUpdate, onSongEnd, externalPaused }: GameCanvasProps) {
+  const canvasRef    = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isLeavingRef = useRef(false)   // impede startGame após navegar para fora
+
+  const primaryAudioRef = useRef<HTMLAudioElement>(null)
+  const guitarAudioRef  = useRef<HTMLAudioElement>(null)
+  const rhythmAudioRef  = useRef<HTMLAudioElement>(null)
+
+  // Carrega configurações salvas
+  const [settings] = useState(() => loadSettings())
+
+  // Se speed não foi passado via prop, usa o das configurações
+  const effectiveSpeed = speed ?? settings.noteSpeed
+
+  const primarySrc = audioUrls?.song    || audioUrls?.backing || null
+  const guitarSrc  = audioUrls?.guitar  || null
+  const rhythmSrc  = audioUrls?.rhythm  || null
+
+  const realPrimary = primarySrc || guitarSrc || rhythmSrc || null
+  const realGuitar  = primarySrc ? guitarSrc  : null
+  const realRhythm  = primarySrc ? rhythmSrc  : (guitarSrc ? rhythmSrc : null)
+
+  // Aplica volumes assim que os elementos de áudio estiverem disponíveis
+  const applyVolumes = useCallback(() => {
+    const musicGain = toGain(settings.masterVolume, settings.musicVolume)
+    for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef]) {
+      if (ref.current) ref.current.volume = musicGain
+    }
+  }, [settings])
+
+  const { gameState, stats, countdown, startGame, pause, resume, restart, accuracy, grade } =
+    useGameEngine({
+      chart, meta,
+      audioRef: primaryAudioRef,
+      canvasRef,
+      speed: effectiveSpeed,
+      showGuide: settings.showGuide,
+      calibrationOffset: settings.calibrationOffset,
+      onSongEnd: () => { onSongEnd?.() },
+      onScoreUpdate,
+    })
+
+  // Sincroniza áudios secundários com o primário
+  const syncSecondary = useCallback((action: "play" | "pause" | "seek", time?: number) => {
+    for (const ref of [guitarAudioRef, rhythmAudioRef]) {
+      const el = ref.current
+      if (!el) continue
+      if (action === "play") {
+        if (time !== undefined) el.currentTime = time
+        el.play().catch(() => {})
+      } else if (action === "pause") {
+        el.pause()
+      } else if (action === "seek" && time !== undefined) {
+        el.currentTime = time
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const primary = primaryAudioRef.current
+    if (!primary) return
+    const onPlay   = () => { applyVolumes(); syncSecondary("play", primary.currentTime) }
+    const onPause  = () => syncSecondary("pause")
+    const onSeeked = () => syncSecondary("seek", primary.currentTime)
+    primary.addEventListener("play",   onPlay)
+    primary.addEventListener("pause",  onPause)
+    primary.addEventListener("seeked", onSeeked)
+    return () => {
+      primary.removeEventListener("play",   onPlay)
+      primary.removeEventListener("pause",  onPause)
+      primary.removeEventListener("seeked", onSeeked)
+    }
+  }, [syncSecondary, applyVolumes])
+
+  const handleBack = useCallback(() => {
+    isLeavingRef.current = true
+    for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef]) {
+      if (ref.current) { ref.current.pause(); ref.current.currentTime = 0 }
+    }
+    onBack?.()
+  }, [onBack])
+
+  const handleRestart = useCallback(() => {
+    isLeavingRef.current = false  // vai jogar de novo, não sair
+    restart()
+  }, [restart])
+
+  const resizeCanvas = useCallback(() => {
+    const canvas = canvasRef.current
+    const container = containerRef.current
+    if (!canvas || !container) return
+    canvas.width  = container.clientWidth
+    canvas.height = container.clientHeight
+  }, [])
+
+  useEffect(() => {
+    resizeCanvas()
+    window.addEventListener("resize", resizeCanvas)
+    return () => window.removeEventListener("resize", resizeCanvas)
+  }, [resizeCanvas])
+
+  useEffect(() => {
+    if (gameState === "idle" && !isLeavingRef.current) {
+      const t = setTimeout(startGame, 500)
+      return () => clearTimeout(t)
+    }
+    if (gameState === "ended") {
+      for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef]) {
+        if (ref.current) { ref.current.pause(); ref.current.currentTime = 0 }
+      }
+    }
+  }, [gameState, startGame])
+
+  // Pause externo (multiplayer): quando externalPaused muda, pausa/retoma o jogo
+  useEffect(() => {
+    if (externalPaused === undefined) return
+    if (externalPaused && gameState === "playing") {
+      pause()
+      for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef]) {
+        if (ref.current) ref.current.pause()
+      }
+    } else if (!externalPaused && gameState === "paused") {
+      resume()
+      for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef]) {
+        if (ref.current) ref.current.play().catch(() => {})
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalPaused])
+
+  // Aplica volume quando os elementos carregam
+  useEffect(() => { applyVolumes() }, [applyVolumes])
+
+  const [progress, setProgress] = useState(0)
+  const [timeInfo, setTimeInfo] = useState({ current: 0, total: 0 })
+  useEffect(() => {
+    if (gameState !== "playing" && gameState !== "paused") return
+    const interval = setInterval(() => {
+      const audio = primaryAudioRef.current
+      if (audio && audio.duration) {
+        setProgress(audio.currentTime / audio.duration)
+        setTimeInfo({ current: audio.currentTime, total: audio.duration })
+      } else if (meta.songLength) {
+        // fallback: use meta songLength if no audio
+        setTimeInfo(t => ({ ...t, total: meta.songLength / 1000 }))
+      }
+    }, 250)
+    return () => clearInterval(interval)
+  }, [gameState, meta.songLength])
+
+  function formatTime(sec: number) {
+    const m = Math.floor(sec / 60)
+    const s = Math.floor(sec % 60)
+    return `${m}:${s.toString().padStart(2,"0")}`
+  }
+
+  const hasAudio = !!(realPrimary || realGuitar || realRhythm)
+
+  return (
+    <div ref={containerRef} className="relative w-full h-screen overflow-hidden" style={{ background: "#060608" }}>
+
+      {realPrimary && (
+        <audio ref={primaryAudioRef} preload="auto">
+          <source src={realPrimary} type={getMimeType(realPrimary)} />
+        </audio>
+      )}
+      {realGuitar && (
+        <audio ref={guitarAudioRef} preload="auto">
+          <source src={realGuitar} type={getMimeType(realGuitar)} />
+        </audio>
+      )}
+      {realRhythm && (
+        <audio ref={rhythmAudioRef} preload="auto">
+          <source src={realRhythm} type={getMimeType(realRhythm)} />
+        </audio>
+      )}
+
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+
+      {/* Top bar — glassmorphism */}
+      <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
+        <div
+          className="flex items-center gap-4 px-4 py-3 mx-3 mt-3 rounded-xl"
+          style={{
+            background: "rgba(0,0,0,0.45)",
+            backdropFilter: "blur(10px)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+          }}
+        >
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] text-white/35 uppercase tracking-[0.25em] truncate">{meta.artist}</p>
+            <h2 className="text-sm font-bold text-white truncate" style={{ lineHeight: 1.3 }}>{meta.name}</h2>
+          </div>
+          {!hasAudio && (
+            <span className="text-[10px] text-yellow-500/60 bg-yellow-500/10 px-2 py-1 rounded-lg shrink-0">Sem áudio</span>
+          )}
+          {/* Tempo atual / total */}
+          {timeInfo.total > 0 && (
+            <div
+              className="shrink-0 flex items-center gap-1 rounded-md px-2 py-0.5"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.06)" }}
+            >
+              <span className="text-[10px] font-mono" style={{ color: "rgba(255,255,255,0.55)" }}>
+                {formatTime(timeInfo.current)}
+              </span>
+              <span className="text-[10px] text-white/20 font-mono">/</span>
+              <span className="text-[10px] text-white/30 font-mono">
+                {formatTime(timeInfo.total)}
+              </span>
+            </div>
+          )}
+          <div
+            className="shrink-0 rounded-md px-2 py-0.5"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <span className="text-[10px] text-white/30 font-mono">{effectiveSpeed}x</span>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="mx-3 mt-2">
+          <div className="h-1 bg-white/[0.04] rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{
+                width: `${progress * 100}%`,
+                background: "linear-gradient(90deg, #be123c, #e11d48, #f97316)",
+                boxShadow: "0 0 10px rgba(225,29,72,0.7)",
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {gameState === "playing" && (
+        <div className="absolute top-[72px] right-4 z-10 pointer-events-none">
+          <span
+            className="text-[10px] tracking-widest uppercase"
+            style={{ color: "rgba(255,255,255,0.12)" }}
+          >
+            ESC pausar
+          </span>
+        </div>
+      )}
+
+      {gameState === "countdown" && <GameCountdown count={countdown} />}
+      {gameState === "paused" && externalPaused === undefined && <PauseOverlay onResume={resume} onRestart={handleRestart} onQuit={handleBack} />}
+      {gameState === "ended"     && (
+        <GameOverScreen stats={stats} accuracy={accuracy} grade={grade} meta={meta} onRestart={handleRestart} onBack={handleBack} />
+      )}
+    </div>
+  )
+}

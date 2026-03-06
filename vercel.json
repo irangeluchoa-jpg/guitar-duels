@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "app/api/songs/[trackId]/route.ts": {
+      "maxDuration": 10
+    },
+    "app/api/songs/route.ts": {
+      "maxDuration": 10
+    }
+  },
+  "outputDirectory": ".next"
+}

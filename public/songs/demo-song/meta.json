@@ -1,0 +1,12 @@
+{
+  "id": "demo-song",
+  "name": "Guitar Duels Demo",
+  "artist": "Guitar Duels",
+  "album": "Demo",
+  "year": "2026",
+  "genre": "Rock",
+  "charter": "Guitar Duels Team",
+  "difficulty": 3,
+  "songLength": 60000,
+  "previewStart": 0
+}
