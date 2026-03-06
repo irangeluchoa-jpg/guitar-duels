@@ -1,12 +1,5 @@
 // === Song metadata ===
 
-export interface InstrumentTrack {
-  key: string           // ex: "guitar", "rhythm", "vocals"
-  label: string         // ex: "Guitarra", "Baixo", "Vocais"
-  icon: string          // emoji
-  url: string
-}
-
 export interface SongMeta {
   id: string
   name: string
@@ -67,19 +60,10 @@ export interface Song {
   audioUrls: {
     guitar?: string
     rhythm?: string
-    bass?: string
     backing?: string
-    song?: string
-    vocals?: string
-    drums?: string
-    drums_1?: string
-    drums_2?: string
-    drums_3?: string
-    crowd?: string
-    keys?: string
+    song?: string // mixed fallback
     preview?: string
   }
-  availableInstruments?: InstrumentTrack[]
   albumArt?: string
 }
 

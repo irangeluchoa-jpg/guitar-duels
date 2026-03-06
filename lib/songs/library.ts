@@ -1,260 +1,155 @@
 /**
- * library.ts
- * Modos suportados:
- *   1. LOCAL (dev): lê de public/songs/ via fs
- *   2. GitHub Releases (produção): busca músicas do GitHub
+ * library.ts — busca músicas do repositório GitHub (guitar-duels-songs)
+ * Lê o songs-index.json do repo e serve os arquivos via raw.githubusercontent.com
  */
 
 import type { SongListItem, SongMeta, ChartData } from "./types"
-import { isGitHubConfigured, fetchSongsIndex, fetchGitHubSongMeta,
-         fetchGitHubSongChart, githubAssetUrl, getGitHubAudioUrls } from "./github-songs"
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function hasFs(): boolean {
-  try { require("fs"); return true } catch { return false }
+// ─── Config GitHub ────────────────────────────────────────────────────────────
+function getGitHubRepo(): string {
+  return process.env.NEXT_PUBLIC_GITHUB_SONGS_REPO || ""
 }
 
-function getBaseUrl(): string {
-  if (typeof process !== "undefined") {
-    if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL
-    if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
-    if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL
-  }
-  return "http://localhost:3000"
+function getGitHubBranch(): string {
+  return process.env.NEXT_PUBLIC_GITHUB_SONGS_BRANCH || "main"
 }
 
-const AUDIO_EXTS = [".ogg", ".mp3", ".opus", ".wav"]
-const AUDIO_KEYS: Record<string, string[]> = {
-  guitar:  AUDIO_EXTS.map(e => `guitar${e}`),
-  rhythm:  AUDIO_EXTS.map(e => `rhythm${e}`),
-  bass:    AUDIO_EXTS.map(e => `bass${e}`),
-  backing: AUDIO_EXTS.map(e => `backing${e}`),
-  song:    AUDIO_EXTS.flatMap(e => [`song${e}`, `audio${e}`]),
-  vocals:  AUDIO_EXTS.flatMap(e => [`vocals${e}`, `vocal${e}`, `voice${e}`]),
-  drums:   AUDIO_EXTS.flatMap(e => [`drums${e}`, `drum${e}`]),
-  drums_1: AUDIO_EXTS.map(e => `drums_1${e}`),
-  drums_2: AUDIO_EXTS.map(e => `drums_2${e}`),
-  drums_3: AUDIO_EXTS.map(e => `drums_3${e}`),
-  crowd:   AUDIO_EXTS.map(e => `crowd${e}`),
-  keys:    AUDIO_EXTS.flatMap(e => [`keys${e}`, `keyboard${e}`, `piano${e}`]),
-  preview: AUDIO_EXTS.map(e => `preview${e}`),
+function getGitHubToken(): string {
+  return process.env.GITHUB_TOKEN || ""
+}
+
+// URL base para arquivos raw do GitHub
+function rawUrl(filePath: string): string {
+  const repo = getGitHubRepo()
+  const branch = getGitHubBranch()
+  return `https://raw.githubusercontent.com/${repo}/${branch}/${filePath}`
+}
+
+// URL pública para servir para o browser (áudio, imagens)
+export function songFileUrl(songId: string, fileName: string): string {
+  const repo = getGitHubRepo()
+  const branch = getGitHubBranch()
+  return `https://raw.githubusercontent.com/${repo}/${branch}/public/songs/${encodeURIComponent(songId)}/${fileName}`
+}
+
+async function githubFetch(url: string): Promise<Response> {
+  const token = getGitHubToken()
+  const headers: Record<string, string> = {}
+  if (token) headers["Authorization"] = `token ${token}`
+  return fetch(url, { headers, cache: "no-store" })
 }
 
 // ─── getSongList ──────────────────────────────────────────────────────────────
-
 export async function getSongList(): Promise<SongListItem[]> {
-  if (isGitHubConfigured()) return fetchSongsIndex()
-  if (hasFs()) return getSongListFromFs()
+  const repo = getGitHubRepo()
+  if (!repo) {
+    console.error("NEXT_PUBLIC_GITHUB_SONGS_REPO nao configurado")
+    return []
+  }
+
   try {
-    const res = await fetch(`${getBaseUrl()}/songs/songs-index.json`, { cache: "no-store" })
-    if (!res.ok) return []
+    const url = rawUrl("public/songs/songs-index.json")
+    const res = await githubFetch(url)
+
+    if (!res.ok) {
+      console.error(`Erro ao buscar songs-index.json: ${res.status} — ${url}`)
+      return []
+    }
+
     const data = await res.json()
-    return Array.isArray(data) ? data : []
-  } catch { return [] }
+    const songs: SongListItem[] = Array.isArray(data) ? data : []
+
+    // Substitui URLs locais para apontar para o GitHub
+    return songs.map((song) => ({
+      ...song,
+      albumArt: song.albumArt
+        ? songFileUrl(song.id, song.albumArt.replace(/^\/songs\/[^/]+\//, ""))
+        : undefined,
+      previewUrl: song.previewUrl
+        ? songFileUrl(song.id, song.previewUrl.replace(/^\/songs\/[^/]+\//, ""))
+        : undefined,
+    }))
+  } catch (e) {
+    console.error("Erro em getSongList:", e)
+    return []
+  }
 }
 
-async function getSongListFromFs(): Promise<SongListItem[]> {
-  try {
-    const fs   = require("fs")   as typeof import("fs")
-    const path = require("path") as typeof import("path")
-    const { parseSongIni } = await import("./ini-parser")
-    const SONGS_DIR = path.join(process.cwd(), "public", "songs")
-    if (!fs.existsSync(SONGS_DIR)) return []
-
-    const songs: SongListItem[] = []
-    for (const entry of fs.readdirSync(SONGS_DIR, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue
-      const songDir = path.join(SONGS_DIR, entry.name)
-      let meta: SongMeta | null = null
-
-      const metaPath = path.join(songDir, "meta.json")
-      if (fs.existsSync(metaPath)) {
-        try { meta = JSON.parse(fs.readFileSync(metaPath, "utf-8")) } catch {}
-      }
-      if (!meta && fs.existsSync(path.join(songDir, "song.ini"))) {
-        try { meta = parseSongIni(fs.readFileSync(path.join(songDir, "song.ini"), "utf-8"), entry.name) } catch {}
-      }
-      if (!meta && fs.existsSync(path.join(songDir, "song"))) {
-        try {
-          let raw = ""
-          try { raw = fs.readFileSync(path.join(songDir, "song"), "utf-8") }
-          catch { raw = fs.readFileSync(path.join(songDir, "song"), "latin1") }
-          meta = parseSongIni(raw, entry.name)
-        } catch {}
-      }
-      if (!meta) {
-        const hasNotes = ["notes.chart","notes.mid","notes.midi","notes"]
-          .some(f => fs.existsSync(path.join(songDir, f)))
-        if (!hasNotes) continue
-        const parts = entry.name.split(" - ")
-        meta = {
-          id: entry.name, name: parts.length >= 2 ? parts.slice(1).join(" - ").trim() : entry.name,
-          artist: parts.length >= 2 ? parts[0].trim() : "Unknown Artist",
-          album: "", year: "", genre: "", charter: "", difficulty: 3, songLength: 0, previewStart: 0,
-        }
-      }
-      if (!meta) continue
-      if (!meta.id) meta.id = entry.name
-
-      let albumArt: string | undefined
-      for (const n of ["album.jpg","album.jpeg","album.png","album.webp","background.jpg","background.png"]) {
-        if (fs.existsSync(path.join(songDir, n))) { albumArt = `/songs/${entry.name}/${n}`; break }
-      }
-      let previewUrl: string | undefined
-      for (const n of ["preview.ogg","preview.mp3","preview.opus","preview.wav"]) {
-        if (fs.existsSync(path.join(songDir, n))) { previewUrl = `/songs/${entry.name}/${n}`; break }
-      }
-
-      songs.push({
-        id: meta.id, name: meta.name || entry.name,
-        artist: meta.artist || "Unknown Artist",
-        album: meta.album || "", year: meta.year || "",
-        genre: meta.genre || "", difficulty: meta.difficulty ?? 3,
-        albumArt, previewUrl,
-      })
-    }
-    return songs.sort((a, b) => a.name.localeCompare(b.name))
-  } catch { return [] }
-}
-
-// ─── getSongChart ─────────────────────────────────────────────────────────────
-
+// ─── getSongChart ──────────────────────────────────────────────────────────────
 export async function getSongChart(trackId: string): Promise<ChartData | null> {
-  if (isGitHubConfigured()) return fetchGitHubSongChart(trackId)
-  if (hasFs()) return getSongChartFromFs(trackId)
   try {
-    const res = await fetch(`${getBaseUrl()}/songs/${encodeURIComponent(trackId)}/chart.json`, { cache: "no-store" })
-    if (!res.ok) return null
-    return await res.json()
-  } catch { return null }
-}
-
-async function getSongChartFromFs(trackId: string): Promise<ChartData | null> {
-  try {
-    const fs   = require("fs")   as typeof import("fs")
-    const path = require("path") as typeof import("path")
-    const SONGS_DIR = path.join(process.cwd(), "public", "songs")
-    const songDir   = path.join(SONGS_DIR, trackId)
-
-    const chartJsonPath = path.join(songDir, "chart.json")
-    if (fs.existsSync(chartJsonPath)) {
-      try { return JSON.parse(fs.readFileSync(chartJsonPath, "utf-8")) } catch {}
+    // Tenta chart.json primeiro
+    const chartUrl = rawUrl(`public/songs/${encodeURIComponent(trackId)}/chart.json`)
+    const res = await githubFetch(chartUrl)
+    if (res.ok) {
+      return await res.json()
     }
-    const chartPath = path.join(songDir, "notes.chart")
-    if (fs.existsSync(chartPath)) {
+
+    // Tenta notes.chart
+    const notesUrl = rawUrl(`public/songs/${encodeURIComponent(trackId)}/notes.chart`)
+    const notesRes = await githubFetch(notesUrl)
+    if (notesRes.ok) {
+      const raw = await notesRes.text()
       const { parseChart } = await import("./chart-parser")
-      let raw = ""
-      try { raw = fs.readFileSync(chartPath, "utf-8") }
-      catch { raw = fs.readFileSync(chartPath, "latin1") }
       return parseChart(raw)
     }
-    for (const fname of ["notes.mid", "notes.midi", "notes"]) {
-      const midiPath = path.join(songDir, fname)
-      if (fs.existsSync(midiPath)) {
-        const head = fs.readFileSync(midiPath)
-        if (head.slice(0, 4).toString("ascii") !== "MThd") continue
-        const { parseMidi } = await import("./midi-parser")
-        const buf = head.buffer.slice(head.byteOffset, head.byteOffset + head.byteLength)
-        return parseMidi(buf)
-      }
-    }
-  } catch {}
-  return null
+
+    console.error(`Chart nao encontrado para: ${trackId}`)
+    return null
+  } catch (e) {
+    console.error(`Erro em getSongChart(${trackId}):`, e)
+    return null
+  }
 }
 
 // ─── getSongMeta ──────────────────────────────────────────────────────────────
-
 export async function getSongMeta(trackId: string): Promise<SongMeta | null> {
-  if (isGitHubConfigured()) return fetchGitHubSongMeta(trackId)
-  if (hasFs()) return getSongMetaFromFs(trackId)
   try {
-    const res = await fetch(`${getBaseUrl()}/songs/${encodeURIComponent(trackId)}/meta.json`, { cache: "no-store" })
-    if (res.ok) return await res.json()
-  } catch {}
-  const parts = trackId.split(" - ")
-  return {
-    id: trackId, name: parts.length >= 2 ? parts.slice(1).join(" - ").trim() : trackId,
-    artist: parts.length >= 2 ? parts[0].trim() : "Unknown Artist",
-    album: "", year: "", genre: "", charter: "", difficulty: 3, songLength: 0, previewStart: 0,
+    // Tenta meta.json primeiro
+    const metaUrl = rawUrl(`public/songs/${encodeURIComponent(trackId)}/meta.json`)
+    const res = await githubFetch(metaUrl)
+    if (res.ok) {
+      return await res.json()
+    }
+
+    // Tenta song.ini
+    const iniUrl = rawUrl(`public/songs/${encodeURIComponent(trackId)}/song.ini`)
+    const iniRes = await githubFetch(iniUrl)
+    if (iniRes.ok) {
+      const raw = await iniRes.text()
+      const { parseSongIni } = await import("./ini-parser")
+      return parseSongIni(raw, trackId)
+    }
+
+    // Fallback por nome da pasta
+    const parts = trackId.split(" - ")
+    return {
+      id: trackId,
+      name: parts.length >= 2 ? parts.slice(1).join(" - ").trim() : trackId,
+      artist: parts.length >= 2 ? parts[0].trim() : "Unknown Artist",
+      album: "", year: "", genre: "", charter: "", difficulty: 3, songLength: 0, previewStart: 0,
+    }
+  } catch (e) {
+    console.error(`Erro em getSongMeta(${trackId}):`, e)
+    return null
   }
 }
 
-async function getSongMetaFromFs(trackId: string): Promise<SongMeta | null> {
-  try {
-    const fs   = require("fs")   as typeof import("fs")
-    const path = require("path") as typeof import("path")
-    const { parseSongIni } = await import("./ini-parser")
-    const SONGS_DIR = path.join(process.cwd(), "public", "songs")
-    const songDir   = path.join(SONGS_DIR, trackId)
-
-    if (fs.existsSync(path.join(songDir, "meta.json"))) {
-      try { return JSON.parse(fs.readFileSync(path.join(songDir, "meta.json"), "utf-8")) } catch {}
-    }
-    if (fs.existsSync(path.join(songDir, "song.ini"))) {
-      try { return parseSongIni(fs.readFileSync(path.join(songDir, "song.ini"), "utf-8"), trackId) } catch {}
-    }
-    if (fs.existsSync(path.join(songDir, "song"))) {
-      try {
-        let raw = ""
-        try { raw = fs.readFileSync(path.join(songDir, "song"), "utf-8") }
-        catch { raw = fs.readFileSync(path.join(songDir, "song"), "latin1") }
-        return parseSongIni(raw, trackId)
-      } catch {}
-    }
-  } catch {}
-  const parts = trackId.split(" - ")
-  return {
-    id: trackId, name: parts.length >= 2 ? parts.slice(1).join(" - ").trim() : trackId,
-    artist: parts.length >= 2 ? parts[0].trim() : "Unknown Artist",
-    album: "", year: "", genre: "", charter: "", difficulty: 3, songLength: 0, previewStart: 0,
-  }
-}
-
-// ─── getSongAudioUrls / getSongAudioUrlsAsync ─────────────────────────────────
-
+// ─── getSongAudioUrls ──────────────────────────────────────────────────────────
 export function getSongAudioUrls(trackId: string): Record<string, string> {
-  // Modo local: síncrono
-  if (!isGitHubConfigured()) return getAudioUrlsFromFs(trackId)
-  return {}
-}
-
-export async function getSongAudioUrlsAsync(trackId: string): Promise<Record<string, string>> {
-  if (isGitHubConfigured()) return getGitHubAudioUrls(trackId)
-  return getAudioUrlsFromFs(trackId)
-}
-
-function getAudioUrlsFromFs(trackId: string): Record<string, string> {
   const urls: Record<string, string> = {}
-  if (!hasFs()) return urls
-  try {
-    const fs   = require("fs")   as typeof import("fs")
-    const path = require("path") as typeof import("path")
-    const SONGS_DIR = path.join(process.cwd(), "public", "songs")
-    const songDir   = path.join(SONGS_DIR, trackId)
 
-    for (const [key, filenames] of Object.entries(AUDIO_KEYS)) {
-      for (const filename of filenames) {
-        if (fs.existsSync(path.join(songDir, filename))) {
-          urls[key] = `/songs/${trackId}/${filename}`
-          break
-        }
-      }
-    }
+  const audioFiles: Record<string, string[]> = {
+    guitar:  ["guitar.ogg", "guitar.mp3", "guitar.opus", "guitar.wav"],
+    rhythm:  ["rhythm.ogg", "rhythm.mp3", "bass.ogg", "bass.mp3"],
+    backing: ["backing.ogg", "backing.mp3", "backing.opus"],
+    song:    ["song.ogg", "song.mp3", "audio.ogg", "audio.mp3"],
+    preview: ["preview.ogg", "preview.mp3", "preview.opus"],
+  }
 
-    const musicDir = path.join(songDir, "Content", "Music")
-    if (fs.existsSync(musicDir)) {
-      for (const f of fs.readdirSync(musicDir)) {
-        const lower = f.toLowerCase()
-        const validExt = AUDIO_EXTS.some(e => lower.endsWith(e))
-        if (!validExt) continue
-        if (lower.includes("preview"))                                                          { if (!urls.preview) urls.preview = `/songs/${trackId}/Content/Music/${f}` }
-        else if (lower.includes("guitar") || lower.includes("_1."))                            { if (!urls.guitar)  urls.guitar  = `/songs/${trackId}/Content/Music/${f}` }
-        else if (lower.includes("rhythm") || lower.includes("bass") || lower.includes("_2.")) { if (!urls.rhythm)  urls.rhythm  = `/songs/${trackId}/Content/Music/${f}` }
-        else if (lower.includes("backing") || lower.includes("_3."))                           { if (!urls.backing) urls.backing = `/songs/${trackId}/Content/Music/${f}` }
-        else                                                                                    { if (!urls.song)    urls.song    = `/songs/${trackId}/Content/Music/${f}` }
-      }
-    }
-  } catch {}
+  for (const [key, filenames] of Object.entries(audioFiles)) {
+    urls[key] = songFileUrl(trackId, filenames[0])
+  }
+
   return urls
 }

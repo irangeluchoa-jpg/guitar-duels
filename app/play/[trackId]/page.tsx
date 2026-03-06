@@ -3,8 +3,6 @@
 import { useEffect, useState, useRef, useCallback, Suspense } from "react"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { GameCanvas } from "@/components/game/game-canvas"
-import { InstrumentSelect } from "@/components/game/instrument-select"
-import type { InstrumentTrack } from "@/lib/songs/types"
 import type { ChartData, SongMeta } from "@/lib/songs/types"
 import type { GameStats } from "@/lib/game/engine"
 import { playPauseSound, playResumeSound } from "@/lib/game/sounds"
@@ -212,8 +210,6 @@ function PlayInner() {
   const [chart, setChart]     = useState<ChartData | null>(null)
   const [meta, setMeta]       = useState<SongMeta | null>(null)
   const [audioUrls, setAudioUrls] = useState<Record<string, string>>({})
-  const [availableInstruments, setAvailableInstruments] = useState<InstrumentTrack[]>([])
-  const [chosenInstrument, setChosenInstrument] = useState<InstrumentTrack | null>(null)
   const isLeavingRef = useRef(false)   // previne startGame após onBack
   const [error, setError]     = useState<string | null>(null)
 
@@ -231,7 +227,6 @@ function PlayInner() {
         if (!res.ok) throw new Error("Música não encontrada")
         const data = await res.json()
         setMeta(data.meta); setChart(data.chart); setAudioUrls(data.audioUrls || {})
-        setAvailableInstruments(data.availableInstruments || [])
       } catch (err) { setError(err instanceof Error ? err.message : "Erro ao carregar") }
     }
     load()
@@ -323,18 +318,6 @@ function PlayInner() {
     </div>
   )
 
-  // Mostrar seleção de instrumento se há múltiplos e ainda não escolheu
-  if (chart && meta && availableInstruments.length > 1 && !chosenInstrument) {
-    return (
-      <InstrumentSelect
-        meta={meta}
-        instruments={availableInstruments}
-        onSelect={(instr) => setChosenInstrument(instr)}
-        onBack={handleBack}
-      />
-    )
-  }
-
   if (!chart || !meta) return (
     <div className="flex items-center justify-center h-screen" style={{ background: "#060608" }}>
       <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
@@ -353,9 +336,7 @@ function PlayInner() {
       <GameCanvas
         chart={chart}
         meta={meta}
-        audioUrls={chosenInstrument
-          ? { ...audioUrls, guitar: chosenInstrument.url }
-          : audioUrls}
+        audioUrls={audioUrls}
         onBack={handleBack}
         onScoreUpdate={handleScoreUpdate}
         onSongEnd={handleSongEnd}

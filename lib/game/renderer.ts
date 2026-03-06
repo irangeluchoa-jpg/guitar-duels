@@ -215,175 +215,48 @@ function getFretboard(w: number, h: number, starPower: boolean): OffscreenCanvas
 }
 
 // ── Star Power: raios na hit line + bordas laterais da TELA ─────────────────
-
-// ── Linhas de grade animadas com tremida no star power ───────────────────────
-function drawAnimatedGrid(ctx: CanvasRenderingContext2D, w: number, h: number, now: number, starPower: boolean, combo: number) {
-  if (!starPower) return  // Só anima no star power; o fretboard já tem as linhas estáticas
-
-  const vanishY = h * VANISHING_Y_RATIO
-  const hitY    = h * HIT_LINE_Y_RATIO
-  const trackBot = w * TRACK_WIDTH_RATIO
-  const trackTop = w * TRACK_WIDTH_TOP
-  const t = now * 0.001
-  const intensity = Math.min(1, (combo - STAR_POWER_COMBO) / 20)
-
-  function edgeX(frac: number, y: number) {
-    const prog = (hitY - y) / (hitY - vanishY)
-    const tw = trackBot + (trackTop - trackBot) * prog
-    return (w - tw) / 2 + tw * frac
-  }
-
-  ctx.save()
-  // Recorta no fretboard
-  ctx.beginPath()
-  const tLB = (w - trackBot) / 2, tRB = tLB + trackBot
-  const tLT = (w - trackTop) / 2, tRT = tLT + trackTop
-  ctx.moveTo(tLB, hitY); ctx.lineTo(tRB, hitY)
-  ctx.lineTo(tRT, vanishY); ctx.lineTo(tLT, vanishY)
-  ctx.closePath(); ctx.clip()
-
-  // Linhas horizontais com tremida
-  for (let r = 1; r < 9; r++) {
-    const tf = r / 9
-    const baseY = hitY - (hitY - vanishY) * Math.pow(tf, 0.74)
-
-    // Tremida: deslocamento vertical oscilatório, mais forte nas linhas do meio
-    const shakeMag = intensity * (2.5 + Math.sin(tf * Math.PI) * 2.0)
-    const freq1 = 8.5 + r * 1.3   // frequência alta
-    const freq2 = 5.2 + r * 0.7   // frequência baixa (batida diferente)
-    const shakeY = Math.sin(t * freq1 + r * 1.9) * shakeMag
-                 + Math.sin(t * freq2 + r * 0.7) * shakeMag * 0.4
-
-    const y = baseY + shakeY
-    const al = (1 - tf) * (0.55 + Math.abs(Math.sin(t * 3 + r)) * 0.30) * intensity
-
-    // Linha principal brilhante
-    ctx.beginPath()
-    ctx.moveTo(edgeX(0, y), y)
-    ctx.lineTo(edgeX(1, y), y)
-    ctx.strokeStyle = `rgba(0,230,255,${al})`
-    ctx.lineWidth = 1 + Math.abs(Math.sin(t * freq1 + r)) * 0.8
-    ctx.shadowColor = "rgba(0,220,255,0.9)"
-    ctx.shadowBlur = 4 + Math.abs(Math.sin(t * 4 + r)) * 5
-    ctx.stroke()
-    ctx.shadowBlur = 0
-  }
-
-  // Divisores de lane com tremida lateral
-  for (let i = 1; i < LANE_COUNT; i++) {
-    const fracBot = i / LANE_COUNT
-    const fracTop = i / LANE_COUNT
-    const bx = tLB + trackBot * fracBot
-    const tx = tLT + trackTop * fracTop
-
-    // Tremida lateral nas linhas verticais
-    const shakeMag = intensity * 1.8
-    const shakeX = Math.sin(t * 7.3 + i * 2.1) * shakeMag
-                 + Math.sin(t * 4.1 + i * 1.3) * shakeMag * 0.5
-
-    const al = 0.35 + Math.abs(Math.sin(t * 5 + i)) * 0.25 * intensity
-    ctx.beginPath()
-    ctx.moveTo(bx + shakeX, hitY)
-    ctx.lineTo(tx + shakeX * 0.1, vanishY)  // tremida diminui em perspectiva
-    ctx.strokeStyle = `rgba(0,210,255,${al})`
-    ctx.lineWidth = 0.8 + Math.abs(Math.sin(t * 6 + i)) * 0.8
-    ctx.shadowColor = "rgba(0,200,255,0.7)"
-    ctx.shadowBlur = 3 + Math.abs(Math.sin(t * 5 + i)) * 4
-    ctx.stroke()
-    ctx.shadowBlur = 0
-  }
-
-  // Bordas externas com tremida e glow pulsante
-  const borderAl = 0.7 + Math.sin(t * 6) * 0.25 * intensity
-  const borderShake = Math.sin(t * 9.1) * 1.5 * intensity
-  ctx.shadowColor = "rgba(0,220,255,1)"
-  ctx.shadowBlur = 12 + Math.sin(t * 4) * 8 * intensity
-
-  for (const [bx, tx] of [[tLB, tLT], [tRB, tRT]] as [number, number][]) {
-    const side = bx < w / 2 ? 1 : -1
-    ctx.beginPath()
-    ctx.moveTo(bx + borderShake * side, hitY)
-    ctx.lineTo(tx + borderShake * side * 0.1, vanishY)
-    ctx.strokeStyle = `rgba(0,230,255,${borderAl})`
-    ctx.lineWidth = 2 + Math.abs(Math.sin(t * 5)) * 1.5
-    ctx.stroke()
-  }
-  ctx.shadowBlur = 0
-  ctx.restore()
-}
-
 function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: number, now: number, combo: number) {
   if (combo < STAR_POWER_COMBO) return
-  const intensity = Math.min(1, (combo-STAR_POWER_COMBO)/20)
-  // Pulso rápido que anima a intensidade
-  const pulse = 0.75 + Math.abs(Math.sin(now*0.007))*0.25
-  const eff = intensity * pulse
+  const intensity = Math.min(1, (combo-STAR_POWER_COMBO)/25)
   const hitY = h*HIT_LINE_Y_RATIO
   const tBot = w*TRACK_WIDTH_RATIO, tL=(w-tBot)/2, tR=tL+tBot
   const t = now*0.001
   ctx.save()
 
-  // ── Overlay de tela cyano pulsante no fundo ────────────────────────────
-  if (intensity > 0.5) {
-    const screenAlpha = (intensity-0.5)*0.07*pulse
-    ctx.fillStyle=`rgba(0,180,255,${screenAlpha})`
-    ctx.fillRect(0,0,w,h)
-  }
+  // ── Glow cyano na hit line ─────────────────────────────────────────────
+  const hGlow=ctx.createLinearGradient(tL,0,tR,0)
+  hGlow.addColorStop(0,"transparent")
+  hGlow.addColorStop(0.08,`rgba(0,220,255,${0.25*intensity})`)
+  hGlow.addColorStop(0.5,`rgba(0,255,255,${0.65*intensity})`)
+  hGlow.addColorStop(0.92,`rgba(0,220,255,${0.25*intensity})`)
+  hGlow.addColorStop(1,"transparent")
+  ctx.fillStyle=hGlow; ctx.fillRect(tL,hitY-6,tBot,12)
 
-  // ── Glow triplo na hit line ────────────────────────────────────────────
-  for (let layer=0;layer<3;layer++) {
-    const hGlow=ctx.createLinearGradient(tL,0,tR,0)
-    const a = [0.15,0.35,0.55][layer]*eff
-    const sz = [20,10,5][layer]
-    hGlow.addColorStop(0,"transparent")
-    hGlow.addColorStop(0.05,`rgba(0,200,255,${a*0.4})`)
-    hGlow.addColorStop(0.5,`rgba(0,255,255,${a})`)
-    hGlow.addColorStop(0.95,`rgba(0,200,255,${a*0.4})`)
-    hGlow.addColorStop(1,"transparent")
-    ctx.fillStyle=hGlow; ctx.fillRect(tL,hitY-sz,tBot,sz*2)
-  }
-  // Linha central brilhante
   ctx.beginPath(); ctx.moveTo(tL,hitY); ctx.lineTo(tR,hitY)
-  ctx.strokeStyle=`rgba(255,255,255,${0.85*eff})`; ctx.lineWidth=2+eff*2
-  ctx.shadowColor="rgba(0,240,255,1)"; ctx.shadowBlur=20*eff
+  ctx.strokeStyle=`rgba(0,255,255,${0.75*intensity})`; ctx.lineWidth=2.5
+  ctx.shadowColor="rgba(0,220,255,0.95)"; ctx.shadowBlur=16*intensity
   ctx.stroke(); ctx.shadowBlur=0
 
-  // ── Raios nas bordas do fretboard ─────────────────────────────────────
-  const numBolts = 4+Math.floor(eff*8)
+  // ── Raios pequenos nas bordas do fretboard (hit line) ─────────────────
+  const numBolts = 3+Math.floor(intensity*5)
   for (let b=0; b<numBolts; b++) {
-    const side=b%2===0, phase=t*3.2+b*1.4
-    const boltH=60+Math.sin(phase)*30+b*8
+    const side=b%2===0, phase=t*2.8+b*1.7
+    const boltH=50+Math.sin(phase)*20+b*6
     const startX=side?tL-2:tR+2, sDir=side?-1:1
     ctx.beginPath(); let bx=startX, by=hitY; ctx.moveTo(bx,by)
-    const steps=9
-    for (let s=0; s<steps; s++) {
-      const frac=(s+1)/steps
-      bx=startX+sDir*(10+frac*25)*eff+Math.sin(phase+s*3.7)*14*eff
-      by=hitY-frac*boltH+Math.cos(phase*0.7+s*2.1)*9
+    for (let s=0; s<7; s++) {
+      const frac=(s+1)/7
+      bx=startX+sDir*(8+frac*18)*intensity+Math.sin(phase+s*3.7)*10*intensity
+      by=hitY-frac*boltH+Math.cos(phase*0.7+s*2.1)*7
       ctx.lineTo(bx,by)
-      // Galhos em 2 pontos diferentes
-      if ((s===3||s===6)&&Math.sin(phase+b+s)>0.2) {
-        const blen=12+Math.abs(Math.sin(phase+b))*16
-        ctx.moveTo(bx,by)
-        ctx.lineTo(bx+sDir*blen*Math.cos(phase+s),by-blen*0.7)
-        ctx.moveTo(bx,by)
+      if (s===3&&Math.sin(phase+b)>0.3) {
+        ctx.moveTo(bx,by); ctx.lineTo(bx+sDir*7+Math.sin(phase)*5,by-10); ctx.moveTo(bx,by)
       }
     }
-    const bc=side?"0,210,255":"140,80,255"
-    ctx.strokeStyle=`rgba(${bc},${(0.6+Math.abs(Math.sin(phase))*0.4)*eff})`
-    ctx.lineWidth=1+Math.abs(Math.sin(phase))*2.5
-    ctx.shadowColor=`rgba(${bc},1)`; ctx.shadowBlur=14*eff; ctx.stroke(); ctx.shadowBlur=0
-  }
-
-  // ── Partículas flutuantes na hit line (mais densas) ────────────────────
-  for (let p=0; p<12; p++) {
-    const px=tL+(tBot/12)*(p+0.5)+Math.sin(t*1.8+p*0.9)*8
-    const py=hitY+Math.cos(t*2.5+p*1.2)*5-2
-    const pr=(1+Math.abs(Math.sin(t*3.5+p))*3)*eff
-    ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2)
-    const pAlpha=(0.5+Math.abs(Math.sin(t*2.2+p*0.8))*0.5)*eff
-    ctx.fillStyle=`rgba(0,230,255,${pAlpha})`
-    ctx.shadowColor="rgba(0,220,255,1)"; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0
+    const bc=side?"0,200,255":"120,80,255"
+    ctx.strokeStyle=`rgba(${bc},${0.75*intensity})`
+    ctx.lineWidth=0.8+Math.abs(Math.sin(phase))*1.5
+    ctx.shadowColor=`rgba(${bc},0.9)`; ctx.shadowBlur=10*intensity; ctx.stroke(); ctx.shadowBlur=0
   }
 
   // ── Partículas na hit line ─────────────────────────────────────────────
@@ -396,35 +269,32 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
     ctx.shadowColor="rgba(0,220,255,0.9)"; ctx.shadowBlur=8; ctx.fill(); ctx.shadowBlur=0
   }
 
-  // ── RAIOS VERTICAIS NAS BORDAS DA TELA ────────────────────────────────
-  const sideCount = 3+Math.floor(eff*5)
+  // ── RAIOS VERTICAIS NAS BORDAS DA TELA (direita e esquerda) ───────────
+  const sideCount = 2+Math.floor(intensity*3)
   for (let side=0; side<2; side++) {
     const isLeft=side===0, edgeX=isLeft?0:w
     for (let b=0; b<sideCount; b++) {
-      const phase=t*2.0+b*2.1+side*3.7
-      const startY=h+20, endY=h*(0.02+Math.sin(phase*0.4+b)*0.06)
+      const phase=t*1.8+b*2.1+side*3.7
+      const startY=h+20, endY=h*(0.04+Math.sin(phase*0.4+b)*0.08)
       const xDir=isLeft?1:-1
       ctx.beginPath(); let bx=edgeX, by=startY; ctx.moveTo(bx,by)
-      const steps=18
-      for (let s=0; s<steps; s++) {
-        const frac=(s+1)/steps
-        const spread=xDir*(12+frac*40)*eff
-        const noise=Math.sin(phase*1.4+s*2.7)*18*eff
-        const noiseY=Math.cos(phase*0.9+s*1.8)*7
+      for (let s=0; s<14; s++) {
+        const frac=(s+1)/14
+        const spread=xDir*(10+frac*30)*intensity
+        const noise=Math.sin(phase*1.3+s*2.7)*14*intensity
+        const noiseY=Math.cos(phase*0.9+s*1.8)*6
         bx=edgeX+spread+noise; by=startY-frac*(startY-endY)+noiseY
         ctx.lineTo(bx,by)
-        // Mais galhos e maiores
-        if (s%3===1&&Math.sin(phase*2+s)>0.25) {
-          const glen=10+Math.abs(Math.sin(phase+s))*24
+        if (s%4===2&&Math.sin(phase*2+s)>0.4) {
           ctx.moveTo(bx,by)
-          ctx.lineTo(bx+xDir*glen*Math.cos(phase+s*0.5),by+(Math.sin(phase+s)>0?-20:14))
+          ctx.lineTo(bx+xDir*(8+Math.abs(Math.sin(phase+s))*18),by+(Math.sin(phase+s)>0?-16:10))
           ctx.moveTo(bx,by)
         }
       }
-      const bc=(b+side)%2===0?"0,220,255":"120,60,255"
-      ctx.strokeStyle=`rgba(${bc},${(0.6+Math.abs(Math.sin(phase))*0.4)*eff})`
-      ctx.lineWidth=1+Math.abs(Math.sin(phase+b))*2.5
-      ctx.shadowColor=`rgba(${bc},1)`; ctx.shadowBlur=16*eff; ctx.stroke(); ctx.shadowBlur=0
+      const bc=(b+side)%2===0?"0,220,255":"100,60,255"
+      ctx.strokeStyle=`rgba(${bc},${(0.55+Math.abs(Math.sin(phase))*0.35)*intensity})`
+      ctx.lineWidth=0.7+Math.abs(Math.sin(phase+b))*1.8
+      ctx.shadowColor=`rgba(${bc},0.95)`; ctx.shadowBlur=14*intensity; ctx.stroke(); ctx.shadowBlur=0
     }
   }
 
@@ -841,9 +711,6 @@ export function renderFrame(state: RenderState): void {
   // 1 – Fretboard (muda visual conforme star power)
   ctx.drawImage(getFretboard(w,h,starPower),0,0)
 
-  // 1b – Grade animada com tremida (star power)
-  if (starPower) drawAnimatedGrid(ctx,w,h,now,starPower,stats.combo)
-
   // 2 – Beat lines dinâmicas
   const visMs=2200/ns
   ctx.save()
@@ -949,119 +816,58 @@ export function renderFrame(state: RenderState): void {
     ctx.fillText(fx.rating.toUpperCase(),x,ty); ctx.shadowBlur=0; ctx.restore()
   }
 
-  // 9 – HUD: Score — pulsa e escala no star power
+  // 9 – HUD: Score
   {
     const sc=stats.score.toLocaleString()
-    ctx.save()
-    // Pulso: escala entre 1.0 e 1.06 a ~2Hz no star power
-    const pulse = starPower ? 1+Math.abs(Math.sin(now*0.0062))*0.06 : 1
-    const fontSize = Math.round(24*pulse)
-    ctx.font=`bold ${fontSize}px monospace`
-    const sw=ctx.measureText(sc).width, ph=Math.round(40*pulse), ppx=12
-    const ppy=60, ppw=sw+24
-    // Fundo com brilho pulsante
-    ctx.fillStyle=starPower?`rgba(0,20,40,${0.72+Math.sin(now*0.006)*0.15})`:"rgba(0,0,0,0.52)"
+    ctx.save(); ctx.font="bold 24px monospace"
+    const sw=ctx.measureText(sc).width, ph=40, ppx=12, ppy=60, ppw=sw+24
+    ctx.fillStyle="rgba(0,0,0,0.52)"
     ctx.beginPath(); ctx.roundRect(w-ppw-ppx,ppy,ppw,ph,8); ctx.fill()
-    ctx.strokeStyle=starPower?`rgba(0,220,255,${0.5+Math.abs(Math.sin(now*0.006))*0.35})`:"rgba(0,200,80,0.22)"
-    ctx.lineWidth=starPower?1.5:1; ctx.stroke()
-    ctx.shadowColor=starPower?"rgba(0,220,255,0.9)":"rgba(0,200,80,0.50)"
-    ctx.shadowBlur=starPower?20+Math.abs(Math.sin(now*0.006))*16:12
-    ctx.fillStyle=starPower?"#00ffff":"#fff"
-    ctx.textAlign="right"; ctx.textBaseline="middle"
-    ctx.fillText(sc,w-ppx-10,ppy+ph/2)
-    // Partículas de score no star power
-    if (starPower) {
-      for (let p=0;p<4;p++) {
-        const px=w-ppw-ppx+Math.random()*(ppw)
-        const py=ppy+Math.random()*ph
-        const pr=0.5+Math.random()*1.5
-        ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2)
-        ctx.fillStyle=`rgba(0,220,255,${0.3+Math.random()*0.5})`
-        ctx.shadowBlur=4; ctx.fill()
-      }
-    }
-    ctx.shadowBlur=0; ctx.restore()
+    ctx.strokeStyle=starPower?"rgba(0,200,255,0.32)":"rgba(0,200,80,0.22)"; ctx.lineWidth=1; ctx.stroke()
+    ctx.shadowColor=starPower?"rgba(0,200,255,0.60)":"rgba(0,200,80,0.50)"; ctx.shadowBlur=12
+    ctx.fillStyle="#fff"; ctx.textAlign="right"; ctx.textBaseline="middle"
+    ctx.fillText(sc,w-ppx-10,ppy+ph/2); ctx.shadowBlur=0; ctx.restore()
   }
 
   if (stats.multiplier>1) {
     ctx.save()
-    const mt=`×${stats.multiplier}`
-    const mScale = starPower ? 1+Math.abs(Math.sin(now*0.008))*0.12 : 1
-    const mFontSize = Math.round(10*mScale)
-    ctx.font=`bold ${mFontSize}px monospace`
-    const mw=ctx.measureText(mt).width+14, mx=w-mw-14, my=60+40+3, mh=Math.round(19*mScale)
-    // Flash do badge no star power
-    const flashAlpha = starPower ? 0.25+Math.abs(Math.sin(now*0.008))*0.35 : 0.18
-    ctx.fillStyle=starPower?`rgba(0,200,255,${flashAlpha})`:"rgba(0,180,80,0.18)"
-    ctx.beginPath(); ctx.roundRect(mx,my,mw,mh,5); ctx.fill()
-    ctx.strokeStyle=starPower?`rgba(0,220,255,${0.5+Math.abs(Math.sin(now*0.008))*0.4})`:"rgba(0,200,80,0.38)"
-    ctx.lineWidth=starPower?2:1; ctx.stroke()
-    ctx.fillStyle=starPower?"#00ffff":"#00cc55"
-    ctx.shadowColor=ctx.fillStyle
-    ctx.shadowBlur=starPower?12+Math.abs(Math.sin(now*0.008))*10:6
-    ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(mt,mx+mw/2,my+mh/2)
+    const mt=`×${stats.multiplier}`; ctx.font="bold 10px monospace"
+    const mw=ctx.measureText(mt).width+12, mx=w-mw-14, my=60+40+3
+    ctx.fillStyle=starPower?"rgba(0,200,255,0.18)":"rgba(0,180,80,0.18)"
+    ctx.beginPath(); ctx.roundRect(mx,my,mw,19,5); ctx.fill()
+    ctx.strokeStyle=starPower?"rgba(0,200,255,0.42)":"rgba(0,200,80,0.38)"; ctx.lineWidth=1; ctx.stroke()
+    ctx.fillStyle=starPower?"#00ccff":"#00cc55"; ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=6
+    ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(mt,mx+mw/2,my+9.5)
     ctx.shadowBlur=0; ctx.restore()
   }
 
   if (stats.combo>1) {
     ctx.save()
     const cc=starPower?"#00ffff":stats.combo>=40?"#f97316":stats.combo>=20?"#fbbf24":stats.combo>=10?"#c084fc":"rgba(255,255,255,0.85)"
-    // Escala pulsante no star power
-    const cPulse = starPower ? 1+Math.abs(Math.sin(now*0.009))*0.10 : 1
-    const cs=Math.min(52,18+stats.combo*0.48)*cPulse
-    const cy=h*0.082
-    // Vibração horizontal no star power (shake)
-    const shakeX = starPower ? Math.sin(now*0.04)*3*Math.min(1,(stats.combo-STAR_POWER_COMBO)/20) : 0
-    const shakeY = starPower ? Math.cos(now*0.031)*2 : 0
-    ctx.shadowColor=cc
-    ctx.shadowBlur=starPower?40+Math.abs(Math.sin(now*0.009))*20:stats.combo>=20?30:14
-    ctx.fillStyle=cc; ctx.font=`900 ${Math.round(cs)}px monospace`
+    const cs=Math.min(52,18+stats.combo*0.48), cy=h*0.082
+    ctx.shadowColor=cc; ctx.shadowBlur=stats.combo>=20?30:14
+    ctx.fillStyle=cc; ctx.font=`900 ${cs}px monospace`
     ctx.textAlign="center"; ctx.textBaseline="middle"
-    ctx.fillText(`${stats.combo}`,w/2+shakeX,cy+shakeY)
-    ctx.shadowBlur=0
-    // Partículas elétricas ao redor do número de combo
-    if (starPower) {
-      const orbCount=6
-      for (let o=0;o<orbCount;o++) {
-        const angle=(o/orbCount)*Math.PI*2+now*0.003
-        const dist=cs*0.72+Math.sin(now*0.007+o)*8
-        const ox=w/2+Math.cos(angle)*dist+shakeX
-        const oy=cy+Math.sin(angle)*dist*0.4+shakeY
-        ctx.beginPath(); ctx.arc(ox,oy,1.5+Math.abs(Math.sin(now*0.01+o))*2,0,Math.PI*2)
-        ctx.fillStyle=`rgba(0,240,255,${0.6+Math.abs(Math.sin(now*0.012+o))*0.4})`
-        ctx.shadowColor="rgba(0,220,255,0.9)"; ctx.shadowBlur=8; ctx.fill()
-      }
-      ctx.shadowBlur=0
-    }
-    // Label COMBO
-    ctx.fillStyle=cc+"78"; ctx.font="bold 9px monospace"; ctx.shadowBlur=0
-    ctx.fillText("COMBO",w/2+shakeX,cy+cs*0.76+shakeY); ctx.restore()
+    ctx.fillText(`${stats.combo}`,w/2,cy); ctx.shadowBlur=0
+    const label=starPower?"⚡ STAR POWER! ⚡":"COMBO"
+    ctx.fillStyle=cc+"78"; ctx.font=starPower?"bold 11px monospace":"bold 9px monospace"
+    if (starPower){ctx.shadowColor=cc;ctx.shadowBlur=10}
+    ctx.fillText(label,w/2,cy+cs*0.76); ctx.shadowBlur=0; ctx.restore()
   }
 
   {
     const mx=14,my=h-28,mw=152,mh=10
     const fill=stats.rockMeter/100
-    const mColor=starPower?"#00ffff":stats.rockMeter>60?"#22c55e":stats.rockMeter>30?"#fbbf24":"#ef4444"
+    const mColor=stats.rockMeter>60?"#22c55e":stats.rockMeter>30?"#fbbf24":"#ef4444"
     ctx.save()
-    // Label ROCK pulsa no star power
-    const labelAlpha = starPower ? 0.5+Math.abs(Math.sin(now*0.006))*0.5 : 0.20
-    ctx.fillStyle=`rgba(255,255,255,${labelAlpha})`; ctx.font="bold 8px monospace"
-    if (starPower){ctx.shadowColor="rgba(0,220,255,0.8)";ctx.shadowBlur=8}
+    ctx.fillStyle="rgba(255,255,255,0.20)"; ctx.font="bold 8px monospace"
     ctx.textAlign="left"; ctx.textBaseline="bottom"; ctx.fillText("ROCK",mx,my-2)
-    ctx.shadowBlur=0
-    ctx.fillStyle="rgba(0,0,0,0.52)"
-    ctx.strokeStyle=starPower?`rgba(0,220,255,${0.2+Math.abs(Math.sin(now*0.006))*0.3})`:"rgba(255,255,255,0.05)"
-    ctx.lineWidth=starPower?1.5:1
-    ctx.beginPath(); ctx.roundRect(mx,my,mw,mh,5); ctx.fill(); ctx.stroke()
+    ctx.fillStyle="rgba(0,0,0,0.52)"; ctx.strokeStyle="rgba(255,255,255,0.05)"
+    ctx.lineWidth=1; ctx.beginPath(); ctx.roundRect(mx,my,mw,mh,5); ctx.fill(); ctx.stroke()
     if (fill>0) {
       const fg=ctx.createLinearGradient(mx,0,mx+mw*fill,0)
-      if (starPower) {
-        fg.addColorStop(0,"rgba(0,180,255,0.7)"); fg.addColorStop(1,"#00ffff")
-      } else {
-        fg.addColorStop(0,mColor+"70"); fg.addColorStop(1,mColor)
-      }
-      ctx.shadowColor=mColor
-      ctx.shadowBlur=starPower?10+Math.abs(Math.sin(now*0.006))*8:6
+      fg.addColorStop(0,mColor+"70"); fg.addColorStop(1,mColor)
+      ctx.shadowColor=mColor; ctx.shadowBlur=6
       ctx.fillStyle=fg; ctx.beginPath(); ctx.roundRect(mx,my,mw*fill,mh,5); ctx.fill()
     }
     ctx.restore()
@@ -1082,3 +888,7 @@ export function renderFrame(state: RenderState): void {
   }
 }
 
+function shade(hex: string, amt: number): string {
+  const n=parseInt(hex.replace("#",""),16)
+  return `rgb(${Math.max(0,Math.min(255,(n>>16)+amt))},${Math.max(0,Math.min(255,((n>>8)&0xff)+amt))},${Math.max(0,Math.min(255,(n&0xff)+amt))})`
+}

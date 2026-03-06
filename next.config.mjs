@@ -6,14 +6,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "github.com",
-      },
-      {
-        protocol: "https",
-        hostname: "objects.githubusercontent.com",
-      },
+      { protocol: "https", hostname: "raw.githubusercontent.com" },
+      { protocol: "https", hostname: "objects.githubusercontent.com" },
     ],
   },
   outputFileTracingExcludes: {
@@ -26,6 +20,9 @@ const nextConfig = {
       "./public/songs/**/*.midi",
       "./public/songs/**/Content/**",
     ],
+  },
+  experimental: {
+    serverComponentsExternalPackages: [],
   },
 }
 
