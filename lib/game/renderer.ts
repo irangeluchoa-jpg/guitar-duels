@@ -822,7 +822,7 @@ export function renderFrame(state: RenderState): void {
     ctx.save(); ctx.font="bold 24px monospace"
     const sw=ctx.measureText(sc).width, ph=40, ppx=12, ppy=60, ppw=sw+24
     ctx.fillStyle="rgba(0,0,0,0.52)"
-    ctx.beginPath(); ctx.roundRect(w-ppw-ppx,ppy,ppw,ph,8); ctx.fill()
+    ctx.beginPath(); (ctx as any).roundRect(w-ppw-ppx,ppy,ppw,ph,8); ctx.fill()
     ctx.strokeStyle=starPower?"rgba(0,200,255,0.32)":"rgba(0,200,80,0.22)"; ctx.lineWidth=1; ctx.stroke()
     ctx.shadowColor=starPower?"rgba(0,200,255,0.60)":"rgba(0,200,80,0.50)"; ctx.shadowBlur=12
     ctx.fillStyle="#fff"; ctx.textAlign="right"; ctx.textBaseline="middle"
@@ -834,7 +834,7 @@ export function renderFrame(state: RenderState): void {
     const mt=`×${stats.multiplier}`; ctx.font="bold 10px monospace"
     const mw=ctx.measureText(mt).width+12, mx=w-mw-14, my=60+40+3
     ctx.fillStyle=starPower?"rgba(0,200,255,0.18)":"rgba(0,180,80,0.18)"
-    ctx.beginPath(); ctx.roundRect(mx,my,mw,19,5); ctx.fill()
+    ctx.beginPath(); (ctx as any).roundRect(mx,my,mw,19,5); ctx.fill()
     ctx.strokeStyle=starPower?"rgba(0,200,255,0.42)":"rgba(0,200,80,0.38)"; ctx.lineWidth=1; ctx.stroke()
     ctx.fillStyle=starPower?"#00ccff":"#00cc55"; ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=6
     ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(mt,mx+mw/2,my+9.5)
@@ -863,12 +863,12 @@ export function renderFrame(state: RenderState): void {
     ctx.fillStyle="rgba(255,255,255,0.20)"; ctx.font="bold 8px monospace"
     ctx.textAlign="left"; ctx.textBaseline="bottom"; ctx.fillText("ROCK",mx,my-2)
     ctx.fillStyle="rgba(0,0,0,0.52)"; ctx.strokeStyle="rgba(255,255,255,0.05)"
-    ctx.lineWidth=1; ctx.beginPath(); ctx.roundRect(mx,my,mw,mh,5); ctx.fill(); ctx.stroke()
+    ctx.lineWidth=1; ctx.beginPath(); (ctx as any).roundRect(mx,my,mw,mh,5); ctx.fill(); ctx.stroke()
     if (fill>0) {
       const fg=ctx.createLinearGradient(mx,0,mx+mw*fill,0)
       fg.addColorStop(0,mColor+"70"); fg.addColorStop(1,mColor)
       ctx.shadowColor=mColor; ctx.shadowBlur=6
-      ctx.fillStyle=fg; ctx.beginPath(); ctx.roundRect(mx,my,mw*fill,mh,5); ctx.fill()
+      ctx.fillStyle=fg; ctx.beginPath(); (ctx as any).roundRect(mx,my,mw*fill,mh,5); ctx.fill()
     }
     ctx.restore()
   }
@@ -879,7 +879,7 @@ export function renderFrame(state: RenderState): void {
     // Fundo semi-transparente
     ctx.save()
     ctx.fillStyle = "rgba(0,0,0,0.38)"
-    ctx.beginPath(); ctx.roundRect(gx-4, gy-4, gSize+10, gSize+26, 6); ctx.fill()
+    ctx.beginPath(); (ctx as any).roundRect(gx-4, gy-4, gSize+10, gSize+26, 6); ctx.fill()
     ctx.strokeStyle = starPower ? "rgba(0,200,255,0.28)" : "rgba(255,255,255,0.08)"
     ctx.lineWidth = 1; ctx.stroke()
     ctx.restore()
