@@ -235,8 +235,23 @@ function PlayInner() {
         const data = await res.json()
         setMeta(data.meta); setChart(data.chart); setAudioUrls(data.audioUrls || {})
         setAlbumArt(data.albumArt || null)
-        setAvailableInstruments(data.availableInstruments || [])
+        const instruments = data.availableInstruments || []
+        setAvailableInstruments(instruments)
         setBackgroundUrl(data.backgroundUrl || null)
+        // Se só tem 1 instrumento (ou nenhum), escolhe automaticamente e marca ready
+        if (instruments.length <= 1) {
+          const autoInstr = instruments[0] ?? { key: "guitar", label: "Guitarra", icon: "🎸", url: data.audioUrls?.guitar || "" }
+          setChosenInstrument(autoInstr)
+          const pid = playerIdParam || (typeof window !== "undefined" ? sessionStorage.getItem("playerId") : null)
+          const rc  = new URLSearchParams(window.location.search).get("room")
+          if (rc && pid) {
+            setWaitingForPlayers(true)
+            fetch(`/api/rooms/${rc}`, {
+              method: "PATCH", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "instrument", playerId: pid, instrument: autoInstr.key }),
+            }).catch(() => {})
+          }
+        }
       } catch (err) { setError(err instanceof Error ? err.message : "Erro ao carregar") }
     }
     load()
@@ -271,6 +286,10 @@ function PlayInner() {
         if (room.players && room.players.length > 0) {
           const allReady = room.players.every((p: {ready: boolean}) => p.ready)
           if (allReady) setWaitingForPlayers(false)
+        }
+        // Se só tem 1 jogador (solo em sala), liberar imediatamente
+        if (room.players && room.players.length === 1) {
+          setWaitingForPlayers(false)
         }
       } catch {}
     }, 1000)
@@ -361,6 +380,10 @@ function PlayInner() {
           setChosenInstrument(instr)
           if (roomCode && playerId) {
             setWaitingForPlayers(true)
+            // Marcar localmente como pronto imediatamente
+            setRoomPlayersReady(prev => prev.map(p =>
+              p.id === playerId ? { ...p, ready: true, instrument: instr.key } : p
+            ))
             try {
               await fetch(`/api/rooms/${roomCode}`, {
                 method: "PATCH", headers: { "Content-Type": "application/json" },
