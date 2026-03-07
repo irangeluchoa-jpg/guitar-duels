@@ -1,0 +1,168 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #0a0a0a;
+  --foreground: #f0f0f0;
+  --card: #111111;
+  --card-foreground: #f0f0f0;
+  --popover: #111111;
+  --popover-foreground: #f0f0f0;
+  --primary: #e11d48;
+  --primary-foreground: #ffffff;
+  --secondary: #1a1a2e;
+  --secondary-foreground: #f0f0f0;
+  --muted: #1a1a1a;
+  --muted-foreground: #888888;
+  --accent: #ff6b00;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #2a2a2a;
+  --input: #1a1a1a;
+  --ring: #e11d48;
+  --chart-1: #22c55e;
+  --chart-2: #ef4444;
+  --chart-3: #eab308;
+  --chart-4: #3b82f6;
+  --chart-5: #f97316;
+  --radius: 0.5rem;
+
+  /* Game lane colors */
+  --lane-0: #22c55e;
+  --lane-1: #ef4444;
+  --lane-2: #eab308;
+  --lane-3: #3b82f6;
+  --lane-4: #f97316;
+  --lane-5: #a855f7;
+}
+
+@theme inline {
+  --font-sans: 'Geist', 'Geist Fallback';
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-display: 'Permanent Marker', cursive;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-lane-0: var(--lane-0);
+  --color-lane-1: var(--lane-1);
+  --color-lane-2: var(--lane-2);
+  --color-lane-3: var(--lane-3);
+  --color-lane-4: var(--lane-4);
+  --color-lane-5: var(--lane-5);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Game-specific animations */
+@keyframes flame-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.4); }
+}
+
+@keyframes note-hit {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.8); opacity: 0.6; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+@keyframes streak-glow {
+  0%, 100% { box-shadow: 0 0 10px var(--primary); }
+  50% { box-shadow: 0 0 30px var(--primary), 0 0 60px var(--accent); }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-flame-pulse {
+  animation: flame-pulse 0.5s ease-in-out infinite;
+}
+
+.animate-streak-glow {
+  animation: streak-glow 1s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+/* v7 — Enhanced game animations */
+@keyframes shockwave-ring {
+  0%   { transform: scale(0.5); opacity: 0.9; }
+  100% { transform: scale(15);  opacity: 0; }
+}
+
+@keyframes float-particle {
+  0%   { transform: translateY(0) scale(1); opacity: 0.8; }
+  100% { transform: translateY(-60px) scale(0.2); opacity: 0; }
+}
+
+@keyframes grade-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes score-count {
+  from { transform: scale(1.1); color: #fbbf24; }
+  to   { transform: scale(1);   color: #ffffff; }
+}
+
+@keyframes combo-pop {
+  0%   { transform: scale(1.4); }
+  60%  { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+@keyframes menu-enter {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: rgba(225,29,72,0.4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(225,29,72,0.7); }
+
+/* Smooth focus rings */
+button:focus-visible {
+  outline: 2px solid rgba(225,29,72,0.7);
+  outline-offset: 2px;
+}
