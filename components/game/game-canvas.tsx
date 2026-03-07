@@ -204,17 +204,19 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
   useEffect(() => { applyVolumes() }, [applyVolumes])
 
   const [progress, setProgress] = useState(0)
-  const [timeInfo, setTimeInfo] = useState({ current: 0, total: 0 })
+  const [timeInfo, setTimeInfo] = useState(() => ({ current: 0, total: meta.songLength ? meta.songLength / 1000 : 0 }))
   useEffect(() => {
     if (gameState !== "playing" && gameState !== "paused") return
     const interval = setInterval(() => {
       const audio = primaryAudioRef.current
-      if (audio && audio.duration) {
-        setProgress(audio.currentTime / audio.duration)
-        setTimeInfo({ current: audio.currentTime, total: audio.duration })
-      } else if (meta.songLength) {
-        // fallback: use meta songLength if no audio
-        setTimeInfo(t => ({ ...t, total: meta.songLength / 1000 }))
+      const totalFromMeta = meta.songLength ? meta.songLength / 1000 : 0
+      if (audio) {
+        const dur = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : totalFromMeta
+        const cur = audio.currentTime || 0
+        setProgress(dur > 0 ? cur / dur : 0)
+        setTimeInfo({ current: cur, total: dur })
+      } else if (totalFromMeta > 0) {
+        setTimeInfo(t => ({ ...t, total: totalFromMeta }))
       }
     }, 250)
     return () => clearInterval(interval)
@@ -284,64 +286,53 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
 
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" style={{ zIndex: 1 }} />
 
-      {/* Top bar — glassmorphism */}
+      {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
-        <div
-          className="flex items-center gap-4 px-4 py-3 mx-3 mt-3 rounded-xl"
-          style={{
-            background: "rgba(0,0,0,0.45)",
-            backdropFilter: "blur(10px)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
-          }}
-        >
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-white/35 uppercase tracking-[0.25em] truncate">{meta.artist}</p>
-            {gpConnected && (
-              <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold mt-0.5 inline-block"
-                style={{ background: "rgba(99,102,241,0.25)", border: "1px solid rgba(99,102,241,0.5)", color: "#a5b4fc" }}>
-                🎮 Controle
-              </span>
-            )}
-            <h2 className="text-sm font-bold text-white truncate" style={{ lineHeight: 1.3 }}>{meta.name}</h2>
-          </div>
-          {!hasAudio && (
-            <span className="text-[10px] text-yellow-500/60 bg-yellow-500/10 px-2 py-1 rounded-lg shrink-0">Sem áudio</span>
-          )}
-          {/* Tempo atual / total */}
-          {timeInfo.total > 0 && (
-            <div
-              className="shrink-0 flex items-center gap-1 rounded-md px-2 py-0.5"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.06)" }}
-            >
-              <span className="text-[10px] font-mono" style={{ color: "rgba(255,255,255,0.55)" }}>
-                {formatTime(timeInfo.current)}
-              </span>
-              <span className="text-[10px] text-white/20 font-mono">/</span>
-              <span className="text-[10px] text-white/30 font-mono">
-                {formatTime(timeInfo.total)}
-              </span>
-            </div>
-          )}
-          <div
-            className="shrink-0 rounded-md px-2 py-0.5"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.06)" }}
-          >
-            <span className="text-[10px] text-white/30 font-mono">{effectiveSpeed}x</span>
-          </div>
-        </div>
+        <div className="mx-3 mt-3 rounded-2xl overflow-hidden"
+          style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 4px 24px rgba(0,0,0,0.5)" }}>
 
-        {/* Progress bar */}
-        <div className="mx-3 mt-2">
-          <div className="h-1 bg-white/[0.04] rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-300"
+          {/* Conteúdo principal */}
+          <div className="flex items-center gap-3 px-4 py-2.5">
+            {/* Info da música */}
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.3em] truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
+                {meta.artist}{gpConnected && <span className="ml-2 text-indigo-400">🎮</span>}
+              </p>
+              <h2 className="text-sm font-black text-white truncate leading-tight">{meta.name}</h2>
+            </div>
+
+            {/* Timer central */}
+            <div className="flex flex-col items-center gap-0.5 shrink-0">
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-black font-mono text-white leading-none">
+                  {formatTime(timeInfo.current)}
+                </span>
+                <span className="text-xs text-white/25 font-mono">/</span>
+                <span className="text-sm font-bold font-mono" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  {timeInfo.total > 0 ? formatTime(timeInfo.total) : "--:--"}
+                </span>
+              </div>
+            </div>
+
+            {/* Velocidade */}
+            <div className="shrink-0 flex items-center gap-2">
+              {!hasAudio && (
+                <span className="text-[9px] text-yellow-500/60 bg-yellow-500/10 px-2 py-0.5 rounded-full">sem áudio</span>
+              )}
+              <div className="px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                <span className="text-xs font-black text-white/50">{effectiveSpeed}x</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Progress bar integrada */}
+          <div className="h-1 w-full" style={{ background: "rgba(255,255,255,0.04)" }}>
+            <div className="h-full transition-all duration-300"
               style={{
                 width: `${progress * 100}%`,
-                background: "linear-gradient(90deg, #be123c, #e11d48, #f97316)",
-                boxShadow: "0 0 10px rgba(225,29,72,0.7)",
-              }}
-            />
+                background: "linear-gradient(90deg,#be123c,#e11d48,#f97316)",
+                boxShadow: "0 0 8px rgba(225,29,72,0.8)",
+              }} />
           </div>
         </div>
       </div>

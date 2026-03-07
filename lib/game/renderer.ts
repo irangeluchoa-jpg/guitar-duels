@@ -18,43 +18,32 @@ const STAR_POWER_COMBO  = 30
 // ── Cores do tema — extraídas do guitar.ini fornecido ───────────────────────
 // [guitar] note_green/red/yellow/blue/orange
 const NOTE_COLORS = [
-  "#FF0000",  // Green  — note_green
-  "#FF7800",  // Red    — note_red
-  "#FFFF00",  // Yellow — note_yellow
-  "#0089FF",  // Blue   — note_blue
-  "#5AFF00",  // Orange — note_orange
+  "#FF0000",  // Green
+  "#FF7800",  // Red
+  "#FFFF00",  // Yellow
+  "#0089FF",  // Blue
+  "#5AFF00",  // Orange
+  "#CC44FF",  // Purple (lane 6)
 ]
 // [guitar] note_anim_green/red/yellow/blue/orange (glow das notas)
 const NOTE_ANIM_COLORS = [
-  "#FF0000",  // Green  — note_anim_green
-  "#FFC28B",  // Red    — note_anim_red
-  "#FFFF57",  // Yellow — note_anim_yellow
-  "#77D1FF",  // Blue   — note_anim_blue
-  "#74FF28",  // Orange — note_anim_orange
+  "#FF0000",  "#FFC28B",  "#FFFF57",  "#77D1FF",  "#74FF28",
+  "#E080FF",  // Purple anim
 ]
 // [guitar] striker_cover (aro externo do hit target)
 const STRIKER_COVER = [
-  "#B40000",  // Green  — striker_cover_green
-  "#B45500",  // Red    — striker_cover_red
-  "#B4B200",  // Yellow — striker_cover_yellow
-  "#0061B4",  // Blue   — striker_cover_blue
-  "#40B400",  // Orange — striker_cover_orange
+  "#B40000",  "#B45500",  "#B4B200",  "#0061B4",  "#40B400",
+  "#8800CC",  // Purple
 ]
 // [guitar] striker_head_cover (head cover interno)
 const STRIKER_HEAD_COVER = [
-  "#B40000",  // Green  — striker_head_cover_green
-  "#B45500",  // Red    — striker_head_cover_red
-  "#B4B200",  // Yellow — striker_head_cover_yellow
-  "#0061B4",  // Blue   — striker_head_cover_blue
-  "#40B400",  // Orange — striker_head_cover_orange
+  "#B40000",  "#B45500",  "#B4B200",  "#0061B4",  "#40B400",
+  "#8800CC",
 ]
 // [guitar] striker_head_light (luz interna do hit target pressionado)
 const STRIKER_HEAD_LIGHT = [
-  "#FF0000",  // Green  — striker_head_light_green
-  "#FF7800",  // Red    — striker_head_light_red
-  "#FFFF00",  // Yellow — striker_head_light_yellow
-  "#0089FF",  // Blue   — striker_head_light_blue
-  "#5AFF00",  // Orange — striker_head_light_orange
+  "#FF0000",  "#FF7800",  "#FFFF00",  "#0089FF",  "#5AFF00",
+  "#CC44FF",
 ]
 // [other] striker_hit_flame / striker_hit_particles
 const HIT_FLAME_COLOR    = "#EE63F7"  // striker_hit_flame
@@ -66,14 +55,11 @@ const SP_NOTE_COLOR      = "#EF6DF7"  // note_sp_active
 const SP_SUSTAIN_COLOR   = "#EF6DF7"  // sustain_sp_active
 // [guitar] sustain colors
 const SUSTAIN_COLORS = [
-  "#FF0000",  // Green  — sustain_green
-  "#FF7800",  // Red    — sustain_red
-  "#FFFF00",  // Yellow — sustain_yellow
-  "#00C5FF",  // Blue   — sustain_blue
-  "#80FF3B",  // Orange — sustain_orange
+  "#FF0000",  "#FF7800",  "#FFFF00",  "#00C5FF",  "#80FF3B",
+  "#CC44FF",  // Purple
 ]
 // [other] combo glow
-const COMBO_GLOW = ["#FFDD00","#D55800","#00FF00","#4E7F9E","#B2E1FF"]
+const COMBO_GLOW = ["#FFDD00","#D55800","#00FF00","#4E7F9E","#B2E1FF","#CC44FF"]
 
 // ── Cache ──────────────────────────────────────────────────────────────────
 // Cache: [diffKey][starPower] -> OffscreenCanvas

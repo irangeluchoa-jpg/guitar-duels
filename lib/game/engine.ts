@@ -1,15 +1,21 @@
 import type { ChartData as Chart, ChartNote } from "@/lib/songs/types"
 
-// ── 5 lanes: S D F J K ───────────────────────────────────────────────────────
+// ── Lanes por modo ───────────────────────────────────────────────────────────
 export const LANE_COUNT = 5
-export const LANE_COLORS = ["#22c55e", "#ef4444", "#eab308", "#3b82f6", "#f97316"]
+export const LANE_COLORS = ["#22c55e", "#ef4444", "#eab308", "#3b82f6", "#f97316", "#a855f7"]
 export const LANE_KEYS   = ["a", "s", "d", "j", "k"]
-export const ALL_LANE_KEYS = ["a", "s", "d", "j", "k"]
-export const LANE_LABELS = ["A", "S", "D", "J", "K"]
+export const ALL_LANE_KEYS = ["a", "s", "d", "j", "k", "l"]
+export const LANE_LABELS = ["A", "S", "D", "J", "K", "L"]
 
-// Keep left/right aliases for any code that still references them
 export const LANE_KEYS_LEFT  = ["a", "s", "d"]
-export const LANE_KEYS_RIGHT = ["j", "k"]
+export const LANE_KEYS_RIGHT = ["j", "k", "l"]
+
+// Teclas por número de lanes: 4=ASDJ, 5=ASDJK, 6=ASDJKL
+export function getKeysForLaneCount(lc: number): string[] {
+  if (lc === 4) return ["a","s","d","j"]
+  if (lc === 6) return ["a","s","d","j","k","l"]
+  return ["a","s","d","j","k"]  // 5 (padrão)
+}
 
 // Timing windows — mais generosos para jogar ser divertido
 export const TIMING_PERFECT = 60
@@ -99,8 +105,9 @@ export function applyHit(stats: GameStats, rating: HitRating): GameStats {
 export function prepareNotes(chart: Chart, laneCount = 5): ActiveNote[] {
   return chart.notes.map((note, i) => {
     let lane = note.lane
-    // Modo 4 lanes: remapear lane 4 (laranja) → lane 3 (azul)
-    if (laneCount === 4 && lane >= 4) lane = 3
+    if (laneCount === 4 && lane >= 4) lane = 3        // laranja→azul
+    else if (laneCount === 5 && lane >= 5) lane = 4   // clamp
+    // 6 lanes: lane 5 = roxo, usa tecla L
     return { ...note, lane, id: i, hit: false, missed: false }
   })
 }

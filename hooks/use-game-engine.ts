@@ -51,14 +51,14 @@ export function useGameEngine({
 
   // Carrega volume de SFX das configurações
   const sfxVolRef = useRef(1)
-  const keyBindingsRef    = useRef<string[]>([...DEFAULT_KEY_BINDINGS])
+  const keyBindingsRef    = useRef<string[]>(getKeysForLaneCount(laneCount))
   const keyboardEnabledRef = useRef<boolean>(true)
   const gamepadEnabledRef  = useRef<boolean>(true)
 
   useEffect(() => {
     const s = loadSettings()
     sfxVolRef.current       = (s.masterVolume / 100) * (s.sfxVolume / 100)
-    keyBindingsRef.current  = s.keyBindings ?? [...DEFAULT_KEY_BINDINGS]
+    keyBindingsRef.current  = getKeysForLaneCount(laneCount)
     keyboardEnabledRef.current = s.keyboardEnabled ?? true
     gamepadEnabledRef.current  = s.gamepadEnabled  ?? true
   }, [])
@@ -67,7 +67,7 @@ export function useGameEngine({
   useEffect(() => {
     const onStorage = () => {
       const s = loadSettings()
-      keyBindingsRef.current     = s.keyBindings ?? [...DEFAULT_KEY_BINDINGS]
+      keyBindingsRef.current     = getKeysForLaneCount(laneCount)
       keyboardEnabledRef.current = s.keyboardEnabled ?? true
       gamepadEnabledRef.current  = s.gamepadEnabled  ?? true
     }

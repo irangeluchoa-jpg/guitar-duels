@@ -84,7 +84,7 @@ export function SongSelect() {
   const [loading, setLoading]         = useState(true)
   const [isPlaying, setIsPlaying]     = useState(false)
   const [previewAudio]                = useState(() => typeof Audio !== "undefined" ? new Audio() : null)
-  const [laneCount, setLaneCount]      = useState<4|5>(5)
+  const [laneCount, setLaneCount]      = useState<4|5|6>(5)
   const prevTimeout                   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const listRef                       = useRef<HTMLDivElement>(null)
 
@@ -121,7 +121,7 @@ export function SongSelect() {
     const h = (e: KeyboardEvent) => {
       if (e.key === "ArrowUp" || e.key === "w") { e.preventDefault(); setSel(p => Math.max(0, p - 1)) }
       else if (e.key === "ArrowDown" || e.key === "s") { e.preventDefault(); setSel(p => Math.min(songs.length - 1, p + 1)) }
-      else if (e.key === "Enter" && songs[sel]) { previewAudio?.pause(); router.push(`/play/${songs[sel].id}`) }
+      else if (e.key === "Enter" && songs[sel]) { previewAudio?.pause(); router.push(`/play/${encodeURIComponent(songs[sel].id)}?lanes=${laneCount}`) }
       else if (e.key === "Escape") { previewAudio?.pause(); router.push("/") }
     }
     window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h)
@@ -172,7 +172,7 @@ export function SongSelect() {
               return (
                 <button key={song.id} data-index={i}
                   onClick={() => { playHoverSound(getVol()); setSel(i) }}
-                  onDoubleClick={() => { previewAudio?.pause(); router.push(`/play/${song.id}`) }}
+                  onDoubleClick={() => { previewAudio?.pause(); router.push(`/play/${encodeURIComponent(song.id)}?lanes=${laneCount}`) }}
                   className="flex items-center gap-3 px-3 py-2.5 text-left transition-all relative overflow-hidden"
                   style={{
                     borderRadius: "6px",
@@ -346,25 +346,30 @@ export function SongSelect() {
                       )}
                     </div>
 
-                    {/* Seletor de modo (4 ou 5 lanes) */}
-                    <div className="flex gap-2 w-full">
-                      {([5, 4] as (4|5)[]).map(n => (
+                    {/* Seletor de dificuldade de lanes */}
+                    <div className="flex gap-1.5 w-full">
+                      {([
+                        { n: 4 as 4|5|6, label: "Fácil",   sub: "4 lanes", color: "#3b82f6", grad: "linear-gradient(135deg,#1d4ed8,#2563eb)" },
+                        { n: 5 as 4|5|6, label: "Normal",  sub: "5 lanes", color: "#22c55e", grad: "linear-gradient(135deg,#15803d,#16a34a)" },
+                        { n: 6 as 4|5|6, label: "Difícil", sub: "6 lanes", color: "#e11d48", grad: "linear-gradient(135deg,#991b1b,#dc2626)" },
+                      ]).map(({ n, label, sub, color, grad }) => (
                         <button key={n} onClick={() => setLaneCount(n)}
-                          className="flex-1 py-2.5 rounded-xl font-black text-sm tracking-wide transition-all hover:scale-[1.02] active:scale-[0.98]"
+                          className="flex-1 flex flex-col items-center py-2 rounded-xl font-black text-xs tracking-wide transition-all hover:scale-[1.02] active:scale-[0.98]"
                           style={{
-                            background: laneCount === n ? (n === 4 ? "linear-gradient(135deg,#1d4ed8,#2563eb)" : "linear-gradient(135deg,#374151,#4b5563)") : "rgba(255,255,255,0.05)",
-                            border: laneCount === n ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.07)",
+                            background: laneCount === n ? grad : "rgba(255,255,255,0.05)",
+                            border: laneCount === n ? `1px solid ${color}66` : "1px solid rgba(255,255,255,0.07)",
                             color: laneCount === n ? "#fff" : "rgba(255,255,255,0.3)",
-                            boxShadow: laneCount === n ? "0 0 16px rgba(37,99,235,0.3)" : "none",
+                            boxShadow: laneCount === n ? `0 0 16px ${color}44` : "none",
                           }}>
-                          {n === 4 ? "🟢🔴🟡🔵 Fácil (4 lanes)" : "🟢🔴🟡🔵🟠 Normal (5 lanes)"}
+                          <span>{label}</span>
+                          <span className="font-normal opacity-60 text-[10px]">{sub}</span>
                         </button>
                       ))}
                     </div>
 
                     {/* Play button */}
                     <button
-                      onClick={() => { playClickSound(getVol()); previewAudio?.pause(); router.push(`/play/${selected.id}?lanes=${laneCount}`) }}
+                      onClick={() => { playClickSound(getVol()); previewAudio?.pause(); router.push(`/play/${encodeURIComponent(selected.id)}?lanes=${laneCount}`) }}
                       className="w-full py-5 rounded-xl font-black text-xl tracking-[.15em] flex items-center justify-center gap-3 transition-all duration-150 hover:scale-[1.015] active:scale-[0.985] relative overflow-hidden select-none"
                       style={{
                         background: "linear-gradient(135deg, #991b1b 0%, #dc2626 45%, #ef4444 55%, #b91c1c 100%)",

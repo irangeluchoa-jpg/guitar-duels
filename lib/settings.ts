@@ -9,12 +9,12 @@ export interface GameSettings {
   noteSpeed: number         // 0.5 | 0.75 | 1 | 1.25 | 1.5 | 2
   showGuide: boolean
   calibrationOffset: number // -100 a +100 ms
-  keyBindings: string[]     // 5 teclas, uma por lane
+  keyBindings: string[]     // 6 teclas max, uma por lane
   keyboardEnabled: boolean  // ativa/desativa teclado
   gamepadEnabled: boolean   // ativa/desativa controle
 }
 
-export const DEFAULT_KEY_BINDINGS = ["a", "s", "d", "j", "k"]
+export const DEFAULT_KEY_BINDINGS = ["a", "s", "d", "j", "k", "l"]
 
 export const DEFAULT_SETTINGS: GameSettings = {
   masterVolume: 80,
@@ -40,7 +40,7 @@ export function loadSettings(): GameSettings {
         ...DEFAULT_SETTINGS,
         ...parsed,
         // Garante que keyBindings sempre tem 5 teclas válidas
-        keyBindings: Array.isArray(parsed.keyBindings) && parsed.keyBindings.length === 5
+        keyBindings: Array.isArray(parsed.keyBindings) && (parsed.keyBindings.length === 5 || parsed.keyBindings.length === 6)
           ? parsed.keyBindings
           : [...DEFAULT_KEY_BINDINGS],
         keyboardEnabled: parsed.keyboardEnabled ?? true,
