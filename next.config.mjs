@@ -6,6 +6,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  serverExternalPackages: [],
   outputFileTracingExcludes: {
     "*": [
       "./public/songs/**/*.ogg",
@@ -16,9 +17,6 @@ const nextConfig = {
       "./public/songs/**/*.midi",
       "./public/songs/**/Content/**",
     ],
-  },
-  experimental: {
-    serverComponentsExternalPackages: [],
   },
 }
 
