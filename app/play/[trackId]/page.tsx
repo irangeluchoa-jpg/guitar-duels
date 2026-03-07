@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback, Suspense } from "react"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { GameCanvas } from "@/components/game/game-canvas"
+import { InstrumentSelect } from "@/components/game/instrument-select"
 import type { ChartData, SongMeta } from "@/lib/songs/types"
 import type { GameStats } from "@/lib/game/engine"
 import { playPauseSound, playResumeSound } from "@/lib/game/sounds"
@@ -210,6 +211,8 @@ function PlayInner() {
   const [chart, setChart]     = useState<ChartData | null>(null)
   const [meta, setMeta]       = useState<SongMeta | null>(null)
   const [audioUrls, setAudioUrls] = useState<Record<string, string>>({})
+  const [availableInstruments, setAvailableInstruments] = useState<{key:string;label:string;icon:string;url:string}[]>([])
+  const [chosenInstrument, setChosenInstrument] = useState<{key:string;label:string;icon:string;url:string}|null>(null)
   const [backgroundUrl, setBackgroundUrl] = useState<string | null>(null)
   const isLeavingRef = useRef(false)   // previne startGame após onBack
   const [error, setError]     = useState<string | null>(null)
@@ -228,6 +231,7 @@ function PlayInner() {
         if (!res.ok) throw new Error("Música não encontrada")
         const data = await res.json()
         setMeta(data.meta); setChart(data.chart); setAudioUrls(data.audioUrls || {})
+        setAvailableInstruments(data.availableInstruments || [])
         setBackgroundUrl(data.backgroundUrl || null)
       } catch (err) { setError(err instanceof Error ? err.message : "Erro ao carregar") }
     }
@@ -313,6 +317,19 @@ function PlayInner() {
     router.push(roomCode ? `/room/${roomCode}` : "/songs")
   }, [roomCode, playerId, router])
 
+  // Tela de seleção de instrumento
+  if (chart && meta && availableInstruments.length > 1 && !chosenInstrument) {
+    return (
+      <InstrumentSelect
+        songName={meta.name}
+        artist={meta.artist}
+        instruments={availableInstruments}
+        onSelect={(instr) => setChosenInstrument(instr)}
+        onBack={handleBack}
+      />
+    )
+  }
+
   if (error) return (
     <div className="flex items-center justify-center h-screen flex-col gap-4" style={{ background: "#060608" }}>
       <p className="text-rose-500 text-lg">{error}</p>
@@ -338,7 +355,12 @@ function PlayInner() {
       <GameCanvas
         chart={chart}
         meta={meta}
-        audioUrls={audioUrls}
+        audioUrls={chosenInstrument
+          ? { ...audioUrls, guitar: chosenInstrument.url,
+              // Remove a faixa original do instrumento escolhido da posição dela
+              // para não tocar duplicado
+              [chosenInstrument.key]: chosenInstrument.url }
+          : audioUrls}
         backgroundUrl={backgroundUrl}
         onBack={handleBack}
         onScoreUpdate={handleScoreUpdate}

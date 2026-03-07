@@ -1,52 +1,26 @@
 import { NextResponse } from "next/server"
-import { getRoom, updatePlayer, setRoomSong, setRoomState } from "@/lib/multiplayer/room-store"
+import { createRoom, joinRoom, serializeRoom } from "@/lib/multiplayer/room-store"
+import { nanoid } from "nanoid"
 
-export const dynamic = "force-dynamic"
-
-export async function GET(_req: Request, { params }: { params: Promise<{ code: string }> }) {
-  const { code } = await params
-  try {
-    const room = await getRoom(code)
-    if (!room) return NextResponse.json({ error: "Sala não encontrada" }, { status: 404 })
-    return NextResponse.json(room)
-  } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Erro" }, { status: 500 })
-  }
-}
-
-export async function PATCH(req: Request, { params }: { params: Promise<{ code: string }> }) {
-  const { code } = await params
+export async function POST(req: Request) {
   const body = await req.json()
+  const { action, code, playerName, maxPlayers } = body
+  const playerId = nanoid(8)
 
-  try {
-    if (body.action === "score" && body.playerId) {
-      await updatePlayer(code, body.playerId, {
-        score: body.score, combo: body.combo, rockMeter: body.rockMeter,
-      })
-    }
-    if (body.action === "setSong" && body.songId) {
-      await setRoomSong(code, body.songId)
-    }
-    if (body.action === "setState" && body.state) {
-      await setRoomState(code, body.state, body.pausedBy ?? null)
-    }
-    if (body.action === "ready" && body.playerId) {
-      await updatePlayer(code, body.playerId, { ready: body.ready })
-    }
-    if (body.action === "pause" && body.playerId) {
-      await setRoomState(code, "paused", body.playerId)
-    }
-    if (body.action === "resume" && body.playerId) {
-      const room = await getRoom(code)
-      if (room && (room.pausedBy === body.playerId || room.hostId === body.playerId)) {
-        await setRoomState(code, "playing", null)
-      }
-    }
-
-    const updated = await getRoom(code)
-    if (!updated) return NextResponse.json({ error: "Sala não encontrada" }, { status: 404 })
-    return NextResponse.json(updated)
-  } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Erro" }, { status: 500 })
+  if (action === "create") {
+    const name = playerName || "Jogador 1"
+    const max = typeof maxPlayers === "number" && [2,3,4].includes(maxPlayers) ? maxPlayers : 4
+    const room = createRoom(playerId, name, max)
+    return NextResponse.json({ success: true, playerId, room: serializeRoom(room) })
   }
+
+  if (action === "join") {
+    if (!code) return NextResponse.json({ success: false, error: "Código inválido" }, { status: 400 })
+    const name = playerName || "Jogador"
+    const room = joinRoom(code, playerId, name)
+    if (!room) return NextResponse.json({ success: false, error: "Sala não encontrada ou cheia" }, { status: 404 })
+    return NextResponse.json({ success: true, playerId, room: serializeRoom(room) })
+  }
+
+  return NextResponse.json({ success: false, error: "Ação inválida" }, { status: 400 })
 }

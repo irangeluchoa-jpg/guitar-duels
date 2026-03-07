@@ -222,9 +222,17 @@ export function getSongAudioUrls(trackId: string): Record<string, string> {
 
     const audioFiles: Record<string, string[]> = {
       guitar:  EXTS.map(e => `guitar${e}`),
-      rhythm:  EXTS.flatMap(e => [`rhythm${e}`, `bass${e}`]),
+      rhythm:  EXTS.map(e => `rhythm${e}`),
+      bass:    EXTS.map(e => `bass${e}`),
       backing: EXTS.map(e => `backing${e}`),
       song:    EXTS.flatMap(e => [`song${e}`, `audio${e}`]),
+      vocals:  EXTS.flatMap(e => [`vocals${e}`, `vocal${e}`, `voice${e}`]),
+      drums:   EXTS.flatMap(e => [`drums${e}`, `drum${e}`]),
+      drums_1: EXTS.map(e => `drums_1${e}`),
+      drums_2: EXTS.map(e => `drums_2${e}`),
+      drums_3: EXTS.map(e => `drums_3${e}`),
+      crowd:   EXTS.map(e => `crowd${e}`),
+      keys:    EXTS.flatMap(e => [`keys${e}`, `keyboard${e}`, `piano${e}`]),
       preview: EXTS.map(e => `preview${e}`),
     }
 

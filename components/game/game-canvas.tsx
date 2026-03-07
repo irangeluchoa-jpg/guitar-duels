@@ -39,6 +39,9 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
   const primaryAudioRef = useRef<HTMLAudioElement>(null)
   const guitarAudioRef  = useRef<HTMLAudioElement>(null)
   const rhythmAudioRef  = useRef<HTMLAudioElement>(null)
+  const vocalsAudioRef  = useRef<HTMLAudioElement>(null)
+  const crowdAudioRef   = useRef<HTMLAudioElement>(null)
+  const keysAudioRef    = useRef<HTMLAudioElement>(null)
 
   // Carrega configurações salvas
   const [settings] = useState(() => loadSettings())
@@ -46,18 +49,26 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
   // Se speed não foi passado via prop, usa o das configurações
   const effectiveSpeed = speed ?? settings.noteSpeed
 
-  const primarySrc = audioUrls?.song    || audioUrls?.backing || null
-  const guitarSrc  = audioUrls?.guitar  || null
-  const rhythmSrc  = audioUrls?.rhythm  || null
+  // Faixa principal: song > backing > guitar > rhythm (para sincronizar o tempo)
+  const primarySrc = audioUrls?.song || audioUrls?.backing || audioUrls?.guitar || audioUrls?.rhythm || null
+  // Faixas secundárias: tocam junto, mesmo nível de volume
+  const guitarSrc  = (primarySrc !== audioUrls?.guitar)  ? (audioUrls?.guitar  || null) : null
+  const rhythmSrc  = (primarySrc !== audioUrls?.rhythm)  ? (audioUrls?.rhythm  || null) : null
+  const vocalsSrc  = audioUrls?.vocals || null
+  const crowdSrc   = audioUrls?.crowd  || null
+  const keysSrc    = audioUrls?.keys   || null
 
-  const realPrimary = primarySrc || guitarSrc || rhythmSrc || null
-  const realGuitar  = primarySrc ? guitarSrc  : null
-  const realRhythm  = primarySrc ? rhythmSrc  : (guitarSrc ? rhythmSrc : null)
+  const realPrimary = primarySrc
+  const realGuitar  = guitarSrc
+  const realRhythm  = rhythmSrc
+  const realVocals  = vocalsSrc
+  const realCrowd   = crowdSrc
+  const realKeys    = keysSrc
 
   // Aplica volumes assim que os elementos de áudio estiverem disponíveis
   const applyVolumes = useCallback(() => {
     const musicGain = toGain(settings.masterVolume, settings.musicVolume)
-    for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef]) {
+    for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef]) {
       if (ref.current) ref.current.volume = musicGain
     }
   }, [settings])
@@ -113,20 +124,23 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       const rhythm  = rhythmAudioRef.current
       const primary = primaryAudioRef.current
 
-      // Se tem trilha de guitarra separada: ela muda com o desempenho
-      // A backing/song/rhythm fica sempre no volume cheio (música de fundo não some)
+      // Só o instrumento escolhido muda de volume com o desempenho.
+      // Todas as outras faixas ficam sempre no volume cheio.
       if (guitar) {
+        // Guitarra é o instrumento principal — volume dinâmico
         guitar.volume = Math.max(0, Math.min(1, next * musicGain))
-      }
-      // Se só tem uma trilha mista (song), aplica degradação mais suave (mín 35%)
-      if (!guitar && primary) {
+      } else if (primary) {
+        // Só uma faixa mista — degradação suave (mín 35%)
         primary.volume = Math.max(0, Math.min(1, (0.35 + next * 0.65) * musicGain))
       }
-      // Rhythm/bass: sobe quando guitarra some (compensação de mix)
-      if (rhythm) {
-        const rhythmBoost = 1 + (1 - next) * 0.3  // sobe até 30% quando guitarra some
-        rhythm.volume = Math.max(0, Math.min(1, Math.min(rhythmBoost, 1) * musicGain))
-      }
+      // Rhythm, vocals, crowd, keys: sempre volume cheio (não afetados pelo desempenho)
+      if (rhythm)  rhythm.volume  = Math.max(0, Math.min(1, musicGain))
+      const vocals = vocalsAudioRef.current
+      const crowd  = crowdAudioRef.current
+      const keys   = keysAudioRef.current
+      if (vocals)  vocals.volume  = Math.max(0, Math.min(1, musicGain))
+      if (crowd)   crowd.volume   = Math.max(0, Math.min(1, musicGain * 0.6)) // crowd um pouco mais baixo
+      if (keys)    keys.volume    = Math.max(0, Math.min(1, musicGain))
     }, 80)
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -134,7 +148,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
 
   // Sincroniza áudios secundários com o primário
   const syncSecondary = useCallback((action: "play" | "pause" | "seek", time?: number) => {
-    for (const ref of [guitarAudioRef, rhythmAudioRef]) {
+    for (const ref of [guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef]) {
       const el = ref.current
       if (!el) continue
       if (action === "play") {
@@ -166,7 +180,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
 
   const handleBack = useCallback(() => {
     isLeavingRef.current = true
-    for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef]) {
+    for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef]) {
       if (ref.current) { ref.current.pause(); ref.current.currentTime = 0 }
     }
     onBack?.()
@@ -197,7 +211,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       return () => clearTimeout(t)
     }
     if (gameState === "ended") {
-      for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef]) {
+      for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef]) {
         if (ref.current) { ref.current.pause(); ref.current.currentTime = 0 }
       }
     }
@@ -208,12 +222,12 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
     if (externalPaused === undefined) return
     if (externalPaused && gameState === "playing") {
       pause()
-      for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef]) {
+      for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef]) {
         if (ref.current) ref.current.pause()
       }
     } else if (!externalPaused && gameState === "paused") {
       resume()
-      for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef]) {
+      for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef]) {
         if (ref.current) ref.current.play().catch(() => {})
       }
     }
@@ -284,6 +298,21 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       {realRhythm && (
         <audio ref={rhythmAudioRef} preload="auto">
           <source src={realRhythm} type={getMimeType(realRhythm)} />
+        </audio>
+      )}
+      {realVocals && (
+        <audio ref={vocalsAudioRef} preload="auto">
+          <source src={realVocals} type={getMimeType(realVocals)} />
+        </audio>
+      )}
+      {realCrowd && (
+        <audio ref={crowdAudioRef} preload="auto">
+          <source src={realCrowd} type={getMimeType(realCrowd)} />
+        </audio>
+      )}
+      {realKeys && (
+        <audio ref={keysAudioRef} preload="auto">
+          <source src={realKeys} type={getMimeType(realKeys)} />
         </audio>
       )}
 

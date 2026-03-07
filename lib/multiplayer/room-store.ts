@@ -1,8 +1,6 @@
 /**
- * room-store.ts — Multiplayer via Supabase (sem delay de RAM)
+ * room-store.ts — Multiplayer com suporte a até 4 jogadores e pause global
  */
-
-import { supabase } from "./supabase"
 
 export interface RoomPlayer {
   id: string
@@ -13,15 +11,35 @@ export interface RoomPlayer {
   ready: boolean
 }
 
-export interface SerializedRoom {
+export interface Room {
   code: string
   hostId: string
   songId: string | null
+  players: Map<string, RoomPlayer>
   state: "waiting" | "playing" | "paused" | "ended"
-  pausedBy: string | null
+  pausedBy: string | null   // id do jogador que pausou
   startTime: number | null
+  createdAt: number
   maxPlayers: number
-  players: RoomPlayer[]
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __rooms: Map<string, Room> | undefined
+  // eslint-disable-next-line no-var
+  var __roomsLastClean: number | undefined
+}
+
+const rooms: Map<string, Room> = global.__rooms ?? (global.__rooms = new Map())
+
+const ROOM_TTL = 60 * 60 * 1000
+function maybeClean() {
+  const now = Date.now()
+  if (global.__roomsLastClean && now - global.__roomsLastClean < 10 * 60 * 1000) return
+  global.__roomsLastClean = now
+  for (const [code, room] of rooms.entries()) {
+    if (now - room.createdAt > ROOM_TTL) rooms.delete(code)
+  }
 }
 
 function generateCode(): string {
@@ -31,88 +49,70 @@ function generateCode(): string {
   return code
 }
 
-function dbToRoom(data: Record<string, unknown>): SerializedRoom {
-  return {
-    code:       data.code as string,
-    hostId:     data.host_id as string,
-    songId:     data.song_id as string | null,
-    state:      data.state as SerializedRoom["state"],
-    pausedBy:   data.paused_by as string | null,
-    startTime:  data.start_time as number | null,
-    maxPlayers: data.max_players as number,
-    players:    (data.players as RoomPlayer[]) || [],
-  }
-}
-
-export async function createRoom(hostId: string, hostName: string, maxPlayers = 4): Promise<SerializedRoom> {
+export function createRoom(hostId: string, hostName: string, maxPlayers = 4): Room {
+  maybeClean()
   let code = generateCode()
-  // Garante código único
-  while (true) {
-    const { data } = await supabase.from("rooms").select("code").eq("code", code).single()
-    if (!data) break
-    code = generateCode()
+  while (rooms.has(code)) code = generateCode()
+  const room: Room = {
+    code, hostId, songId: null, maxPlayers,
+    players: new Map([[hostId, { id: hostId, name: hostName, score: 0, combo: 0, rockMeter: 50, ready: false }]]),
+    state: "waiting", pausedBy: null, startTime: null, createdAt: Date.now(),
   }
-
-  const players: RoomPlayer[] = [{ id: hostId, name: hostName, score: 0, combo: 0, rockMeter: 50, ready: false }]
-
-  const { data, error } = await supabase.from("rooms").insert({
-    code, host_id: hostId, song_id: null, state: "waiting",
-    paused_by: null, start_time: null, max_players: maxPlayers,
-    players, created_at: new Date().toISOString(),
-  }).select().single()
-
-  if (error || !data) throw new Error(error?.message || "Erro ao criar sala")
-  return dbToRoom(data)
+  rooms.set(code, room)
+  return room
 }
 
-export async function getRoom(code: string): Promise<SerializedRoom | null> {
-  const { data, error } = await supabase
-    .from("rooms").select("*").eq("code", code.toUpperCase()).single()
-  if (error || !data) return null
-  return dbToRoom(data)
+export function getRoom(code: string): Room | undefined {
+  return rooms.get(code.toUpperCase())
 }
 
-export async function joinRoom(code: string, playerId: string, playerName: string): Promise<SerializedRoom | null> {
-  const room = await getRoom(code)
+export function joinRoom(code: string, playerId: string, playerName: string): Room | null {
+  const room = rooms.get(code.toUpperCase())
+  if (!room || room.players.size >= room.maxPlayers || room.state !== "waiting") return null
+  room.players.set(playerId, { id: playerId, name: playerName, score: 0, combo: 0, rockMeter: 50, ready: false })
+  return room
+}
+
+export function updatePlayer(code: string, playerId: string, data: Partial<RoomPlayer>): Room | null {
+  const room = rooms.get(code.toUpperCase())
   if (!room) return null
-  if (room.players.length >= room.maxPlayers) return null
-  if (room.state !== "waiting") return null
-
-  const newPlayer: RoomPlayer = { id: playerId, name: playerName, score: 0, combo: 0, rockMeter: 50, ready: false }
-  const updatedPlayers = [...room.players, newPlayer]
-
-  const { data, error } = await supabase
-    .from("rooms").update({ players: updatedPlayers })
-    .eq("code", code.toUpperCase()).select().single()
-  if (error || !data) return null
-  return dbToRoom(data)
+  const p = room.players.get(playerId)
+  if (!p) return null
+  Object.assign(p, data)
+  return room
 }
 
-export async function updatePlayer(code: string, playerId: string, update: Partial<RoomPlayer>): Promise<SerializedRoom | null> {
-  const room = await getRoom(code)
-  if (!room) return null
-
-  const updatedPlayers = room.players.map(p => p.id === playerId ? { ...p, ...update } : p)
-
-  const { data, error } = await supabase
-    .from("rooms").update({ players: updatedPlayers })
-    .eq("code", code.toUpperCase()).select().single()
-  if (error || !data) return null
-  return dbToRoom(data)
+export function setRoomSong(code: string, songId: string): boolean {
+  const room = rooms.get(code.toUpperCase())
+  if (!room) return false
+  room.songId = songId
+  return true
 }
 
-export async function setRoomSong(code: string, songId: string): Promise<boolean> {
-  const { error } = await supabase.from("rooms")
-    .update({ song_id: songId }).eq("code", code.toUpperCase())
-  return !error
+export function setRoomState(code: string, state: Room["state"], pausedBy?: string): boolean {
+  const room = rooms.get(code.toUpperCase())
+  if (!room) return false
+  room.state = state
+  room.pausedBy = pausedBy ?? null
+  if (state === "playing") room.startTime = Date.now()
+  return true
 }
 
-export async function setRoomState(code: string, state: SerializedRoom["state"], pausedBy?: string | null): Promise<boolean> {
-  const update: Record<string, unknown> = { state }
-  if (state === "playing") update.start_time = Date.now()
-  if (pausedBy !== undefined) update.paused_by = pausedBy
+export function serializeRoom(room: Room) {
+  return {
+    code: room.code,
+    hostId: room.hostId,
+    songId: room.songId,
+    state: room.state,
+    pausedBy: room.pausedBy,
+    startTime: room.startTime,
+    maxPlayers: room.maxPlayers,
+    players: Array.from(room.players.values()),
+  }
+}
 
-  const { error } = await supabase.from("rooms")
-    .update(update).eq("code", code.toUpperCase())
-  return !error
+export function listRooms() {
+  return Array.from(rooms.values())
+    .filter(r => r.state === "waiting")
+    .map(serializeRoom)
 }
