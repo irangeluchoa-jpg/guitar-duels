@@ -887,8 +887,3 @@ export function renderFrame(state: RenderState): void {
     drawDiffLabel(ctx, gx + gSize*0.38, gy + gSize + 2, difficulty)
   }
 }
-
-function shade(hex: string, amt: number): string {
-  const n=parseInt(hex.replace("#",""),16)
-  return `rgb(${Math.max(0,Math.min(255,(n>>16)+amt))},${Math.max(0,Math.min(255,((n>>8)&0xff)+amt))},${Math.max(0,Math.min(255,(n&0xff)+amt))})`
-}
