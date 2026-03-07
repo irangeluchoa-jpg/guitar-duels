@@ -5,15 +5,15 @@ import { useRouter } from "next/navigation"
 import { Play, Music, Clock, Star, Zap, ChevronRight } from "lucide-react"
 import type { SongListItem } from "@/lib/songs/types"
 import { playClickSound, playHoverSound } from "@/lib/game/sounds"
-import { loadSettings, DEFAULT_KEY_BINDINGS } from "@/lib/settings"
+import { loadSettings, DEFAULT_KEY_BINDINGS, getKeyBindingsForLanes } from "@/lib/settings"
 import { GHBackground, GHLogo, GHBackButton, GHCard, GHSectionTitle, GHButton } from "@/components/ui/gh-layout"
 
 function getVol() { try { const s=loadSettings(); return (s.masterVolume/100)*(s.sfxVolume/100) } catch { return .5 } }
 
 const DIFF_LABELS = ["Beginner","Easy","Medium","Hard","Expert","Expert+","Extreme"]
 const DIFF_COLORS = ["#22c55e","#86efac","#eab308","#f97316","#ef4444","#a855f7","#ec4899"]
-const LANE_COLORS = ["#00E14F","#FF2828","#FFFD4B","#55ADFF","#FF9537"]
-const LANE_NAMES  = ["Verde","Verm.","Amar.","Azul","Lar."]
+const LANE_COLORS = ["#00E14F","#FF2828","#FFFD4B","#55ADFF","#FF9537","#a855f7"]
+const LANE_NAMES  = ["Verde","Verm.","Amar.","Azul","Lar.","Roxo"]
 
 function formatDuration(ms: number) {
   const s = Math.floor(ms / 1000)
@@ -78,7 +78,7 @@ function DiffStars({ diff, color }: { diff: number; color: string }) {
 
 export function SongSelect() {
   const router = useRouter()
-  const [keyBindings, setKeyBindings] = useState([...DEFAULT_KEY_BINDINGS])
+  const [allSettings, setAllSettings] = useState(loadSettings)
   const [songs, setSongs]             = useState<SongListItem[]>([])
   const [sel, setSel]                 = useState(0)
   const [loading, setLoading]         = useState(true)
@@ -88,7 +88,8 @@ export function SongSelect() {
   const prevTimeout                   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const listRef                       = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { const s = loadSettings(); setKeyBindings(s.keyBindings ?? [...DEFAULT_KEY_BINDINGS]) }, [])
+  useEffect(() => { setAllSettings(loadSettings()) }, [])
+  const keyBindings = getKeyBindingsForLanes(allSettings, laneCount)
   useEffect(() => {
     fetch("/api/songs").then(r => r.json()).then(d => { setSongs(d); setLoading(false) }).catch(() => setLoading(false))
   }, [])
@@ -361,7 +362,7 @@ export function SongSelect() {
                         <p className="text-[9px]" style={{ color: "rgba(255,255,255,.15)" }}>teclas configuradas</p>
                       </div>
                       <div className="flex gap-2.5 flex-1 justify-center">
-                        {keyBindings.slice(0, 5).map((key, i) => (
+                        {keyBindings.slice(0, laneCount).map((key, i) => (
                           <FretBtn key={i} color={LANE_COLORS[i]} label={key} />
                         ))}
                       </div>

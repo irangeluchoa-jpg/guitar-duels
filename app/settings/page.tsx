@@ -28,7 +28,7 @@ export default function SettingsPage() {
   // Gamepad state
   const [gamepadConnected, setGamepadConnected] = useState(false)
   const [gamepadName, setGamepadName] = useState<string>("")
-  const [gamepadBindings, setGamepadBindings] = useState<number[]>([...DEFAULT_GAMEPAD_BINDINGS])
+  const [gamepadBindings, setGamepadBindings] = useState<number[]>(() => { const b = [...DEFAULT_GAMEPAD_BINDINGS]; while (b.length < 6) b.push(-1); return b })
   const [listeningGamepad, setListeningGamepad] = useState<number | null>(null)
   const listeningGamepadRef = useRef<number | null>(null)
 
@@ -190,7 +190,8 @@ export default function SettingsPage() {
       setListeningFor(null)
       listenRef.current = null
 
-      const next = { ...settings, keyBindings: currentBindings }
+      const modeOptForSave = LANE_MODE_OPTS.find(o => o.count === keyMode)!
+      const next = { ...settings, [modeOptForSave.bindKey]: currentBindings }
       setSettings(next)
       saveSettings(next)
       setSaved(true)
@@ -544,7 +545,7 @@ export default function SettingsPage() {
               {gamepadConnected && (
                 <div className="p-4 space-y-3">
                   <p className="text-xs text-white/40">Clique numa lane e pressione o botão do controle para remapear</p>
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="grid grid-cols-6 gap-2">
                     {LANE_COLORS.map((color, i) => {
                       const isListening = listeningGamepad === i
                       return (

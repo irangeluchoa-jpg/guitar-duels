@@ -103,13 +103,43 @@ export function applyHit(stats: GameStats, rating: HitRating): GameStats {
 }
 
 export function prepareNotes(chart: Chart, laneCount = 5): ActiveNote[] {
-  return chart.notes.map((note, i) => {
-    let lane = note.lane
-    if (laneCount === 4 && lane >= 4) lane = 3        // laranja→azul
-    else if (laneCount === 5 && lane >= 5) lane = 4   // clamp
-    // 6 lanes: lane 5 = roxo, usa tecla L
-    return { ...note, lane, id: i, hit: false, missed: false }
-  })
+  if (laneCount === 4) {
+    // 4 lanes: comprimir 5→4 (lane 4 → lane 3)
+    return chart.notes.map((note, i) => ({
+      ...note,
+      lane: note.lane >= 4 ? 3 : note.lane,
+      id: i, hit: false, missed: false,
+    }))
+  }
+
+  if (laneCount === 5) {
+    return chart.notes.map((note, i) => ({
+      ...note,
+      lane: Math.min(note.lane, 4),
+      id: i, hit: false, missed: false,
+    }))
+  }
+
+  // ── 6 lanes: redistribuir 5 lanes originais em 6 ──────────────────────────
+  // Mapeamento: espalha as notas usando módulo e duplica notas da lane 4 (laranja)
+  // para a nova lane 5 (roxa) quando caem em certos intervalos.
+  //
+  // Regra: a cada nota na lane 4 (laranja/5ª), alternamos entre lane 4 e lane 5.
+  // Isso distribui visualmente metade das laranjas para o roxo.
+  let orangeToggle = false
+  const notes: ActiveNote[] = []
+  let id = 0
+
+  for (const note of chart.notes) {
+    if (note.lane === 4) {
+      // Alterna entre lane 4 (laranja) e lane 5 (roxo)
+      orangeToggle = !orangeToggle
+      notes.push({ ...note, lane: orangeToggle ? 5 : 4, id: id++, hit: false, missed: false })
+    } else {
+      notes.push({ ...note, lane: note.lane, id: id++, hit: false, missed: false })
+    }
+  }
+  return notes
 }
 
 export function getAccuracy(stats: GameStats): number {

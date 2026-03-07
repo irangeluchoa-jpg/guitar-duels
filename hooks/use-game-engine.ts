@@ -189,6 +189,7 @@ export function useGameEngine({
   useGamepad({
     enabled: gamepadEnabledRef.current,
     keysDownRef,
+    laneCount,
     onLanePress:   (lane) => { processHit(lane) },
     onLaneRelease: (lane) => { keysDownRef.current.delete(lane) },
     onPause:       () => { if (gameStateRef.current === "playing") pause() },

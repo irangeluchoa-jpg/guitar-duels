@@ -392,26 +392,6 @@ export default function RoomPage() {
         {/* Spacer */}
         <div className="flex-1"/>
 
-        {/* ── Seletor de dificuldade (lanes) ── */}
-        <div className="relative z-10 px-6 py-3 flex-shrink-0"
-          style={{ borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
-          <p className="bebas text-xs tracking-[0.35em] mb-3" style={{ color:"rgba(255,180,60,0.4)" }}>DIFICULDADE — NÚMERO DE LANES</p>
-          <div className="flex gap-2">
-            {LANE_OPTS.map(opt => (
-              <button key={opt.n} onClick={()=>setLaneCount(opt.n)}
-                className="flex-1 flex flex-col items-center py-2.5 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
-                style={{
-                  background: laneCount===opt.n ? opt.grad : "rgba(255,255,255,0.04)",
-                  border: laneCount===opt.n ? `1px solid ${opt.color}55` : "1px solid rgba(255,255,255,0.07)",
-                  boxShadow: laneCount===opt.n ? `0 0 16px ${opt.color}33` : "none",
-                }}>
-                <span className="text-xs font-black" style={{ color: laneCount===opt.n ? "#fff" : "rgba(255,255,255,0.4)", fontFamily:"'Bebas Neue','Impact',sans-serif", letterSpacing:"0.05em" }}>{opt.label}</span>
-                <span className="text-[9px] mt-0.5" style={{ color: laneCount===opt.n ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.2)" }}>{opt.keys}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* ── Botão iniciar ── */}
         <div className="relative z-10 px-6 pb-6 flex-shrink-0">
           {isHost ? (

@@ -21,7 +21,7 @@ import { useEffect, useRef, useCallback } from "react"
 import { loadSettings, saveSettings } from "@/lib/settings"
 
 // Índices de botão padrão por lane
-export const DEFAULT_GAMEPAD_BINDINGS = [2, 1, 3, 0, 5]  // Verde, Vermelho, Amarelo, Azul, Laranja
+export const DEFAULT_GAMEPAD_BINDINGS = [2, 1, 3, 0, 5, 4]  // Verde, Vermelho, Amarelo, Azul, Laranja, Roxo
 export const GAMEPAD_PAUSE_BUTTON    = 9
 export const GAMEPAD_STRUM_UP        = 12
 export const GAMEPAD_STRUM_DOWN      = 13
@@ -76,8 +76,8 @@ interface UseGamepadOptions {
 }
 
 export function useGamepad({
-  onLanePress, onLaneRelease, onPause, keysDownRef, enabled
-}: UseGamepadOptions) {
+  onLanePress, onLaneRelease, onPause, keysDownRef, enabled, laneCount = 5
+}: UseGamepadOptions & { laneCount?: number }) {
   const gamepadIndexRef    = useRef<number | null>(null)
   const profileRef         = useRef<GamepadProfile>(GAMEPAD_PROFILES[2])
   const prevButtonsRef     = useRef<boolean[]>([])
@@ -91,7 +91,7 @@ export function useGamepad({
       const stored = localStorage.getItem("guitar-duels-gamepad")
       if (stored) {
         const parsed = JSON.parse(stored)
-        if (Array.isArray(parsed.laneButtons) && parsed.laneButtons.length === 5)
+        if (Array.isArray(parsed.laneButtons) && (parsed.laneButtons.length === 5 || parsed.laneButtons.length === 6))
           customBindingsRef.current = parsed.laneButtons
       }
     } catch {}
@@ -109,7 +109,7 @@ export function useGamepad({
       const buttons  = gp.buttons.map(b => b.pressed)
 
       // ── Lanes ────────────────────────────────────────────────────────────
-      for (let lane = 0; lane < 5; lane++) {
+      for (let lane = 0; lane < laneCount; lane++) {
         const btnIdx = bindings[lane]
         if (btnIdx >= buttons.length) continue
         const nowPressed  = buttons[btnIdx]
@@ -143,7 +143,7 @@ export function useGamepad({
 
       if (didStrum) {
         // Dispara hit para todas as lanes pressionadas no momento do strum
-        for (let lane = 0; lane < 5; lane++) {
+        for (let lane = 0; lane < laneCount; lane++) {
           if (keysDownRef.current.has(lane)) onLanePress(lane)
         }
       }
@@ -252,7 +252,7 @@ export function loadGamepadBindings(): number[] {
     const stored = localStorage.getItem("guitar-duels-gamepad")
     if (stored) {
       const parsed = JSON.parse(stored)
-      if (Array.isArray(parsed.laneButtons) && parsed.laneButtons.length === 5)
+      if (Array.isArray(parsed.laneButtons) && (parsed.laneButtons.length === 5 || parsed.laneButtons.length === 6))
         return parsed.laneButtons
     }
   } catch {}
