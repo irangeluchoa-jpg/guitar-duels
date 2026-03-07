@@ -6,8 +6,8 @@ import {
 // ── Layout ───────────────────────────────────────────────────────────────────
 const VANISHING_Y_RATIO = 0.13
 const HIT_LINE_Y_RATIO  = 0.83
-const TRACK_WIDTH_RATIO = 0.62
-const TRACK_WIDTH_TOP   = 0.13
+const TRACK_WIDTH_RATIO = 0.50
+const TRACK_WIDTH_TOP   = 0.09
 const GLOW_DURATION     = 520
 const NOTE_SPEED_BASE   = 0.55
 const NOTE_RX_BASE      = 33
@@ -52,9 +52,45 @@ const SP_SUSTAIN_COLOR = "#00FFFF"  // sustain_sp_active
 const COMBO_GLOW = ["#FFDD00","#D55800","#00FF00","#874E9E","#E8B1FF"]
 
 // ── Cache ──────────────────────────────────────────────────────────────────
-let _fretNormal: OffscreenCanvas | null = null
-let _fretStar:   OffscreenCanvas | null = null
+// Cache: [diffKey][starPower] -> OffscreenCanvas
+const _fretCache = new Map<string, OffscreenCanvas>()
 let _fretW = 0, _fretH = 0
+
+// Pre-loaded highway images (loaded once on first use)
+const _hwImages: Record<string, HTMLImageElement | null> = {
+  easy: null, hard: null, expert: null
+}
+let _hwLoaded = false
+
+function loadHighwayImages() {
+  if (_hwLoaded) return
+  _hwLoaded = true
+  for (const [key, src] of [
+    ["easy",   "/highways/highway_easy.png"],
+    ["hard",   "/highways/highway_hard.png"],
+    ["expert", "/highways/highway_expert.png"],
+  ] as [string, string][]) {
+    const img = new Image()
+    img.src = src
+    img.onload = () => {
+      _hwImages[key] = img
+      // Invalidate cache so fretboard gets rebuilt with texture
+      _fretCache.clear()
+    }
+    // Store immediately so we can check .complete
+    _hwImages[key] = img
+  }
+}
+
+function diffToHwKey(diff: number): string {
+  if (diff >= 6) return "expert"
+  if (diff >= 4) return "hard"
+  return "easy"
+}
+
+// ── Timestamps do último press por lane (para animação de salto) ─────────────
+const _pressTime: number[] = [0, 0, 0, 0, 0]
+const _wasPressed: boolean[] = [false, false, false, false, false]
 
 interface RenderState {
   canvas: HTMLCanvasElement
@@ -155,7 +191,7 @@ function drawSpider(ctx: CanvasRenderingContext2D, cx: number, cy: number, size:
 }
 
 // ── Fretboard: versão NORMAL (escuro com aranha) ───────────────────────────
-function buildFretboard(w: number, h: number, starPower: boolean): OffscreenCanvas {
+function buildFretboard(w: number, h: number, starPower: boolean, diff: number): OffscreenCanvas {
   const oc = new OffscreenCanvas(w, h)
   const ctx = oc.getContext("2d")!
   const vanishY = h * VANISHING_Y_RATIO, hitY = h * HIT_LINE_Y_RATIO
@@ -193,18 +229,48 @@ function buildFretboard(w: number, h: number, starPower: boolean): OffscreenCanv
     ctx.fillStyle = bg; ctx.fillRect(0,0,w,h)
   }
 
-  // ── Textura de aranha — múltiplas repetindo em perspectiva ──────────────
-  const spiderCount = 5
-  for (let si = 0; si < spiderCount; si++) {
-    const t = (si + 0.5) / spiderCount
-    const y = vanishY + (hitY - vanishY) * t
-    const progress = (hitY - y) / (hitY - vanishY)
-    const tw = trackBot + (trackTop - trackBot) * progress
-    const cx = w / 2
-    const spiderSize = (tw * 0.55) * (1 - progress * 0.5)
-    const spiderAlpha = starPower ? 0.30 : 0.22
-    drawSpider(ctx, cx, y, spiderSize, spiderAlpha * (0.6 + (1-t)*0.4))
+  // ── Textura da highway (imagem real, perspectiva trapézio) ────────────────
+  const hwKey  = diffToHwKey(diff)
+  const hwImg  = _hwImages[hwKey]
+  if (hwImg && hwImg.complete && hwImg.naturalWidth > 0) {
+    // ── Perspectiva correcta: grade cols × rows ────────────────────────────
+    // A imagem tem ratio ~0.5:1 (largura:altura) — mapeamos ela inteira
+    // no trapézio do fretboard mantendo proporções corretas
+    const iw = hwImg.naturalWidth, ih = hwImg.naturalHeight
+    const COLS = 40   // fatias verticais (para convergência X)
+    const ROWS = 40   // fatias horizontais (para perspectiva Y)
+    const fH   = hitY - vanishY  // altura do fretboard em pixels
+
+    ctx.save()
+    ctx.globalAlpha = starPower ? 0.50 : 0.82
+
+    for (let c = 0; c < COLS; c++) {
+      const t0 = c / COLS, t1 = (c + 1) / COLS
+      const bx0 = tLB + trackBot * t0, bx1 = tLB + trackBot * t1  // X no fundo
+      const tx0 = tLT + trackTop * t0, tx1 = tLT + trackTop * t1  // X no topo
+      const sx0 = iw * t0, sw = iw * (t1 - t0)                    // X na imagem
+
+      for (let r = 0; r < ROWS; r++) {
+        const v0 = r / ROWS, v1 = (r + 1) / ROWS
+        // Y no canvas (de vanishY até hitY)
+        const cy0 = vanishY + fH * v0
+        const cy1 = vanishY + fH * v1
+        // X interpolado na linha (perspectiva horizontal)
+        const dx0 = tx0 + (bx0 - tx0) * v0
+        const dx1 = tx0 + (bx0 - tx0) * v1
+        const dw0 = (tx1 - tx0) + ((bx1 - bx0) - (tx1 - tx0)) * v0
+        // Y na imagem — mapeado de cima para baixo (topo=0, fundo=ih)
+        const sy0 = ih * v0, sh = ih * (v1 - v0)
+
+        ctx.drawImage(hwImg,
+          sx0, sy0, sw,  sh,          // source (col × row da imagem)
+          dx0, cy0, dw0, cy1 - cy0    // dest   (célula do trapézio)
+        )
+      }
+    }
+    ctx.restore()
   }
+
 
   // ── Linhas horizontais da grade ─────────────────────────────────────────
   function edgeX(frac: number, y: number) {
@@ -252,14 +318,19 @@ function buildFretboard(w: number, h: number, starPower: boolean): OffscreenCanv
   return oc
 }
 
-function getFretboard(w: number, h: number, starPower: boolean): OffscreenCanvas {
-  if (starPower) {
-    if (_fretStar && _fretW===w && _fretH===h) return _fretStar
-    _fretStar = buildFretboard(w,h,true); _fretW=w; _fretH=h; return _fretStar
-  } else {
-    if (_fretNormal && _fretW===w && _fretH===h) return _fretNormal
-    _fretNormal = buildFretboard(w,h,false); _fretW=w; _fretH=h; return _fretNormal
+function getFretboard(w: number, h: number, starPower: boolean, diff: number): OffscreenCanvas {
+  loadHighwayImages()
+  const key = `${w}x${h}:${diffToHwKey(diff)}:${starPower?1:0}`
+  if (_fretW !== w || _fretH !== h) {
+    _fretCache.clear()
+    _fretW = w; _fretH = h
   }
+  let cached = _fretCache.get(key)
+  if (!cached) {
+    cached = buildFretboard(w, h, starPower, diff)
+    _fretCache.set(key, cached)
+  }
+  return cached
 }
 
 // ── Star Power: raios na hit line + bordas laterais da TELA ─────────────────
@@ -448,15 +519,17 @@ function drawNoteGH(
 // ── Hit target estilo GH3 — botão redondo com base preta, aro colorido, chamas ─
 function drawHitTarget(
   ctx: CanvasRenderingContext2D,
-  x: number, hitY: number,
+  x: number, baseHitY: number,
   laneIdx: number, pressed: boolean,
-  starPower: boolean, now: number
+  starPower: boolean, now: number,
+  jumpY: number = 0, scaleX: number = 1, scaleY: number = 1
 ) {
+  const hitY  = baseHitY - jumpY   // posição Y com salto aplicado
   const sp    = starPower
   const color = STRIKER_COVER[laneIdx] ?? "#ffffff"
   const c     = sp ? SP_NOTE_COLOR : color
-  const rx    = NOTE_RX_BASE + 6
-  const ry    = NOTE_RY_BASE + 6
+  const rx    = (NOTE_RX_BASE + 6) * scaleX
+  const ry    = (NOTE_RY_BASE + 6) * scaleY
   const t     = now * 0.003
 
   ctx.save()
@@ -792,9 +865,8 @@ export function renderFrame(state: RenderState): void {
   const tLB=(w-trackBot)/2, tRB=tLB+trackBot
   const now=performance.now()
   const starPower=stats.combo>=STAR_POWER_COMBO
-
   // 1 – Fretboard (muda visual conforme star power)
-  ctx.drawImage(getFretboard(w,h,starPower),0,0)
+  ctx.drawImage(getFretboard(w,h,starPower,difficulty),0,0)
 
   // 2 – Beat lines dinâmicas
   const visMs=2200/ns
@@ -842,11 +914,37 @@ export function renderFrame(state: RenderState): void {
   hl.addColorStop(0.5,`rgba(${hlColor},${hlAlpha})`); hl.addColorStop(0.92,`rgba(${hlColor},${hlAlpha*0.5})`)
   hl.addColorStop(1,"transparent"); ctx.fillStyle=hl; ctx.fillRect(tLB,hitY-3,tRB-tLB,6)
 
-  // 6 – Hit targets (estilo GH:WT com chamas)
+  // 6 – Hit targets (estilo GH:WT com chamas + salto ao pressionar)
   for (let i=0; i<LANE_COUNT; i++) {
     const {x}=project(i,0,canvas,ns)
     const pressed=keysDown.has(i)
-    const {rx,ry}=drawHitTarget(ctx,x,hitY,i,pressed,starPower,now)
+
+    // Detecta novo press para registrar timestamp
+    if (pressed && !_wasPressed[i]) { _pressTime[i] = now }
+    _wasPressed[i] = pressed
+
+    // Animação de salto: squash na descida, stretch na subida
+    // t=0 no momento do press, dura ~200ms
+    const JUMP_DUR = 200
+    const age = now - _pressTime[i]
+    let jumpY = 0, scaleX = 1, scaleY = 1
+
+    if (pressed) {
+      // Pressionado: squash (achata para baixo, alarga)
+      scaleX = 1.18
+      scaleY = 0.75
+      jumpY  = 0
+    } else if (age < JUMP_DUR) {
+      // Solto: bounce para cima e volta
+      const progress = age / JUMP_DUR
+      // Curva: sobe rápido, desce com bounce
+      const bounce = Math.sin(progress * Math.PI) * (1 - progress * 0.3)
+      jumpY  = bounce * 14                     // sobe até 14px
+      scaleX = 1 - bounce * 0.12              // estreita levemente
+      scaleY = 1 + bounce * 0.18              // estica verticalmente (stretch)
+    }
+
+    const {rx,ry}=drawHitTarget(ctx,x,hitY,i,pressed,starPower,now,jumpY,scaleX,scaleY)
     if (showGuide) {
       const label=(keyLabels?.[i]??LANE_LABELS[i]).toUpperCase()
       ctx.fillStyle=pressed?"#fff":"rgba(200,230,210,0.45)"

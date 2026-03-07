@@ -27,6 +27,17 @@ export default function SettingsPage() {
     setSettings(loadSettings())
   }, [])
 
+  // ESC para voltar ao menu
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && listeningFor === null) {
+        router.push("/")
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [router, listeningFor])
+
   const update = (patch: Partial<GameSettings>) => {
     const next = { ...settings, ...patch }
     setSettings(next)
@@ -120,7 +131,7 @@ export default function SettingsPage() {
   const vol = getVol(settings)
 
   return (
-    <div className="relative w-full h-screen overflow-hidden" style={{ fontFamily:"'Impact','Arial Black',sans-serif", background:"#000" }}>
+    <div className="relative w-full h-screen overflow-hidden" style={{ fontFamily:"'Impact','Arial Black',sans-serif", background:"#000", isolation:"isolate" }}>
       {/* GH3 Background layers */}
       <div className="pointer-events-none absolute inset-0 z-0"
         style={{ background:"linear-gradient(180deg,#000 0%,#0a0004 50%,#180008 100%)" }}/>
@@ -131,16 +142,18 @@ export default function SettingsPage() {
       <div className="pointer-events-none absolute inset-0 z-10"
         style={{ background:"radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.82) 100%)" }}/>
 
-      <div className="relative z-20 flex flex-col h-full">
+      <div className="relative z-20 flex flex-col h-full" style={{pointerEvents:"auto"}}>
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-4 pb-2 flex-shrink-0">
         <button onClick={() => { playClickSound(vol); router.push("/") }}
           onMouseEnter={() => playHoverSound(vol)}
-          className="flex items-center gap-2 px-4 py-2 transition-all hover:scale-105"
-          style={{ background:"linear-gradient(90deg,rgba(180,0,20,.7),rgba(140,0,15,.5))",
-            border:"1px solid rgba(255,80,80,.4)", borderRadius:"4px",
-            color:"rgba(255,180,180,.9)", letterSpacing:".06em", fontSize:"13px" }}>
-          ‹ Menu
+          className="flex items-center gap-2 px-4 py-2 transition-all hover:scale-105 active:scale-95"
+          style={{ background:"linear-gradient(90deg,rgba(180,0,20,.85),rgba(140,0,15,.70))",
+            border:"2px solid rgba(255,100,100,.70)", borderRadius:"6px",
+            color:"rgba(255,220,220,1)", letterSpacing:".08em", fontSize:"14px",
+            fontWeight:"bold", cursor:"pointer", position:"relative", zIndex:50,
+            boxShadow:"0 0 14px rgba(255,50,50,.35), inset 0 1px 0 rgba(255,150,150,.2)" }}>
+          ← Menu
         </button>
         <div className="flex flex-col items-center leading-none">
           <h1 className="text-4xl font-black" style={{ color:"#fff", WebkitTextStroke:"2px rgba(200,30,30,.5)",
