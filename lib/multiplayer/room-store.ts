@@ -9,6 +9,7 @@ export interface RoomPlayer {
   combo: number
   rockMeter: number
   ready: boolean
+  instrument?: string  // instrumento escolhido (guitar, rhythm, vocals, etc)
 }
 
 export interface Room {

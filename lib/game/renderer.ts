@@ -128,7 +128,6 @@ interface RenderState {
   showGuide: boolean
   keyLabels?: string[]
   difficulty?: number
-  instrumentVol?: number   // 0-1, volume dinâmico do instrumento (para HUD)
 }
 
 export function getHitLineY(h: number) { return h * HIT_LINE_Y_RATIO }
@@ -985,7 +984,7 @@ function drawDiffLabel(ctx: CanvasRenderingContext2D, x: number, y: number, diff
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────────────────────
 export function renderFrame(state: RenderState): void {
-  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, instrumentVol = 1 } = state
+  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2 } = state
   const w=canvas.width, h=canvas.height
   const ns=NOTE_SPEED_BASE*speed
   const hitY=h*HIT_LINE_Y_RATIO, vanishY=h*VANISHING_Y_RATIO
@@ -1024,16 +1023,38 @@ export function renderFrame(state: RenderState): void {
     for (let s=0; s<14; s++) {
       const a0=ca+(cb-ca)*(s/14), a1=ca+(cb-ca)*((s+1)/14)
       const pp0=project(note.lane,a0,canvas,ns), pp1=project(note.lane,a1,canvas,ns)
+      // Tremida durante star power: deslocamento lateral senoidal por segmento
+      let ox0=0, ox1=0
+      if (starPower) {
+        const freq = 18, amp = pp0.scale * 3.5
+        ox0 = Math.sin(now * 0.012 * freq + s * 1.1) * amp
+        ox1 = Math.sin(now * 0.012 * freq + (s+1) * 1.1) * amp
+      }
       const hw0=SUSTAIN_WIDTH*pp0.scale*0.5, hw1=SUSTAIN_WIDTH*pp1.scale*0.5
       ctx.beginPath()
-      ctx.moveTo(pp0.x-hw0,pp0.y); ctx.lineTo(pp0.x+hw0,pp0.y)
-      ctx.lineTo(pp1.x+hw1,pp1.y); ctx.lineTo(pp1.x-hw1,pp1.y); ctx.closePath()
+      ctx.moveTo(pp0.x-hw0+ox0,pp0.y); ctx.lineTo(pp0.x+hw0+ox0,pp0.y)
+      ctx.lineTo(pp1.x+hw1+ox1,pp1.y); ctx.lineTo(pp1.x-hw1+ox1,pp1.y); ctx.closePath()
       ctx.fillStyle=color+(note.hit?"40":"88"); ctx.fill()
     }
+    // Linha central também treme
     const ps=project(note.lane,ca,canvas,ns), pe=project(note.lane,cb,canvas,ns)
-    ctx.beginPath(); ctx.moveTo(ps.x,ps.y); ctx.lineTo(pe.x,pe.y)
-    if (starPower){ctx.shadowColor="#00ffff";ctx.shadowBlur=8}
-    ctx.strokeStyle=color+"99"; ctx.lineWidth=2.2*ps.scale; ctx.stroke(); ctx.shadowBlur=0
+    if (starPower) {
+      // Linha ondulada com múltiplos pontos
+      ctx.beginPath()
+      const steps = 20
+      ctx.shadowColor="#00ffff"; ctx.shadowBlur=10
+      ctx.strokeStyle=color+"cc"; ctx.lineWidth=2.5*ps.scale
+      for (let i=0; i<=steps; i++) {
+        const t2=i/steps
+        const pp=project(note.lane,ca+(cb-ca)*t2,canvas,ns)
+        const wave=Math.sin(now*0.015*16 + t2*Math.PI*6) * pp.scale * 4
+        if(i===0) ctx.moveTo(pp.x+wave,pp.y); else ctx.lineTo(pp.x+wave,pp.y)
+      }
+      ctx.stroke(); ctx.shadowBlur=0
+    } else {
+      ctx.beginPath(); ctx.moveTo(ps.x,ps.y); ctx.lineTo(pe.x,pe.y)
+      ctx.strokeStyle=color+"99"; ctx.lineWidth=2.2*ps.scale; ctx.stroke()
+    }
   }
 
   // 5 – Hit line glow
@@ -1266,24 +1287,7 @@ export function renderFrame(state: RenderState): void {
     ctx.restore()
   }
 
-  // ── Instrumento: canto inferior direito, minimalista ─────────────────
-  {
-    ctx.save()
-    const barW = 68, barH = 4, bx = w - barW - 12, by = h - 14
-    const vc = instrumentVol > 0.65 ? "#22c55e" : instrumentVol > 0.30 ? "#f59e0b" : "#ef4444"
-    ctx.fillStyle = "rgba(255,255,255,0.10)"; ctx.font = "600 6px monospace"
-    ctx.textAlign = "right"; ctx.textBaseline = "bottom"
-    ctx.fillText("INSTR", bx + barW, by - 2)
-    ctx.fillStyle = "rgba(255,255,255,0.06)"
-    ctx.beginPath(); ctx.roundRect(bx, by, barW, barH, 2); ctx.fill()
-    if (instrumentVol > 0.01) {
-      const fg = ctx.createLinearGradient(bx, 0, bx + barW*instrumentVol, 0)
-      fg.addColorStop(0, vc+"99"); fg.addColorStop(1, vc)
-      ctx.fillStyle = fg
-      ctx.beginPath(); ctx.roundRect(bx, by, barW*instrumentVol, barH, 2); ctx.fill()
-    }
-    ctx.restore()
-  }
+
   // Guitarra decorativa (muda com dificuldade)
   {
     const gSize = 36, gx = 14, gy = 14

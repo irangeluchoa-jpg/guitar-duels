@@ -213,7 +213,10 @@ function PlayInner() {
   const [audioUrls, setAudioUrls] = useState<Record<string, string>>({})
   const [availableInstruments, setAvailableInstruments] = useState<{key:string;label:string;icon:string;url:string}[]>([])
   const [chosenInstrument, setChosenInstrument] = useState<{key:string;label:string;icon:string;url:string}|null>(null)
+  const [waitingForPlayers, setWaitingForPlayers] = useState(false)
+  const [roomPlayersReady, setRoomPlayersReady] = useState<{id:string;name:string;instrument?:string;ready:boolean}[]>([])
   const [backgroundUrl, setBackgroundUrl] = useState<string | null>(null)
+  const [albumArt, setAlbumArt] = useState<string | null>(null)
   const isLeavingRef = useRef(false)   // previne startGame após onBack
   const [error, setError]     = useState<string | null>(null)
 
@@ -231,6 +234,7 @@ function PlayInner() {
         if (!res.ok) throw new Error("Música não encontrada")
         const data = await res.json()
         setMeta(data.meta); setChart(data.chart); setAudioUrls(data.audioUrls || {})
+        setAlbumArt(data.albumArt || null)
         setAvailableInstruments(data.availableInstruments || [])
         setBackgroundUrl(data.backgroundUrl || null)
       } catch (err) { setError(err instanceof Error ? err.message : "Erro ao carregar") }
@@ -254,7 +258,6 @@ function PlayInner() {
     }, 1500)
 
     const pollRoom = setInterval(async () => {
-      // Se o jogo local já terminou ou estamos saindo, para de processar polling
       if (gameEndedRef.current || isLeavingRef.current) return
       try {
         const res = await fetch(`/api/rooms/${roomCode}`)
@@ -262,9 +265,12 @@ function PlayInner() {
         const room: RoomSnapshot = await res.json()
         setRoomSnapshot(room)
         setGamePaused(room.state === "paused")
-        // Só redireciona para play se a sala AINDA estiver playing e o jogo local não terminou
-        if (room.state === "playing" && !gameEndedRef.current && !isLeavingRef.current) {
-          // já estamos na tela de play, nada a fazer
+        // Atualizar lista de jogadores prontos (para tela de espera de instrumento)
+        setRoomPlayersReady(room.players || [])
+        // Se todos escolheram instrumento (ready=true), liberar o jogo
+        if (room.players && room.players.length > 0) {
+          const allReady = room.players.every((p: {ready: boolean}) => p.ready)
+          if (allReady) setWaitingForPlayers(false)
         }
       } catch {}
     }, 1000)
@@ -318,13 +324,51 @@ function PlayInner() {
   }, [roomCode, playerId, router])
 
   // Tela de seleção de instrumento
+  // Tela de aguardando outros jogadores escolherem instrumento
+  if (waitingForPlayers && roomCode && chosenInstrument) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center flex-col gap-6"
+        style={{ background: "rgba(0,0,0,0.97)" }}>
+        <div className="text-center">
+          <p className="text-4xl mb-2">{chosenInstrument.icon}</p>
+          <p className="text-lg font-black text-white">{chosenInstrument.label}</p>
+          <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>instrumento escolhido</p>
+        </div>
+        <div className="flex flex-col gap-2 w-64">
+          {roomPlayersReady.map((p) => (
+            <div key={p.id} className="flex items-center justify-between px-4 py-2 rounded-xl"
+              style={{ background: p.ready ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.04)",
+                border: p.ready ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,255,255,0.08)" }}>
+              <span className="text-sm text-white font-bold">{p.name}{p.id === playerId ? " (você)" : ""}</span>
+              {p.ready
+                ? <span className="text-xs" style={{ color: "#4ade80" }}>✓ pronto</span>
+                : <span className="text-xs animate-pulse" style={{ color: "rgba(255,255,255,0.3)" }}>escolhendo...</span>}
+            </div>
+          ))}
+        </div>
+        <p className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>Aguardando todos escolherem o instrumento...</p>
+      </div>
+    )
+  }
+
   if (chart && meta && availableInstruments.length > 1 && !chosenInstrument) {
     return (
       <InstrumentSelect
         songName={meta.name}
         artist={meta.artist}
         instruments={availableInstruments}
-        onSelect={(instr) => setChosenInstrument(instr)}
+        onSelect={async (instr) => {
+          setChosenInstrument(instr)
+          if (roomCode && playerId) {
+            setWaitingForPlayers(true)
+            try {
+              await fetch(`/api/rooms/${roomCode}`, {
+                method: "PATCH", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "instrument", playerId, instrument: instr.key }),
+              })
+            } catch {}
+          }
+        }}
         onBack={handleBack}
       />
     )
@@ -361,7 +405,7 @@ function PlayInner() {
               // para não tocar duplicado
               [chosenInstrument.key]: chosenInstrument.url }
           : audioUrls}
-        backgroundUrl={backgroundUrl}
+        backgroundUrl={backgroundUrl || albumArt}
         onBack={handleBack}
         onScoreUpdate={handleScoreUpdate}
         onSongEnd={handleSongEnd}

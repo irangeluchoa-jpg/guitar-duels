@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getSongChart, getSongMeta, getSongAudioUrls, getSongBackgroundUrl } from "@/lib/songs/library"
+import { getSongChart, getSongMeta, getSongAudioUrls, getSongBackgroundUrl, getSongAlbumArt } from "@/lib/songs/library"
 import { computeAutodifficulty } from "@/lib/songs/difficulty"
 
 // Impede que a Vercel empacote arquivos estáticos nesta função
@@ -28,6 +28,7 @@ export async function GET(
 
   const audioUrls     = getSongAudioUrls(decodedId)
   const backgroundUrl = getSongBackgroundUrl(decodedId)
+  const albumArt      = getSongAlbumArt(decodedId)
 
   // Instrumentos disponíveis para escolha
   const PLAYABLE_KEYS = ["guitar", "rhythm", "bass", "vocals", "keys"]
@@ -47,5 +48,5 @@ export async function GET(
       url:   (audioUrls as Record<string,string>)[k],
     }))
 
-  return NextResponse.json({ meta, chart, audioUrls, backgroundUrl, availableInstruments })
+  return NextResponse.json({ meta, chart, audioUrls, backgroundUrl, albumArt, availableInstruments })
 }

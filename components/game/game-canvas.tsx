@@ -74,7 +74,6 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
   }, [settings])
 
 
-  const instrumentVolRef = useRef(1.0)   // volume atual suavizado (0-1)
   const [gpConnected, setGpConnected] = useState(false)
 
   const { gameState, stats, countdown, startGame, pause, resume, restart, accuracy, grade } =
@@ -87,7 +86,6 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       calibrationOffset: settings.calibrationOffset,
       onSongEnd: () => { onSongEnd?.() },
       onScoreUpdate,
-      instrumentVol: instrumentVolRef,
     })
 
   // Indicador de gamepad conectado
@@ -102,49 +100,15 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
     }
   }, [])
 
-  // ── Mix dinâmico: volume do instrumento sobe/desce com o desempenho ──────
-  // Guitar Hero faz isso: quando você erra demais, a faixa da guitarra some.
-  // rockMeter 0-100: abaixo de 30 a guitarra some, acima de 70 volta totalmente.
+  // ── Volume fixo para todas as faixas durante o jogo ─────────────────────
   useEffect(() => {
     if (gameState !== "playing") return
-    const interval = setInterval(() => {
-      const musicGain  = toGain(settings.masterVolume, settings.musicVolume)
-      const rock       = stats.rockMeter               // 0-100
-      // Target: 0% volume abaixo de 20, 100% acima de 65, interpolado entre
-      const targetGain = rock <= 20 ? 0
-        : rock >= 65 ? 1
-        : (rock - 20) / 45
-
-      // Suaviza a transição (lerp 12% por tick de 80ms ≈ ~1s para subir)
-      const prev   = instrumentVolRef.current
-      const next   = prev + (targetGain - prev) * 0.12
-      instrumentVolRef.current = next
-
-      const guitar  = guitarAudioRef.current
-      const rhythm  = rhythmAudioRef.current
-      const primary = primaryAudioRef.current
-
-      // Só o instrumento escolhido muda de volume com o desempenho.
-      // Todas as outras faixas ficam sempre no volume cheio.
-      if (guitar) {
-        // Guitarra é o instrumento principal — volume dinâmico
-        guitar.volume = Math.max(0, Math.min(1, next * musicGain))
-      } else if (primary) {
-        // Só uma faixa mista — degradação suave (mín 35%)
-        primary.volume = Math.max(0, Math.min(1, (0.35 + next * 0.65) * musicGain))
-      }
-      // Rhythm, vocals, crowd, keys: sempre volume cheio (não afetados pelo desempenho)
-      if (rhythm)  rhythm.volume  = Math.max(0, Math.min(1, musicGain))
-      const vocals = vocalsAudioRef.current
-      const crowd  = crowdAudioRef.current
-      const keys   = keysAudioRef.current
-      if (vocals)  vocals.volume  = Math.max(0, Math.min(1, musicGain))
-      if (crowd)   crowd.volume   = Math.max(0, Math.min(1, musicGain * 0.6)) // crowd um pouco mais baixo
-      if (keys)    keys.volume    = Math.max(0, Math.min(1, musicGain))
-    }, 80)
-    return () => clearInterval(interval)
+    const musicGain = toGain(settings.masterVolume, settings.musicVolume)
+    for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef]) {
+      if (ref.current) ref.current.volume = Math.max(0, Math.min(1, musicGain))
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState, stats.rockMeter, settings])
+  }, [gameState, settings])
 
   // Sincroniza áudios secundários com o primário
   const syncSecondary = useCallback((action: "play" | "pause" | "seek", time?: number) => {

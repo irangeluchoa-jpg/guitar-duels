@@ -281,3 +281,18 @@ export function getSongBackgroundUrl(trackId: string): string | null {
   } catch {}
   return null
 }
+
+// ─── getSongAlbumArt ──────────────────────────────────────────────────────────
+export function getSongAlbumArt(trackId: string): string | null {
+  if (!hasFs()) return null
+  try {
+    const fs   = require("fs")   as typeof import("fs")
+    const path = require("path") as typeof import("path")
+    const SONGS_DIR = path.join(process.cwd(), "public", "songs")
+    const songDir   = path.join(SONGS_DIR, trackId)
+    for (const n of ["album.jpg", "album.jpeg", "album.png", "album.webp", "background.jpg", "background.jpeg", "background.png"]) {
+      if (fs.existsSync(path.join(songDir, n))) return `/songs/${trackId}/${n}`
+    }
+  } catch {}
+  return null
+}
