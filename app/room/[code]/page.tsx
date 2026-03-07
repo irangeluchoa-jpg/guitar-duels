@@ -19,11 +19,6 @@ interface RoomData {
 
 const PC     = ["#e11d48","#3b82f6","#22c55e","#f97316"]
 const LANE_OPTS = [
-  { n: 4 as 4|5|6, label: "Fácil",   keys: "A S D J",     color: "#3b82f6", grad: "linear-gradient(135deg,#1d4ed8,#2563eb)" },
-  { n: 5 as 4|5|6, label: "Normal",  keys: "A S D J K",   color: "#22c55e", grad: "linear-gradient(135deg,#15803d,#16a34a)" },
-  { n: 6 as 4|5|6, label: "Difícil", keys: "A S D J K L", color: "#e11d48", grad: "linear-gradient(135deg,#991b1b,#dc2626)" },
-]
-const LANE_OPTS = [
   { n: 4 as 4|5|6, label:"Fácil",   sub:"4 lanes", keys:"A S D J",     color:"#3b82f6", grad:"linear-gradient(135deg,#1d4ed8,#3b82f6)" },
   { n: 5 as 4|5|6, label:"Normal",  sub:"5 lanes", keys:"A S D J K",   color:"#22c55e", grad:"linear-gradient(135deg,#15803d,#22c55e)" },
   { n: 6 as 4|5|6, label:"Difícil", sub:"6 lanes", keys:"A S D J K L", color:"#e11d48", grad:"linear-gradient(135deg,#991b1b,#e11d48)" },
