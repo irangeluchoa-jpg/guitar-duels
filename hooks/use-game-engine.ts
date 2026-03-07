@@ -27,7 +27,8 @@ interface UseGameEngineOptions {
   canvasRef: React.RefObject<HTMLCanvasElement | null>
   speed?: number
   showGuide?: boolean
-  calibrationOffset?: number   // ← novo: deslocamento em ms para calibração
+  calibrationOffset?: number
+  laneCount?: number
   onSongEnd?: (stats: GameStats) => void
   onScoreUpdate?: (stats: GameStats) => void
 }
@@ -40,6 +41,7 @@ export function useGameEngine({
   speed = 1,
   showGuide = true,
   calibrationOffset = 0,
+  laneCount = 5,
   onSongEnd,
   onScoreUpdate,
 }: UseGameEngineOptions) {
@@ -281,6 +283,7 @@ export function useGameEngine({
       speed: speedRef.current,
       showGuide: showGuideRef.current,
       keyLabels: keyBindingsRef.current,
+      laneCount,
       difficulty: meta.difficulty,
     })
 
@@ -288,7 +291,7 @@ export function useGameEngine({
   }, [canvasRef, getCurrentTime, checkMisses, onSongEnd, audioRef])
 
   const startGame = useCallback(() => {
-    notesRef.current = prepareNotes(chart)
+    notesRef.current = prepareNotes(chart, laneCount)
     const initialStats = createInitialStats(chart.notes.length)
     statsRef.current = initialStats
     setStats(initialStats)

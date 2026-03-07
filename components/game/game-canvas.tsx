@@ -29,9 +29,10 @@ interface GameCanvasProps {
   onScoreUpdate?: (stats: GameStats) => void
   onSongEnd?: () => void
   externalPaused?: boolean
+  laneCount?: number
 }
 
-export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused }: GameCanvasProps) {
+export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused, laneCount = 5 }: GameCanvasProps) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const isLeavingRef = useRef(false)   // impede startGame após navegar para fora
@@ -84,6 +85,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       speed: effectiveSpeed,
       showGuide: settings.showGuide,
       calibrationOffset: settings.calibrationOffset,
+      laneCount,
       onSongEnd: () => { onSongEnd?.() },
       onScoreUpdate,
     })

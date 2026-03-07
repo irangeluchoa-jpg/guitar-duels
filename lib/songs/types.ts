@@ -82,6 +82,8 @@ export interface SongListItem {
   charter?: string
   albumArt?: string
   previewUrl?: string
+  songUrl?: string  // fallback para preview
+  previewStart?: number
 }
 
 // === Lane mapping ===

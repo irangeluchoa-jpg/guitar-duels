@@ -84,6 +84,7 @@ export function SongSelect() {
   const [loading, setLoading]         = useState(true)
   const [isPlaying, setIsPlaying]     = useState(false)
   const [previewAudio]                = useState(() => typeof Audio !== "undefined" ? new Audio() : null)
+  const [laneCount, setLaneCount]      = useState<4|5>(5)
   const prevTimeout                   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const listRef                       = useRef<HTMLDivElement>(null)
 
@@ -345,9 +346,25 @@ export function SongSelect() {
                       )}
                     </div>
 
+                    {/* Seletor de modo (4 ou 5 lanes) */}
+                    <div className="flex gap-2 w-full">
+                      {([5, 4] as (4|5)[]).map(n => (
+                        <button key={n} onClick={() => setLaneCount(n)}
+                          className="flex-1 py-2.5 rounded-xl font-black text-sm tracking-wide transition-all hover:scale-[1.02] active:scale-[0.98]"
+                          style={{
+                            background: laneCount === n ? (n === 4 ? "linear-gradient(135deg,#1d4ed8,#2563eb)" : "linear-gradient(135deg,#374151,#4b5563)") : "rgba(255,255,255,0.05)",
+                            border: laneCount === n ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(255,255,255,0.07)",
+                            color: laneCount === n ? "#fff" : "rgba(255,255,255,0.3)",
+                            boxShadow: laneCount === n ? "0 0 16px rgba(37,99,235,0.3)" : "none",
+                          }}>
+                          {n === 4 ? "🟢🔴🟡🔵 Fácil (4 lanes)" : "🟢🔴🟡🔵🟠 Normal (5 lanes)"}
+                        </button>
+                      ))}
+                    </div>
+
                     {/* Play button */}
                     <button
-                      onClick={() => { playClickSound(getVol()); previewAudio?.pause(); router.push(`/play/${selected.id}`) }}
+                      onClick={() => { playClickSound(getVol()); previewAudio?.pause(); router.push(`/play/${selected.id}?lanes=${laneCount}`) }}
                       className="w-full py-5 rounded-xl font-black text-xl tracking-[.15em] flex items-center justify-center gap-3 transition-all duration-150 hover:scale-[1.015] active:scale-[0.985] relative overflow-hidden select-none"
                       style={{
                         background: "linear-gradient(135deg, #991b1b 0%, #dc2626 45%, #ef4444 55%, #b91c1c 100%)",

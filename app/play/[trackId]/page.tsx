@@ -187,6 +187,7 @@ function PlayInner() {
 
   const roomCode      = searchParams.get("room")
   const playerIdParam = searchParams.get("player")
+  const laneCount     = parseInt(searchParams.get("lanes") || "5") === 4 ? 4 : 5
 
   const [playerId] = useState(() => {
     if (playerIdParam) return playerIdParam
@@ -421,6 +422,7 @@ function PlayInner() {
         onScoreUpdate={handleScoreUpdate}
         onSongEnd={handleSongEnd}
         externalPaused={isMultiplayer ? isPaused : undefined}
+        laneCount={laneCount}
       />
       {isMultiplayer && roomSnapshot && (
         <MultiplayerHUD

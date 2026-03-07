@@ -82,6 +82,11 @@ export async function getSongList(): Promise<SongListItem[]> {
         for (const n of ["preview.ogg", "preview.mp3", "preview.opus", "preview.wav"]) {
           if (fs.existsSync(path.join(songDir, n))) { previewUrl = `/api/songs/file?path=${encodeURIComponent(entry.name)}/${n}`; break }
         }
+        // songUrl: fallback para preview quando não há arquivo dedicado
+        let songUrl: string | undefined
+        for (const n of ["song.opus", "song.ogg", "song.mp3", "audio.opus", "audio.ogg"]) {
+          if (fs.existsSync(path.join(songDir, n))) { songUrl = `/api/songs/file?path=${encodeURIComponent(entry.name)}/${n}`; break }
+        }
 
         songs.push({
           id: meta.id,
@@ -95,6 +100,8 @@ export async function getSongList(): Promise<SongListItem[]> {
           charter: meta.charter || "",
           albumArt,
           previewUrl,
+          songUrl,
+          previewStart: meta?.previewStart ?? 30,
         })
       }
       return songs.sort((a, b) => a.name.localeCompare(b.name))

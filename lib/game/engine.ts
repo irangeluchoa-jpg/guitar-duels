@@ -96,8 +96,13 @@ export function applyHit(stats: GameStats, rating: HitRating): GameStats {
   return s
 }
 
-export function prepareNotes(chart: Chart): ActiveNote[] {
-  return chart.notes.map((note, i) => ({ ...note, id: i, hit: false, missed: false }))
+export function prepareNotes(chart: Chart, laneCount = 5): ActiveNote[] {
+  return chart.notes.map((note, i) => {
+    let lane = note.lane
+    // Modo 4 lanes: remapear lane 4 (laranja) → lane 3 (azul)
+    if (laneCount === 4 && lane >= 4) lane = 3
+    return { ...note, lane, id: i, hit: false, missed: false }
+  })
 }
 
 export function getAccuracy(stats: GameStats): number {

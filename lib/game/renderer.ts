@@ -128,11 +128,12 @@ interface RenderState {
   showGuide: boolean
   keyLabels?: string[]
   difficulty?: number
+  laneCount?: number
 }
 
 export function getHitLineY(h: number) { return h * HIT_LINE_Y_RATIO }
 
-function project(lane: number, timeAhead: number, canvas: HTMLCanvasElement, noteSpeed: number) {
+function project(lane: number, timeAhead: number, canvas: HTMLCanvasElement, noteSpeed: number, lc = LANE_COUNT) {
   const w = canvas.width, h = canvas.height
   const vanishY = h * VANISHING_Y_RATIO, hitY = h * HIT_LINE_Y_RATIO
   const maxMs = 2200 / noteSpeed
@@ -140,21 +141,21 @@ function project(lane: number, timeAhead: number, canvas: HTMLCanvasElement, not
   const y = hitY - (hitY - vanishY) * Math.pow(t, 0.74)
   const progress = (hitY - y) / (hitY - vanishY)
   const trackW = w * TRACK_WIDTH_RATIO + (w * TRACK_WIDTH_TOP - w * TRACK_WIDTH_RATIO) * progress
-  const laneW  = trackW / LANE_COUNT
+  const laneW  = trackW / lc
   const x = (w - trackW) / 2 + lane * laneW + laneW / 2
   const scale = 1 - progress * 0.78
   return { x, y, scale }
 }
 
-function laneWidthAt(w: number, progress: number) {
-  return (w * TRACK_WIDTH_RATIO + (w * TRACK_WIDTH_TOP - w * TRACK_WIDTH_RATIO) * progress) / LANE_COUNT
+function laneWidthAt(w: number, progress: number, lc = LANE_COUNT) {
+  return (w * TRACK_WIDTH_RATIO + (w * TRACK_WIDTH_TOP - w * TRACK_WIDTH_RATIO) * progress) / lc
 }
 
-export function getLaneX(lane: number, cw: number) {
+export function getLaneX(lane: number, cw: number, lc = LANE_COUNT) {
   const tw = cw * TRACK_WIDTH_RATIO
-  return (cw - tw) / 2 + lane * (tw / LANE_COUNT) + (tw / LANE_COUNT) / 2
+  return (cw - tw) / 2 + lane * (tw / lc) + (tw / lc) / 2
 }
-export function getLaneWidth(cw: number) { return (cw * TRACK_WIDTH_RATIO) / LANE_COUNT }
+export function getLaneWidth(cw: number, lc = LANE_COUNT) { return (cw * TRACK_WIDTH_RATIO) / lc }
 
 function shade(hex: string, amt: number) {
   const n = parseInt(hex.replace("#",""), 16)
@@ -214,7 +215,7 @@ function drawSpider(ctx: CanvasRenderingContext2D, cx: number, cy: number, size:
 }
 
 // ── Fretboard: versão NORMAL (escuro com aranha) ───────────────────────────
-function buildFretboard(w: number, h: number, starPower: boolean, diff: number): OffscreenCanvas {
+function buildFretboard(w: number, h: number, starPower: boolean, diff: number, lc = LANE_COUNT): OffscreenCanvas {
   const oc = new OffscreenCanvas(w, h)
   const ctx = oc.getContext("2d")!
   const vanishY = h * VANISHING_Y_RATIO, hitY = h * HIT_LINE_Y_RATIO
@@ -313,9 +314,9 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number):
   // ── Divisores de lane — WoR: finos, cyan ──────────────────────────────
   const divColor    = starPower ? "rgba(0,220,255,0.35)" : "rgba(0,180,220,0.22)"
   const borderColor = starPower ? "rgba(0,240,255,0.85)" : "rgba(0,210,255,0.70)"
-  for (let i = 0; i <= LANE_COUNT; i++) {
-    const bx = tLB+(trackBot/LANE_COUNT)*i, tx = tLT+(trackTop/LANE_COUNT)*i
-    const border = i===0||i===LANE_COUNT
+  for (let i = 0; i <= lc; i++) {
+    const bx = tLB+(trackBot/lc)*i, tx = tLT+(trackTop/lc)*i
+    const border = i===0||i===lc
     ctx.beginPath(); ctx.moveTo(bx,hitY); ctx.lineTo(tx,vanishY)
     ctx.strokeStyle = border ? borderColor : divColor
     ctx.lineWidth = border?2:1; ctx.stroke()
@@ -342,16 +343,16 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number):
   return oc
 }
 
-function getFretboard(w: number, h: number, starPower: boolean, diff: number): OffscreenCanvas {
+function getFretboard(w: number, h: number, starPower: boolean, diff: number, lc = LANE_COUNT): OffscreenCanvas {
   loadHighwayImages()
-  const key = `${w}x${h}:${diffToHwKey(diff)}:${starPower?1:0}`
+  const key = `${w}x${h}:${diffToHwKey(diff)}:${starPower?1:0}:lc${lc}`
   if (_fretW !== w || _fretH !== h) {
     _fretCache.clear()
     _fretW = w; _fretH = h
   }
   let cached = _fretCache.get(key)
   if (!cached) {
-    cached = buildFretboard(w, h, starPower, diff)
+    cached = buildFretboard(w, h, starPower, diff, lc)
     _fretCache.set(key, cached)
   }
   return cached
@@ -984,7 +985,7 @@ function drawDiffLabel(ctx: CanvasRenderingContext2D, x: number, y: number, diff
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────────────────────
 export function renderFrame(state: RenderState): void {
-  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2 } = state
+  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LC } = state
   const w=canvas.width, h=canvas.height
   const ns=NOTE_SPEED_BASE*speed
   const hitY=h*HIT_LINE_Y_RATIO, vanishY=h*VANISHING_Y_RATIO
@@ -995,13 +996,13 @@ export function renderFrame(state: RenderState): void {
   // Limpa o canvas (bordas ficam transparentes — mostra o background da música)
   ctx.clearRect(0, 0, w, h)
   // 1 – Fretboard (muda visual conforme star power)
-  ctx.drawImage(getFretboard(w,h,starPower,difficulty),0,0)
+  ctx.drawImage(getFretboard(w,h,starPower,difficulty,LC),0,0)
 
   // 2 – Beat lines dinâmicas
   const visMs=2200/ns
   ctx.save()
   for (let ms=500; ms<visMs; ms+=500) {
-    const p0=project(0,ms,canvas,ns), p4=project(4,ms,canvas,ns)
+    const p0=project(0,ms,canvas,ns,LC), p4=project(LC-1,ms,canvas,ns,LC)
     const hw0=laneWidthAt(w,1-p0.scale)*0.5, hw4=laneWidthAt(w,1-p4.scale)*0.5
     const al=(1-ms/visMs)*(starPower?0.32:0.18)
     ctx.beginPath(); ctx.moveTo(p0.x-hw0,p0.y); ctx.lineTo(p4.x+hw4,p4.y)
@@ -1015,14 +1016,14 @@ export function renderFrame(state: RenderState): void {
 
   // 4 – Sustain tails
   for (const note of notes) {
-    if (note.missed||note.type!=="sustain"||note.duration<=0||note.lane>=LANE_COUNT) continue
+    if (note.missed||note.type!=="sustain"||note.duration<=0||note.lane>=LC) continue
     const nA=note.time-currentTime, tE=note.time+note.duration-currentTime
     if (tE<-TIMING_MISS) continue
     const ca=Math.max(nA,0), cb=Math.max(tE,0)
     const color=starPower?SP_SUSTAIN_COLOR:(SUSTAIN_COLORS[note.lane]??NOTE_COLORS[note.lane]??LANE_COLORS[note.lane])
     for (let s=0; s<14; s++) {
       const a0=ca+(cb-ca)*(s/14), a1=ca+(cb-ca)*((s+1)/14)
-      const pp0=project(note.lane,a0,canvas,ns), pp1=project(note.lane,a1,canvas,ns)
+      const pp0=project(note.lane,a0,canvas,ns,LC), pp1=project(note.lane,a1,canvas,ns,LC)
       // Tremida durante star power: deslocamento lateral senoidal por segmento
       let ox0=0, ox1=0
       if (starPower) {
@@ -1037,7 +1038,7 @@ export function renderFrame(state: RenderState): void {
       ctx.fillStyle=color+(note.hit?"40":"88"); ctx.fill()
     }
     // Linha central também treme
-    const ps=project(note.lane,ca,canvas,ns), pe=project(note.lane,cb,canvas,ns)
+    const ps=project(note.lane,ca,canvas,ns,LC), pe=project(note.lane,cb,canvas,ns,LC)
     if (starPower) {
       // Linha ondulada com múltiplos pontos
       ctx.beginPath()
@@ -1046,7 +1047,7 @@ export function renderFrame(state: RenderState): void {
       ctx.strokeStyle=color+"cc"; ctx.lineWidth=2.5*ps.scale
       for (let i=0; i<=steps; i++) {
         const t2=i/steps
-        const pp=project(note.lane,ca+(cb-ca)*t2,canvas,ns)
+        const pp=project(note.lane,ca+(cb-ca)*t2,canvas,ns,LC)
         const wave=Math.sin(now*0.015*16 + t2*Math.PI*6) * pp.scale * 4
         if(i===0) ctx.moveTo(pp.x+wave,pp.y); else ctx.lineTo(pp.x+wave,pp.y)
       }
@@ -1066,8 +1067,8 @@ export function renderFrame(state: RenderState): void {
   hl.addColorStop(1,"transparent"); ctx.fillStyle=hl; ctx.fillRect(tLB,hitY-3,tRB-tLB,6)
 
   // 6 – Hit targets (estilo GH:WT com chamas + salto ao pressionar)
-  for (let i=0; i<LANE_COUNT; i++) {
-    const {x}=project(i,0,canvas,ns)
+  for (let i=0; i<LC; i++) {
+    const {x}=project(i,0,canvas,ns,LC)
     const pressed=keysDown.has(i)
 
     // Detecta novo press para registrar timestamp
@@ -1113,8 +1114,8 @@ export function renderFrame(state: RenderState): void {
 
   for (const note of visible) {
     const ahead=note.time-currentTime
-    const lane=Math.min(note.lane,LANE_COUNT-1)
-    const {x,y,scale}=project(lane,Math.max(ahead,0),canvas,ns)
+    const lane=Math.min(note.lane,LC-1)
+    const {x,y,scale}=project(lane,Math.max(ahead,0),canvas,ns,LC)
     if (y>hitY+NOTE_RY_BASE*4) continue
     const rx=NOTE_RX_BASE*scale, ry=NOTE_RY_BASE*scale
     drawNoteGH(ctx,x,y,rx,ry,lane,starPower,now)
@@ -1125,8 +1126,8 @@ export function renderFrame(state: RenderState): void {
   for (const fx of hitEffects) {
     const age=now-fx.time; if (age>GLOW_DURATION) continue
     const prog=age/GLOW_DURATION, alpha=Math.max(0,1-prog)
-    const lane=Math.min(fx.lane,LANE_COUNT-1)
-    const {x}=project(lane,0,canvas,ns)
+    const lane=Math.min(fx.lane,LC-1)
+    const {x}=project(lane,0,canvas,ns,LC)
     const color=NOTE_ANIM_COLORS[lane]??LANE_COLORS[lane], rc=RC[fx.rating]||"#fff"
     const isMiss=fx.rating==="miss"
     ctx.save()
