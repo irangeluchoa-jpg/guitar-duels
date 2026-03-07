@@ -4,7 +4,6 @@
  */
 
 import type { SongListItem, SongMeta, ChartData } from "./types"
-
 function hasFs(): boolean {
   try { require("fs"); return true } catch { return false }
 }

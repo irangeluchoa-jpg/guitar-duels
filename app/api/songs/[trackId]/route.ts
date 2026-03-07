@@ -2,7 +2,6 @@ import { NextResponse } from "next/server"
 import { getSongChart, getSongMeta, getSongAudioUrls, getSongBackgroundUrl, getSongAlbumArt } from "@/lib/songs/library"
 import { computeAutodifficulty } from "@/lib/songs/difficulty"
 
-// Impede que a Vercel empacote arquivos estáticos nesta função
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
@@ -30,7 +29,6 @@ export async function GET(
   const backgroundUrl = getSongBackgroundUrl(decodedId)
   const albumArt      = getSongAlbumArt(decodedId)
 
-  // Instrumentos disponíveis para escolha
   const PLAYABLE_KEYS = ["guitar", "rhythm", "bass", "vocals", "keys"]
   const INSTRUMENT_INFO: Record<string, {label: string; icon: string}> = {
     guitar:  { label: "Guitarra",         icon: "🎸" },
@@ -42,7 +40,7 @@ export async function GET(
   const availableInstruments = PLAYABLE_KEYS
     .filter(k => !!(audioUrls as Record<string,string>)[k])
     .map(k => ({
-      key: k,
+      key:   k,
       label: INSTRUMENT_INFO[k]?.label ?? k,
       icon:  INSTRUMENT_INFO[k]?.icon  ?? "🎵",
       url:   (audioUrls as Record<string,string>)[k],
