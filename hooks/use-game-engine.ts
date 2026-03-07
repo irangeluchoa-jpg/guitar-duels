@@ -18,6 +18,7 @@ import {
 import { renderFrame, getHitLineY } from "@/lib/game/renderer"
 import { playComboSound, playPauseSound, playResumeSound, playGameOverSound } from "@/lib/game/sounds"
 import { loadSettings, DEFAULT_KEY_BINDINGS } from "@/lib/settings"
+import { useGamepad } from "@/hooks/use-gamepad"
 
 interface UseGameEngineOptions {
   chart: Chart
@@ -50,19 +51,25 @@ export function useGameEngine({
 
   // Carrega volume de SFX das configurações
   const sfxVolRef = useRef(1)
-  const keyBindingsRef = useRef<string[]>([...DEFAULT_KEY_BINDINGS])
+  const keyBindingsRef    = useRef<string[]>([...DEFAULT_KEY_BINDINGS])
+  const keyboardEnabledRef = useRef<boolean>(true)
+  const gamepadEnabledRef  = useRef<boolean>(true)
 
   useEffect(() => {
     const s = loadSettings()
-    sfxVolRef.current = (s.masterVolume / 100) * (s.sfxVolume / 100)
-    keyBindingsRef.current = s.keyBindings ?? [...DEFAULT_KEY_BINDINGS]
+    sfxVolRef.current       = (s.masterVolume / 100) * (s.sfxVolume / 100)
+    keyBindingsRef.current  = s.keyBindings ?? [...DEFAULT_KEY_BINDINGS]
+    keyboardEnabledRef.current = s.keyboardEnabled ?? true
+    gamepadEnabledRef.current  = s.gamepadEnabled  ?? true
   }, [])
 
   // Reload key bindings when settings change (e.g. user edits in settings page)
   useEffect(() => {
     const onStorage = () => {
       const s = loadSettings()
-      keyBindingsRef.current = s.keyBindings ?? [...DEFAULT_KEY_BINDINGS]
+      keyBindingsRef.current     = s.keyBindings ?? [...DEFAULT_KEY_BINDINGS]
+      keyboardEnabledRef.current = s.keyboardEnabled ?? true
+      gamepadEnabledRef.current  = s.gamepadEnabled  ?? true
     }
     window.addEventListener("storage", onStorage)
     return () => window.removeEventListener("storage", onStorage)
@@ -156,15 +163,17 @@ export function useGameEngine({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return
+      if (e.key === "Escape" && gameStateRef.current === "playing") { pause(); return }
+      if (!keyboardEnabledRef.current) return
       const laneIndex = keyBindingsRef.current.indexOf(e.key.toLowerCase())
       if (laneIndex !== -1) {
         e.preventDefault()
         keysDownRef.current.add(laneIndex)
         processHit(laneIndex)
       }
-      if (e.key === "Escape" && gameStateRef.current === "playing") pause()
     }
     const handleKeyUp = (e: KeyboardEvent) => {
+      if (!keyboardEnabledRef.current) return
       const laneIndex = keyBindingsRef.current.indexOf(e.key.toLowerCase())
       if (laneIndex !== -1) keysDownRef.current.delete(laneIndex)
     }
@@ -175,6 +184,15 @@ export function useGameEngine({
       window.removeEventListener("keyup", handleKeyUp)
     }
   }, [processHit])
+
+  // Controle (gamepad) — suporta Xbox, PlayStation, guitarra GH e genéricos
+  useGamepad({
+    enabled: gamepadEnabledRef.current,
+    keysDownRef,
+    onLanePress:   (lane) => { processHit(lane) },
+    onLaneRelease: (lane) => { keysDownRef.current.delete(lane) },
+    onPause:       () => { if (gameStateRef.current === "playing") pause() },
+  })
 
   const checkMisses = useCallback(
     (currentTime: number) => {

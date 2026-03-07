@@ -10,6 +10,8 @@ export interface GameSettings {
   showGuide: boolean
   calibrationOffset: number // -100 a +100 ms
   keyBindings: string[]     // 5 teclas, uma por lane
+  keyboardEnabled: boolean  // ativa/desativa teclado
+  gamepadEnabled: boolean   // ativa/desativa controle
 }
 
 export const DEFAULT_KEY_BINDINGS = ["a", "s", "d", "j", "k"]
@@ -22,6 +24,8 @@ export const DEFAULT_SETTINGS: GameSettings = {
   showGuide: true,
   calibrationOffset: 0,
   keyBindings: [...DEFAULT_KEY_BINDINGS],
+  keyboardEnabled: true,
+  gamepadEnabled: true,
 }
 
 const KEY = "guitar-duels-settings"
@@ -39,6 +43,8 @@ export function loadSettings(): GameSettings {
         keyBindings: Array.isArray(parsed.keyBindings) && parsed.keyBindings.length === 5
           ? parsed.keyBindings
           : [...DEFAULT_KEY_BINDINGS],
+        keyboardEnabled: parsed.keyboardEnabled ?? true,
+        gamepadEnabled:  parsed.gamepadEnabled  ?? true,
       }
     }
   } catch {}

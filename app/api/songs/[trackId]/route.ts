@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getSongChart, getSongMeta, getSongAudioUrls } from "@/lib/songs/library"
+import { getSongChart, getSongMeta, getSongAudioUrls, getSongBackgroundUrl } from "@/lib/songs/library"
 import { computeAutodifficulty } from "@/lib/songs/difficulty"
 
 // Impede que a Vercel empacote arquivos estáticos nesta função
@@ -26,6 +26,7 @@ export async function GET(
     meta.difficulty = computeAutodifficulty(chart, meta)
   }
 
-  const audioUrls = getSongAudioUrls(decodedId)
-  return NextResponse.json({ meta, chart, audioUrls })
+  const audioUrls     = getSongAudioUrls(decodedId)
+  const backgroundUrl = getSongBackgroundUrl(decodedId)
+  return NextResponse.json({ meta, chart, audioUrls, backgroundUrl })
 }

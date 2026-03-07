@@ -8,6 +8,7 @@ import { GameCountdown } from "./game-countdown"
 import { GameOverScreen } from "./game-over-screen"
 import { PauseOverlay } from "./pause-overlay"
 import { loadSettings, toGain } from "@/lib/settings"
+import { useGamepad } from "@/hooks/use-gamepad"
 
 function getMimeType(src: string): string {
   if (src.endsWith(".mp3"))  return "audio/mpeg"
@@ -22,6 +23,7 @@ interface GameCanvasProps {
   chart: Chart
   meta: SongMeta
   audioUrls?: Record<string, string>
+  backgroundUrl?: string | null
   speed?: number
   onBack?: () => void
   onScoreUpdate?: (stats: GameStats) => void
@@ -29,7 +31,7 @@ interface GameCanvasProps {
   externalPaused?: boolean
 }
 
-export function GameCanvas({ chart, meta, audioUrls, speed, onBack, onScoreUpdate, onSongEnd, externalPaused }: GameCanvasProps) {
+export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused }: GameCanvasProps) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const isLeavingRef = useRef(false)   // impede startGame após navegar para fora
@@ -62,6 +64,7 @@ export function GameCanvas({ chart, meta, audioUrls, speed, onBack, onScoreUpdat
 
 
   const instrumentVolRef = useRef(1.0)   // volume atual suavizado (0-1)
+  const [gpConnected, setGpConnected] = useState(false)
 
   const { gameState, stats, countdown, startGame, pause, resume, restart, accuracy, grade } =
     useGameEngine({
@@ -75,6 +78,18 @@ export function GameCanvas({ chart, meta, audioUrls, speed, onBack, onScoreUpdat
       onScoreUpdate,
       instrumentVol: instrumentVolRef,
     })
+
+  // Indicador de gamepad conectado
+  useEffect(() => {
+    const onConnect = () => setGpConnected(true)
+    const onDisconnect = () => setGpConnected(false)
+    window.addEventListener("gamepadconnected", onConnect)
+    window.addEventListener("gamepaddisconnected", onDisconnect)
+    return () => {
+      window.removeEventListener("gamepadconnected", onConnect)
+      window.removeEventListener("gamepaddisconnected", onDisconnect)
+    }
+  }, [])
 
   // ── Mix dinâmico: volume do instrumento sobe/desce com o desempenho ──────
   // Guitar Hero faz isso: quando você erra demais, a faixa da guitarra some.
@@ -235,6 +250,26 @@ export function GameCanvas({ chart, meta, audioUrls, speed, onBack, onScoreUpdat
 
   return (
     <div ref={containerRef} className="relative w-full h-screen overflow-hidden" style={{ background: "#060608" }}>
+      {/* Background da música — imagem ou vídeo */}
+      {backgroundUrl && (
+        backgroundUrl.endsWith(".mp4") || backgroundUrl.endsWith(".webm") ? (
+          <video
+            key={backgroundUrl}
+            src={backgroundUrl}
+            autoPlay loop muted playsInline
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ opacity: 0.35, zIndex: 0 }}
+          />
+        ) : (
+          <img
+            key={backgroundUrl}
+            src={backgroundUrl}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ opacity: 0.35, zIndex: 0 }}
+          />
+        )
+      )}
 
       {realPrimary && (
         <audio ref={primaryAudioRef} preload="auto">
@@ -252,7 +287,7 @@ export function GameCanvas({ chart, meta, audioUrls, speed, onBack, onScoreUpdat
         </audio>
       )}
 
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" style={{ zIndex: 1 }} />
 
       {/* Top bar — glassmorphism */}
       <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
@@ -267,6 +302,12 @@ export function GameCanvas({ chart, meta, audioUrls, speed, onBack, onScoreUpdat
         >
           <div className="flex-1 min-w-0">
             <p className="text-[10px] text-white/35 uppercase tracking-[0.25em] truncate">{meta.artist}</p>
+            {gpConnected && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold mt-0.5 inline-block"
+                style={{ background: "rgba(99,102,241,0.25)", border: "1px solid rgba(99,102,241,0.5)", color: "#a5b4fc" }}>
+                🎮 Controle
+              </span>
+            )}
             <h2 className="text-sm font-bold text-white truncate" style={{ lineHeight: 1.3 }}>{meta.name}</h2>
           </div>
           {!hasAudio && (

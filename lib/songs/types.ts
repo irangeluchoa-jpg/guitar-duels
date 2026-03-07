@@ -77,6 +77,9 @@ export interface SongListItem {
   year: string
   genre: string
   difficulty: number
+  songLength: number   // ms
+  noteCount?: number
+  charter?: string
   albumArt?: string
   previewUrl?: string
 }

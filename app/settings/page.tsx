@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Volume2, Gauge, Eye, Keyboard, RotateCcw, AlertTriangle } from "lucide-react"
 import { loadSettings, saveSettings, DEFAULT_SETTINGS, DEFAULT_KEY_BINDINGS, type GameSettings } from "@/lib/settings"
+import { loadGamepadBindings, saveGamepadBindings, DEFAULT_GAMEPAD_BINDINGS, GAMEPAD_PROFILES, detectProfile, type GamepadProfile } from "@/hooks/use-gamepad"
 import { playClickSound, playHoverSound, playHitSound } from "@/lib/game/sounds"
 
 const LANE_COLORS = ["#22c55e", "#ef4444", "#eab308", "#3b82f6", "#f97316"]
@@ -18,6 +19,13 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS)
   const [saved, setSaved] = useState(false)
 
+  // Gamepad state
+  const [gamepadConnected, setGamepadConnected] = useState(false)
+  const [gamepadName, setGamepadName] = useState<string>("")
+  const [gamepadBindings, setGamepadBindings] = useState<number[]>([...DEFAULT_GAMEPAD_BINDINGS])
+  const [listeningGamepad, setListeningGamepad] = useState<number | null>(null)
+  const listeningGamepadRef = useRef<number | null>(null)
+
   // Key binding state
   const [listeningFor, setListeningFor] = useState<number | null>(null)  // lane index
   const [conflict, setConflict] = useState<string | null>(null)           // conflict message
@@ -25,7 +33,77 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setSettings(loadSettings())
+    setGamepadBindings(loadGamepadBindings())
   }, [])
+
+  // Gamepad detection — polling ativo (necessário para Bluetooth e alguns controles)
+  // Eventos gamepadconnected não são confiáveis via Bluetooth; polling a cada 500ms resolve
+  useEffect(() => {
+    let raf: number
+    let lastConnected = false
+    let lastName = ""
+
+    const poll = () => {
+      const gps = navigator.getGamepads?.() ?? []
+      let found = false
+      let foundName = ""
+      for (const gp of gps) {
+        if (gp?.connected) { found = true; foundName = gp.id; break }
+      }
+      if (found !== lastConnected || foundName !== lastName) {
+        setGamepadConnected(found)
+        setGamepadName(foundName)
+        lastConnected = found
+        lastName = foundName
+      }
+    }
+
+    // Eventos como fallback
+    const onConnect    = (e: GamepadEvent) => { setGamepadConnected(true);  setGamepadName(e.gamepad.id) }
+    const onDisconnect = ()                 => { setGamepadConnected(false); setGamepadName("") }
+    window.addEventListener("gamepadconnected",    onConnect)
+    window.addEventListener("gamepaddisconnected", onDisconnect)
+
+    // Poll a cada 500ms (necessário para Bluetooth)
+    const interval = setInterval(poll, 500)
+    poll() // imediato
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener("gamepadconnected",    onConnect)
+      window.removeEventListener("gamepaddisconnected", onDisconnect)
+    }
+  }, [])
+
+  // Gamepad button listener (para remapeamento)
+  useEffect(() => {
+    if (listeningGamepad === null) return
+    let raf: number
+    let prev: boolean[] = []
+    const poll = () => {
+      const gps = navigator.getGamepads?.() ?? []
+      const gp  = [...gps].find(g => g?.connected)
+      if (gp) {
+        const buttons = gp.buttons.map(b => b.pressed)
+        for (let i = 0; i < buttons.length; i++) {
+          if (buttons[i] && !prev[i]) {
+            // Botão pressionado — salva mapeamento
+            const newBindings = [...gamepadBindings]
+            newBindings[listeningGamepad] = i
+            setGamepadBindings(newBindings)
+            saveGamepadBindings(newBindings)
+            setListeningGamepad(null)
+            listeningGamepadRef.current = null
+            return
+          }
+        }
+        prev = buttons
+      }
+      raf = requestAnimationFrame(poll)
+    }
+    raf = requestAnimationFrame(poll)
+    return () => cancelAnimationFrame(raf)
+  }, [listeningGamepad, gamepadBindings])
 
   // ESC para voltar ao menu
   useEffect(() => {
@@ -278,6 +356,72 @@ export default function SettingsPage() {
           {/* ── CONTROLES ── */}
           <Section title="Controles" icon={<Keyboard className="w-5 h-5" />} color="#22c55e">
 
+            {/* ── Toggles de entrada ── */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Teclado */}
+              <button
+                onClick={() => {
+                  playClickSound(vol)
+                  update({ keyboardEnabled: !(settings.keyboardEnabled ?? true) })
+                }}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
+                style={{
+                  background: (settings.keyboardEnabled ?? true) ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${(settings.keyboardEnabled ?? true) ? "rgba(34,197,94,0.40)" : "rgba(255,255,255,0.08)"}`,
+                }}>
+                <span className="text-2xl">{(settings.keyboardEnabled ?? true) ? "⌨️" : "🚫"}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold" style={{ color: (settings.keyboardEnabled ?? true) ? "#22c55e" : "rgba(255,255,255,0.35)", fontFamily: "'Arial Black',sans-serif" }}>
+                    Teclado
+                  </p>
+                  <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>
+                    {(settings.keyboardEnabled ?? true) ? "Ativo" : "Desativado"}
+                  </p>
+                </div>
+                <div className="w-10 h-5 rounded-full flex items-center transition-all duration-200 flex-shrink-0"
+                  style={{ background: (settings.keyboardEnabled ?? true) ? "#22c55e" : "rgba(255,255,255,0.12)", padding: "2px" }}>
+                  <div className="w-4 h-4 rounded-full bg-white shadow transition-all duration-200"
+                    style={{ transform: (settings.keyboardEnabled ?? true) ? "translateX(20px)" : "translateX(0)" }} />
+                </div>
+              </button>
+
+              {/* Controle */}
+              <button
+                onClick={() => {
+                  playClickSound(vol)
+                  update({ gamepadEnabled: !(settings.gamepadEnabled ?? true) })
+                }}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
+                style={{
+                  background: (settings.gamepadEnabled ?? true) ? "rgba(99,102,241,0.10)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${(settings.gamepadEnabled ?? true) ? "rgba(99,102,241,0.40)" : "rgba(255,255,255,0.08)"}`,
+                }}>
+                <span className="text-2xl">{(settings.gamepadEnabled ?? true) ? "🎮" : "🚫"}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold" style={{ color: (settings.gamepadEnabled ?? true) ? "#818cf8" : "rgba(255,255,255,0.35)", fontFamily: "'Arial Black',sans-serif" }}>
+                    Controle
+                  </p>
+                  <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>
+                    {(settings.gamepadEnabled ?? true) ? (gamepadConnected ? "Conectado" : "Ativo (sem controle)") : "Desativado"}
+                  </p>
+                </div>
+                <div className="w-10 h-5 rounded-full flex items-center transition-all duration-200 flex-shrink-0"
+                  style={{ background: (settings.gamepadEnabled ?? true) ? "#6366f1" : "rgba(255,255,255,0.12)", padding: "2px" }}>
+                  <div className="w-4 h-4 rounded-full bg-white shadow transition-all duration-200"
+                    style={{ transform: (settings.gamepadEnabled ?? true) ? "translateX(20px)" : "translateX(0)" }} />
+                </div>
+              </button>
+            </div>
+
+            {/* Aviso se ambos desativados */}
+            {!(settings.keyboardEnabled ?? true) && !(settings.gamepadEnabled ?? true) && (
+              <div className="flex items-center gap-2 px-4 py-3 rounded-xl"
+                style={{ background: "rgba(239,68,68,0.10)", border: "1px solid rgba(239,68,68,0.30)" }}>
+                <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                <p className="text-xs text-red-300">Atenção: teclado e controle estão desativados — você não conseguirá jogar!</p>
+              </div>
+            )}
+
             {/* Instrução */}
             <div className="flex items-start gap-3 px-4 py-3 rounded-xl"
               style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)" }}>
@@ -370,6 +514,67 @@ export default function SettingsPage() {
 
             {/* Preview das teclas no teclado (visual) */}
             <KeyboardPreview bindings={settings.keyBindings} listeningFor={listeningFor} />
+
+            {/* ── GAMEPAD ── */}
+            <div className="mt-2 rounded-xl overflow-hidden"
+              style={{ border: "1px solid rgba(99,102,241,0.25)", background: "rgba(99,102,241,0.05)" }}>
+              <div className="flex items-center gap-3 px-4 py-3"
+                style={{ borderBottom: "1px solid rgba(99,102,241,0.15)" }}>
+                <span className="text-lg">🎮</span>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-white/80">Controle / Gamepad</p>
+                  <p className="text-xs text-white/35 mt-0.5">
+                    {gamepadConnected
+                      ? <span className="text-green-400">● Conectado: <span className="text-white/50 font-mono text-[10px]">{gamepadName.slice(0,40)}</span></span>
+                      : <span className="text-white/30">○ Nenhum controle detectado — se for Bluetooth, <strong className="text-white/50">pressione qualquer botão</strong> no controle para ativar</span>
+                    }
+                  </p>
+                </div>
+              </div>
+
+              {gamepadConnected && (
+                <div className="p-4 space-y-3">
+                  <p className="text-xs text-white/40">Clique numa lane e pressione o botão do controle para remapear</p>
+                  <div className="grid grid-cols-5 gap-2">
+                    {LANE_COLORS.map((color, i) => {
+                      const isListening = listeningGamepad === i
+                      return (
+                        <div key={i} className="flex flex-col items-center gap-1.5">
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-full" style={{ background: color }} />
+                            <span className="text-[10px] text-white/30">{LANE_NAMES[i]}</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (isListening) { setListeningGamepad(null); return }
+                              setListeningGamepad(i)
+                              listeningGamepadRef.current = i
+                            }}
+                            className="w-full h-12 rounded-xl font-black text-sm transition-all duration-150"
+                            style={isListening ? {
+                              background: `${color}25`, border: `2px solid ${color}`,
+                              color: color, animation: "key-pulse 0.8s ease-in-out infinite",
+                            } : {
+                              background: `${color}12`, border: `1px solid ${color}35`, color: color,
+                            }}
+                          >
+                            {isListening ? "🎮?" : `Btn ${gamepadBindings[i]}`}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <button
+                    onClick={() => {
+                      const def = [...DEFAULT_GAMEPAD_BINDINGS]
+                      setGamepadBindings(def)
+                      saveGamepadBindings(def)
+                    }}
+                    className="text-xs text-white/25 hover:text-white/50 transition-colors"
+                  >↺ Restaurar mapeamento padrão</button>
+                </div>
+              )}
+            </div>
 
             {/* Teclas de sistema (não editáveis) */}
             <div>

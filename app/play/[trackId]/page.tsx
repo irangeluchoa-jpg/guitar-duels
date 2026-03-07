@@ -210,6 +210,7 @@ function PlayInner() {
   const [chart, setChart]     = useState<ChartData | null>(null)
   const [meta, setMeta]       = useState<SongMeta | null>(null)
   const [audioUrls, setAudioUrls] = useState<Record<string, string>>({})
+  const [backgroundUrl, setBackgroundUrl] = useState<string | null>(null)
   const isLeavingRef = useRef(false)   // previne startGame após onBack
   const [error, setError]     = useState<string | null>(null)
 
@@ -227,6 +228,7 @@ function PlayInner() {
         if (!res.ok) throw new Error("Música não encontrada")
         const data = await res.json()
         setMeta(data.meta); setChart(data.chart); setAudioUrls(data.audioUrls || {})
+        setBackgroundUrl(data.backgroundUrl || null)
       } catch (err) { setError(err instanceof Error ? err.message : "Erro ao carregar") }
     }
     load()
@@ -337,6 +339,7 @@ function PlayInner() {
         chart={chart}
         meta={meta}
         audioUrls={audioUrls}
+        backgroundUrl={backgroundUrl}
         onBack={handleBack}
         onScoreUpdate={handleScoreUpdate}
         onSongEnd={handleSongEnd}

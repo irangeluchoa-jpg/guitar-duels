@@ -92,6 +92,8 @@ export async function getSongList(): Promise<SongListItem[]> {
           year: meta.year || "",
           genre: meta.genre || "",
           difficulty: meta.difficulty ?? 3,
+          songLength: meta.songLength || 0,
+          charter: meta.charter || "",
           albumArt,
           previewUrl,
         })
@@ -251,4 +253,23 @@ export function getSongAudioUrls(trackId: string): Record<string, string> {
   } catch {}
 
   return urls
+}
+
+// ─── getSongBackgroundUrl ──────────────────────────────────────────────────────
+export function getSongBackgroundUrl(trackId: string): string | null {
+  if (!hasFs()) return null
+  try {
+    const fs   = require("fs")   as typeof import("fs")
+    const path = require("path") as typeof import("path")
+    const SONGS_DIR = path.join(process.cwd(), "public", "songs")
+    const songDir   = path.join(SONGS_DIR, trackId)
+    // Suporta: background.jpg/jpeg/png/webp (imagem) e background.mp4/webm (vídeo)
+    for (const n of [
+      "background.jpg", "background.jpeg", "background.png", "background.webp",
+      "background.mp4", "background.webm",
+    ]) {
+      if (fs.existsSync(path.join(songDir, n))) return `/songs/${trackId}/${n}`
+    }
+  } catch {}
+  return null
 }

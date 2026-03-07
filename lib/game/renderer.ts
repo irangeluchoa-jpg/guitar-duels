@@ -15,41 +15,65 @@ const NOTE_RY_BASE      = 11   // notas achatadas tipo GH:WT / GHL
 const SUSTAIN_WIDTH     = 16
 const STAR_POWER_COMBO  = 30
 
-// ── Cores do tema (guitar.ini / YARG theme) ──────────────────────────────────
-// Cores das notas
+// ── Cores do tema — extraídas do guitar.ini fornecido ───────────────────────
+// [guitar] note_green/red/yellow/blue/orange
 const NOTE_COLORS = [
-  "#00E14F",  // Lane 0 — Green
-  "#FF2828",  // Lane 1 — Red
-  "#FFFD4B",  // Lane 2 — Yellow
-  "#55ADFF",  // Lane 3 — Blue
-  "#FF9537",  // Lane 4 — Orange
+  "#FF0000",  // Green  — note_green
+  "#FF7800",  // Red    — note_red
+  "#FFFF00",  // Yellow — note_yellow
+  "#0089FF",  // Blue   — note_blue
+  "#5AFF00",  // Orange — note_orange
 ]
-// Cores das animações (glow/brilho) das notas
+// [guitar] note_anim_green/red/yellow/blue/orange (glow das notas)
 const NOTE_ANIM_COLORS = [
-  "#00E14F",  // Green
-  "#FF2828",  // Red
-  "#FFFD4B",  // Yellow
-  "#55ADFF",  // Blue
-  "#FF9537",  // Orange
+  "#FF0000",  // Green  — note_anim_green
+  "#FFC28B",  // Red    — note_anim_red
+  "#FFFF57",  // Yellow — note_anim_yellow
+  "#77D1FF",  // Blue   — note_anim_blue
+  "#74FF28",  // Orange — note_anim_orange
 ]
-// Cover dos strikers (aro externo do botão)
+// [guitar] striker_cover (aro externo do hit target)
 const STRIKER_COVER = [
-  "#00E14F",  // Green
-  "#FF2828",  // Red
-  "#FFFD4B",  // Yellow
-  "#55ADFF",  // Blue
-  "#FF9537",  // Orange
+  "#B40000",  // Green  — striker_cover_green
+  "#B45500",  // Red    — striker_cover_red
+  "#B4B200",  // Yellow — striker_cover_yellow
+  "#0061B4",  // Blue   — striker_cover_blue
+  "#40B400",  // Orange — striker_cover_orange
 ]
-// Partículas/chama do hit
-const HIT_FLAME_COLOR  = "#FFBF6D"  // striker_hit_flame
-const HIT_PARTICLE_COLOR = "#FF6600" // striker_hit_particles
-const SP_FLAME_COLOR   = "#00FFFF"  // striker_hit_flame_sp_active
-const SP_PARTICLE_COLOR = "#00FFFF" // striker_hit_particles_sp_active
-// Star Power
-const SP_NOTE_COLOR    = "#00FFFF"  // note_sp_active
-const SP_SUSTAIN_COLOR = "#00FFFF"  // sustain_sp_active
-// Combo glow colors
-const COMBO_GLOW = ["#FFDD00","#D55800","#00FF00","#874E9E","#E8B1FF"]
+// [guitar] striker_head_cover (head cover interno)
+const STRIKER_HEAD_COVER = [
+  "#B40000",  // Green  — striker_head_cover_green
+  "#B45500",  // Red    — striker_head_cover_red
+  "#B4B200",  // Yellow — striker_head_cover_yellow
+  "#0061B4",  // Blue   — striker_head_cover_blue
+  "#40B400",  // Orange — striker_head_cover_orange
+]
+// [guitar] striker_head_light (luz interna do hit target pressionado)
+const STRIKER_HEAD_LIGHT = [
+  "#FF0000",  // Green  — striker_head_light_green
+  "#FF7800",  // Red    — striker_head_light_red
+  "#FFFF00",  // Yellow — striker_head_light_yellow
+  "#0089FF",  // Blue   — striker_head_light_blue
+  "#5AFF00",  // Orange — striker_head_light_orange
+]
+// [other] striker_hit_flame / striker_hit_particles
+const HIT_FLAME_COLOR    = "#EE63F7"  // striker_hit_flame
+const HIT_PARTICLE_COLOR = "#FF5000"  // striker_hit_particles
+const SP_FLAME_COLOR     = "#FFFFFF"  // striker_hit_flame_sp_active
+const SP_PARTICLE_COLOR  = "#00FFFF"  // striker_hit_particles_sp_active
+// [guitar] note_sp_active / sustain_sp_active
+const SP_NOTE_COLOR      = "#EF6DF7"  // note_sp_active
+const SP_SUSTAIN_COLOR   = "#EF6DF7"  // sustain_sp_active
+// [guitar] sustain colors
+const SUSTAIN_COLORS = [
+  "#FF0000",  // Green  — sustain_green
+  "#FF7800",  // Red    — sustain_red
+  "#FFFF00",  // Yellow — sustain_yellow
+  "#00C5FF",  // Blue   — sustain_blue
+  "#80FF3B",  // Orange — sustain_orange
+]
+// [other] combo glow
+const COMBO_GLOW = ["#FFDD00","#D55800","#00FF00","#4E7F9E","#B2E1FF"]
 
 // ── Cache ──────────────────────────────────────────────────────────────────
 // Cache: [diffKey][starPower] -> OffscreenCanvas
@@ -199,8 +223,7 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number):
   const tLB = (w-trackBot)/2, tRB = tLB+trackBot
   const tLT = (w-trackTop)/2, tRT = tLT+trackTop
 
-  // Fundo preto
-  ctx.fillStyle = "#000"; ctx.fillRect(0,0,w,h)
+  // Fundo transparente (o HTML background aparece atrás)
 
   // Recorte do fretboard
   ctx.save()
@@ -208,25 +231,26 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number):
   ctx.moveTo(tLB,hitY); ctx.lineTo(tRB,hitY); ctx.lineTo(tRT,vanishY); ctx.lineTo(tLT,vanishY)
   ctx.closePath(); ctx.clip()
 
-  if (starPower) {
-    // ── STAR POWER: fundo cyano escuro com glow
-    const bg = ctx.createLinearGradient(0,vanishY,0,hitY)
-    bg.addColorStop(0, "rgba(0,20,30,0.98)")
-    bg.addColorStop(0.4, "rgba(0,28,38,0.98)")
-    bg.addColorStop(1, "rgba(0,35,45,0.99)")
+  // ── WoR: fundo escuro metálico (preto-azul profundo) ─────────────────
+  {
+    const bg = ctx.createLinearGradient(0, vanishY, 0, hitY)
+    if (starPower) {
+      bg.addColorStop(0,   "rgba(0,15,28,1.0)")
+      bg.addColorStop(0.5, "rgba(0,22,36,1.0)")
+      bg.addColorStop(1,   "rgba(0,28,42,1.0)")
+    } else {
+      bg.addColorStop(0,   "rgba(4,6,10,1.0)")
+      bg.addColorStop(0.5, "rgba(6,8,14,1.0)")
+      bg.addColorStop(1,   "rgba(8,10,16,1.0)")
+    }
     ctx.fillStyle = bg; ctx.fillRect(0,0,w,h)
-
-    // Brilho cyano central
-    const glow = ctx.createRadialGradient(w/2,(vanishY+hitY)/2,0,w/2,(vanishY+hitY)/2,trackBot*0.6)
-    glow.addColorStop(0,"rgba(0,200,220,0.12)"); glow.addColorStop(1,"transparent")
-    ctx.fillStyle=glow; ctx.fillRect(0,0,w,h)
-  } else {
-    // ── NORMAL: fundo escuro esverdeado/preto
-    const bg = ctx.createLinearGradient(0,vanishY,0,hitY)
-    bg.addColorStop(0, "rgba(5,10,8,0.98)")
-    bg.addColorStop(0.4, "rgba(8,14,10,0.98)")
-    bg.addColorStop(1, "rgba(12,18,14,0.99)")
-    ctx.fillStyle = bg; ctx.fillRect(0,0,w,h)
+  }
+  // Reflexo central sutil (coluna de luz no meio)
+  {
+    const cg = ctx.createRadialGradient(w/2, hitY, 0, w/2, vanishY, trackBot*0.7)
+    cg.addColorStop(0, starPower ? "rgba(0,180,220,0.08)" : "rgba(0,160,200,0.05)")
+    cg.addColorStop(1, "transparent")
+    ctx.fillStyle = cg; ctx.fillRect(0,0,w,h)
   }
 
   // ── Textura da highway (imagem real, perspectiva trapézio) ────────────────
@@ -277,18 +301,19 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number):
     const prog = (hitY-y)/(hitY-vanishY), tw = trackBot+(trackTop-trackBot)*prog
     return (w-tw)/2+tw*frac
   }
-  const gridColor = starPower ? "0,220,255" : "150,220,170"
+  // WoR: grid sempre cyan
+  const gridColor = "0,200,255"
   for (let r = 1; r < 9; r++) {
     const t = r/9
     const y = hitY-(hitY-vanishY)*Math.pow(t,0.74)
-    const al = (1-t) * (starPower ? 0.35 : 0.22)
+    const al = (1-t) * (starPower ? 0.45 : 0.28)
     ctx.beginPath(); ctx.moveTo(edgeX(0,y),y); ctx.lineTo(edgeX(1,y),y)
     ctx.strokeStyle=`rgba(${gridColor},${al})`; ctx.lineWidth=1; ctx.stroke()
   }
 
-  // ── Divisores de lane ──────────────────────────────────────────────────
-  const divColor = starPower ? "rgba(0,200,255,0.30)" : "rgba(80,160,100,0.22)"
-  const borderColor = starPower ? "rgba(0,220,255,0.70)" : "rgba(0,200,80,0.55)"
+  // ── Divisores de lane — WoR: finos, cyan ──────────────────────────────
+  const divColor    = starPower ? "rgba(0,220,255,0.35)" : "rgba(0,180,220,0.22)"
+  const borderColor = starPower ? "rgba(0,240,255,0.85)" : "rgba(0,210,255,0.70)"
   for (let i = 0; i <= LANE_COUNT; i++) {
     const bx = tLB+(trackBot/LANE_COUNT)*i, tx = tLT+(trackTop/LANE_COUNT)*i
     const border = i===0||i===LANE_COUNT
@@ -299,12 +324,12 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number):
 
   // ── Bordas com glow ────────────────────────────────────────────────────
   ctx.save()
-  ctx.shadowColor = starPower ? "rgba(0,220,255,0.90)" : "rgba(0,200,100,0.70)"
-  ctx.shadowBlur = 18
+  ctx.shadowColor = starPower ? "rgba(0,255,255,0.95)" : "rgba(0,210,255,0.80)"
+  ctx.shadowBlur = 22
   for (const [bx,tx] of [[tLB,tLT],[tRB,tRT]] as [number,number][]) {
     ctx.beginPath(); ctx.moveTo(bx,hitY); ctx.lineTo(tx,vanishY)
-    ctx.strokeStyle = starPower ? "rgba(0,220,255,0.85)" : "rgba(0,220,110,0.72)"
-    ctx.lineWidth=2; ctx.stroke()
+    ctx.strokeStyle = starPower ? "rgba(0,255,255,0.90)" : "rgba(0,210,255,0.78)"
+    ctx.lineWidth=2.5; ctx.stroke()
   }
   ctx.shadowBlur=0; ctx.restore()
 
@@ -442,7 +467,7 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
   ctx.restore()
 }
 
-// ── Nota estilo GH:WT — disco achatado com aro metálico + chama embaixo ──────
+// ── Nota estilo GH:WoR — disco flat prata/cinza, aro cyan luminoso ──────────
 function drawNoteGH(
   ctx: CanvasRenderingContext2D,
   x: number, y: number,
@@ -451,72 +476,90 @@ function drawNoteGH(
   starPower: boolean,
   now: number
 ) {
-  const sp    = starPower
-  const color = NOTE_COLORS[laneIdx] ?? "#ffffff"
-  const anim  = NOTE_ANIM_COLORS[laneIdx] ?? color
-  const c     = sp ? SP_NOTE_COLOR : color
-  const ca    = sp ? SP_NOTE_COLOR : anim
-  const t     = now * 0.003
+  const sp   = starPower
+  const t    = now * 0.003
+  // Nota usa a cor da lane — aro brilhante com a cor do botão
+  const laneCol  = NOTE_COLORS[laneIdx]  ?? "#00e5ff"
+  const laneAnim = NOTE_ANIM_COLORS[laneIdx] ?? laneCol
+  const rimCol   = sp ? "#00ffff" : laneCol
+  const rimAnim  = sp ? "#00ffff" : laneAnim
+  const rimRgb   = hexToRgb(rimCol)
+  const rimAnimRgb = hexToRgb(rimAnim)
+  const glowInt  = sp ? 28 : 20
 
   ctx.save()
 
-  // ── Sombra elíptica no fretboard ─────────────────────────────────────
-  ctx.save(); ctx.globalAlpha = 0.18
-  ctx.beginPath(); ctx.ellipse(x, y + ry*0.55, rx*0.80, ry*0.28, 0, 0, Math.PI*2)
-  ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fill(); ctx.restore()
+  // ── Glow externo sutil (halo cyan) ───────────────────────────────────
+  const haloG = ctx.createRadialGradient(x, y, rx*0.5, x, y, rx*3.2)
+  haloG.addColorStop(0,   `rgba(${rimAnimRgb},${sp?0.30:0.18})`)
+  haloG.addColorStop(1,   "transparent")
+  ctx.fillStyle = haloG
+  ctx.beginPath(); ctx.ellipse(x, y, rx*3.2, ry*3.2, 0, 0, Math.PI*2); ctx.fill()
 
-  // ── Glow externo (anim color) ─────────────────────────────────────────
-  ctx.shadowColor = ca; ctx.shadowBlur = sp ? 26 : 18
+  // ── Shadow drop ───────────────────────────────────────────────────────
+  ctx.save(); ctx.globalAlpha = 0.35
+  ctx.beginPath(); ctx.ellipse(x, y + ry*1.0, rx*0.82, ry*0.20, 0, 0, Math.PI*2)
+  ctx.fillStyle = "rgba(0,0,0,1)"; ctx.fill(); ctx.restore()
 
-  // ── Base preta do disco (striker_base) ────────────────────────────────
+  // ── Glow edge ─────────────────────────────────────────────────────────
+  ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt
+
+  // ── Base do disco — gradiente escuro metálico ─────────────────────────
+  const baseG = ctx.createRadialGradient(x - rx*0.20, y - ry*0.35, 0, x, y, rx*1.05)
+  baseG.addColorStop(0,    "#3a3a3a")
+  baseG.addColorStop(0.30, "#1e1e1e")
+  baseG.addColorStop(0.70, "#111111")
+  baseG.addColorStop(1,    "#080808")
   ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2)
-  ctx.fillStyle = "#1a1a1a"; ctx.fill()
-
-  // ── Cover colorido (striker_cover) — anel externo colorido ───────────
-  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2)
-  ctx.strokeStyle = c
-  ctx.lineWidth = Math.max(2, rx * 0.14); ctx.stroke()
-
-  // ── Corpo principal — gradiente 3D ────────────────────────────────────
-  const bodyG = ctx.createRadialGradient(x - rx*0.25, y - ry*0.42, ry*0.02, x, y, rx*1.05)
-  bodyG.addColorStop(0,    sp ? "#aaffff" : "#ffffff")
-  bodyG.addColorStop(0.12, c)
-  bodyG.addColorStop(0.55, sp ? "#006688" : shade(c, -30))
-  bodyG.addColorStop(1,    "#111111")
-  ctx.beginPath(); ctx.ellipse(x, y, rx*0.88, ry*0.88, 0, 0, Math.PI*2)
-  ctx.fillStyle = bodyG; ctx.fill()
+  ctx.fillStyle = baseG; ctx.fill()
   ctx.shadowBlur = 0
 
-  // ── Aro interno brilhante (striker_head_light) ────────────────────────
-  ctx.beginPath(); ctx.ellipse(x, y, rx*0.62, ry*0.62, 0, 0, Math.PI*2)
-  ctx.strokeStyle = sp ? "rgba(0,255,255,0.80)" : "rgba(255,255,255,0.55)"
-  ctx.lineWidth = 1.2; ctx.stroke()
+  // ── Aro externo brilhante (o "rim" cyan do WoR) ───────────────────────
+  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2)
+  ctx.strokeStyle = rimCol
+  ctx.lineWidth = Math.max(1.8, rx * 0.12)
+  ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt * 1.2
+  ctx.stroke(); ctx.shadowBlur = 0
 
-  // ── Shine especular no topo ───────────────────────────────────────────
+  // ── Anel interno médio (detalhe metálico) ─────────────────────────────
+  ctx.beginPath(); ctx.ellipse(x, y, rx*0.68, ry*0.68, 0, 0, Math.PI*2)
+  ctx.strokeStyle = `rgba(${rimRgb},${sp?0.70:0.45})`
+  ctx.lineWidth = 1.0; ctx.stroke()
+
+  // ── Centro escuro + pequeno reflexo ──────────────────────────────────
+  ctx.beginPath(); ctx.ellipse(x, y, rx*0.46, ry*0.46, 0, 0, Math.PI*2)
+  ctx.fillStyle = "#0a0a0a"; ctx.fill()
+
+  // Dot reflexo no centro
+  const dotG = ctx.createRadialGradient(x - rx*0.08, y - ry*0.15, 0, x, y, rx*0.32)
+  dotG.addColorStop(0,    `rgba(${rimRgb},${sp?0.85:0.60})`)
+  dotG.addColorStop(0.5,  `rgba(${rimRgb},0.12)`)
+  dotG.addColorStop(1,    "transparent")
+  ctx.fillStyle = dotG; ctx.fill()
+
+  // ── Shine especular no topo esquerdo ─────────────────────────────────
   ctx.save()
-  ctx.beginPath(); ctx.ellipse(x, y, rx*0.88, ry*0.88, 0, 0, Math.PI*2); ctx.clip()
-  const shineG = ctx.createRadialGradient(x - rx*0.22, y - ry*0.44, 0, x - rx*0.05, y - ry*0.12, rx*0.68)
-  shineG.addColorStop(0,    "rgba(255,255,255,0.95)")
-  shineG.addColorStop(0.28, "rgba(255,255,255,0.28)")
-  shineG.addColorStop(1,    "transparent")
-  ctx.fillStyle = shineG; ctx.fill(); ctx.restore()
+  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2); ctx.clip()
+  const shG = ctx.createRadialGradient(x - rx*0.28, y - ry*0.48, 0, x, y - ry*0.1, rx*0.58)
+  shG.addColorStop(0,    "rgba(255,255,255,0.75)")
+  shG.addColorStop(0.18, "rgba(255,255,255,0.18)")
+  shG.addColorStop(1,    "transparent")
+  ctx.fillStyle = shG; ctx.fill(); ctx.restore()
 
-  // ── Chama/glow embaixo (striker_hit_flame cor) ────────────────────────
-  const flameY   = y + ry + 1
-  const flicker  = 0.72 + Math.sin(t + x*0.05)*0.28
-  const flameCol = sp ? "0,255,255" : hexToRgb(anim)
-  const flG = ctx.createRadialGradient(x, flameY, 0, x, flameY, rx * 0.8 * flicker)
-  flG.addColorStop(0,   `rgba(255,255,255,0.85)`)
-  flG.addColorStop(0.25, `rgba(${flameCol},0.65)`)
-  flG.addColorStop(1,    "transparent")
-  ctx.fillStyle = flG
-  ctx.beginPath(); ctx.ellipse(x, flameY, rx*0.52*flicker, ry*2.2*flicker, 0, 0, Math.PI*2); ctx.fill()
+  // ── Glow pulsante embaixo (corona cyan sutil) ─────────────────────────
+  const flicker = 0.82 + Math.sin(t*2.4 + x*0.03)*0.18
+  const coronaG = ctx.createRadialGradient(x, y + ry*0.3, 0, x, y + ry*0.3, rx*0.85*flicker)
+  coronaG.addColorStop(0,    `rgba(${rimAnimRgb},${sp?0.55:0.35})`)
+  coronaG.addColorStop(0.55, `rgba(${rimAnimRgb},0.06)`)
+  coronaG.addColorStop(1,    "transparent")
+  ctx.fillStyle = coronaG
+  ctx.beginPath(); ctx.ellipse(x, y + ry*0.3, rx*0.50*flicker, ry*1.8*flicker, 0, 0, Math.PI*2); ctx.fill()
 
   ctx.restore()
 }
 
 
-// ── Hit target estilo GH3 — botão redondo com base preta, aro colorido, chamas ─
+// ── Hit target estilo GH:WoR — anel duplo, centro escuro, aro colorido por lane ─
 function drawHitTarget(
   ctx: CanvasRenderingContext2D,
   x: number, baseHitY: number,
@@ -524,120 +567,145 @@ function drawHitTarget(
   starPower: boolean, now: number,
   jumpY: number = 0, scaleX: number = 1, scaleY: number = 1
 ) {
-  const hitY  = baseHitY - jumpY   // posição Y com salto aplicado
+  const hitY  = baseHitY - jumpY
   const sp    = starPower
-  const color = STRIKER_COVER[laneIdx] ?? "#ffffff"
-  const c     = sp ? SP_NOTE_COLOR : color
-  const rx    = (NOTE_RX_BASE + 6) * scaleX
-  const ry    = (NOTE_RY_BASE + 6) * scaleY
+  const laneColor = STRIKER_COVER[laneIdx] ?? "#ffffff"
+  const headLight = STRIKER_HEAD_LIGHT[laneIdx] ?? laneColor
+  const c     = sp ? "#00ffff" : laneColor
+  const cRgb  = sp ? "0,255,255" : hexToRgb(laneColor)
+  const rx    = (NOTE_RX_BASE + 8) * scaleX
+  const ry    = (NOTE_RY_BASE + 8) * scaleY
   const t     = now * 0.003
 
   ctx.save()
 
   // ── Glow halo ao pressionar ───────────────────────────────────────────
   if (pressed) {
-    ctx.shadowColor = c; ctx.shadowBlur = sp ? 50 : 40
-    const grd = ctx.createRadialGradient(x, hitY, 0, x, hitY, rx*3.2)
-    grd.addColorStop(0, `rgba(${hexToRgb(c)},0.33)`); grd.addColorStop(1, "transparent")
-    ctx.fillStyle = grd
-    ctx.beginPath(); ctx.ellipse(x, hitY, rx*3.2, ry*3.2, 0, 0, Math.PI*2); ctx.fill()
-    ctx.shadowBlur = 0
+    const halo = ctx.createRadialGradient(x, hitY, 0, x, hitY, rx * 3.5)
+    halo.addColorStop(0,   `rgba(${cRgb},0.40)`)
+    halo.addColorStop(0.5, `rgba(${cRgb},0.10)`)
+    halo.addColorStop(1,   "transparent")
+    ctx.fillStyle = halo
+    ctx.beginPath(); ctx.ellipse(x, hitY, rx*3.5, ry*3.5, 0, 0, Math.PI*2); ctx.fill()
   }
 
-  // ── Aro externo GH3 (grande, com sombra) ─────────────────────────────
-  ctx.beginPath(); ctx.ellipse(x, hitY, rx + 10, ry + 10, 0, 0, Math.PI*2)
+  // ── Anel exterior decorativo (halo externo sempre visível) ─────────────
+  ctx.beginPath(); ctx.ellipse(x, hitY, rx + 12, ry + 12, 0, 0, Math.PI*2)
   ctx.strokeStyle = pressed
-    ? `rgba(${hexToRgb(c)},0.80)`
-    : sp ? "rgba(0,220,255,0.45)" : "rgba(255,255,255,0.15)"
-  ctx.lineWidth = 2; ctx.stroke()
+    ? `rgba(${cRgb},0.70)`
+    : sp ? "rgba(0,220,255,0.40)" : "rgba(255,255,255,0.08)"
+  ctx.lineWidth = 1.2; ctx.stroke()
 
-  // ── Base escura do botão (striker_base = #313131) ─────────────────────
-  ctx.beginPath(); ctx.ellipse(x, hitY, rx + 3, ry + 3, 0, 0, Math.PI*2)
-  ctx.fillStyle = pressed ? "#1c1c1c" : "#313131"
-  ctx.shadowColor = pressed ? c : "rgba(0,0,0,0.8)"; ctx.shadowBlur = pressed ? 8 : 4
+  // ── Anel externo (outer ring) — prata escuro ───────────────────────────
+  ctx.beginPath(); ctx.ellipse(x, hitY, rx + 5, ry + 5, 0, 0, Math.PI*2)
+  const outerG = ctx.createRadialGradient(x, hitY - ry, 0, x, hitY, rx + 5)
+  outerG.addColorStop(0,    "#2a2a2a")
+  outerG.addColorStop(0.6,  "#151515")
+  outerG.addColorStop(1,    "#0a0a0a")
+  ctx.fillStyle = outerG
+  ctx.shadowColor = pressed ? c : "rgba(0,0,0,0.8)"
+  ctx.shadowBlur  = pressed ? 18 : 5
   ctx.fill(); ctx.shadowBlur = 0
 
-  // ── Cover colorido (striker_cover) — anel colorido no aro ─────────────
-  ctx.beginPath(); ctx.ellipse(x, hitY, rx + 3, ry + 3, 0, 0, Math.PI*2)
-  ctx.strokeStyle = pressed ? `rgba(${hexToRgb(c)},1.0)` : `rgba(${hexToRgb(c)},0.80)`
-  ctx.lineWidth = pressed ? 4 : 3; ctx.stroke()
+  // Borda do outer ring na cor da lane
+  ctx.beginPath(); ctx.ellipse(x, hitY, rx + 5, ry + 5, 0, 0, Math.PI*2)
+  ctx.strokeStyle = pressed ? `rgba(${cRgb},1.0)` : `rgba(${cRgb},0.75)`
+  ctx.lineWidth = pressed ? 3.5 : 2.5
+  ctx.shadowColor = c; ctx.shadowBlur = pressed ? 20 : 10
+  ctx.stroke(); ctx.shadowBlur = 0
 
-  // ── Corpo central ─────────────────────────────────────────────────────
+  // ── Gap escuro entre os aros (WoR signature) ──────────────────────────
+  ctx.beginPath(); ctx.ellipse(x, hitY, rx + 1, ry + 1, 0, 0, Math.PI*2)
+  ctx.fillStyle = "#060606"; ctx.fill()
+
+  // ── Anel interno (inner ring) — body principal ────────────────────────
   ctx.beginPath(); ctx.ellipse(x, hitY, rx, ry, 0, 0, Math.PI*2)
+  const innerG = ctx.createRadialGradient(x - rx*0.18, hitY - ry*0.30, 0, x, hitY, rx)
   if (pressed) {
-    const fg = ctx.createRadialGradient(x - rx*0.22, hitY - ry*0.42, 0, x, hitY, rx)
-    fg.addColorStop(0, "#ffffff"); fg.addColorStop(0.25, c); fg.addColorStop(1, `rgba(${hexToRgb(c)},0.30)`)
-    ctx.fillStyle = fg
+    innerG.addColorStop(0,    "#ffffff")
+    innerG.addColorStop(0.15, sp ? "#00ffff" : headLight)
+    innerG.addColorStop(0.50, c)
+    innerG.addColorStop(1,    `rgba(${cRgb},0.15)`)
   } else {
-    // Gradiente escuro com leve toque da cor
-    const fg = ctx.createRadialGradient(x, hitY - ry*0.3, 0, x, hitY, rx)
-    fg.addColorStop(0, `rgba(${hexToRgb(c)},0.27)`)
-    fg.addColorStop(1, "#0a0a0a")
-    ctx.fillStyle = fg
+    innerG.addColorStop(0,    "#222222")
+    innerG.addColorStop(0.50, "#111111")
+    innerG.addColorStop(1,    "#070707")
   }
-  ctx.fill()
+  ctx.fillStyle = innerG; ctx.fill()
 
-  // ── Aro do head light (striker_head_light) ─────────────────────────────
-  ctx.beginPath(); ctx.ellipse(x, hitY, rx*0.65, ry*0.65, 0, 0, Math.PI*2)
-  ctx.strokeStyle = pressed ? `rgba(${hexToRgb(c)},0.93)` : `rgba(${hexToRgb(c)},0.40)`
-  ctx.lineWidth = pressed ? 2.5 : 1.5; ctx.stroke()
+  // Borda interna fina na cor da lane
+  ctx.beginPath(); ctx.ellipse(x, hitY, rx, ry, 0, 0, Math.PI*2)
+  ctx.strokeStyle = pressed ? `rgba(${cRgb},0.90)` : `rgba(${cRgb},0.50)`
+  ctx.lineWidth = 1.5; ctx.stroke()
 
-  // ── Cover do head (striker_head_cover = #313131) ──────────────────────
+  // ── Aro do head light (círculo interno médio) ─────────────────────────
+  const hlRgb = sp ? "0,255,255" : hexToRgb(headLight)
+  ctx.beginPath(); ctx.ellipse(x, hitY, rx*0.62, ry*0.62, 0, 0, Math.PI*2)
+  ctx.strokeStyle = pressed
+    ? `rgba(${hlRgb},0.95)`
+    : `rgba(${hlRgb},${sp?0.60:0.35})`
+  ctx.lineWidth = pressed ? 2.0 : 1.2; ctx.stroke()
+
+  // ── Centro escuro (WoR: centro sempre vazio/escuro) ───────────────────
   if (!pressed) {
-    ctx.beginPath(); ctx.ellipse(x, hitY, rx*0.50, ry*0.50, 0, 0, Math.PI*2)
-    ctx.fillStyle = "#313131"; ctx.fill()
-    // Pequena luz no centro
-    const dot = ctx.createRadialGradient(x, hitY - ry*0.2, 0, x, hitY, rx*0.35)
-    dot.addColorStop(0, `rgba(${hexToRgb(c)},0.38)`); dot.addColorStop(1, "transparent")
-    ctx.fillStyle = dot; ctx.fill()
+    ctx.beginPath(); ctx.ellipse(x, hitY, rx*0.46, ry*0.46, 0, 0, Math.PI*2)
+    ctx.fillStyle = "#080808"; ctx.fill()
+    // Dot de luz sutil no centro
+    const dotG = ctx.createRadialGradient(x, hitY - ry*0.15, 0, x, hitY, rx*0.35)
+    dotG.addColorStop(0,   `rgba(${hlRgb},0.45)`)
+    dotG.addColorStop(1,   "transparent")
+    ctx.fillStyle = dotG; ctx.fill()
   }
 
-  // ── Shine ao pressionar ───────────────────────────────────────────────
+  // ── Shine especular ao pressionar ────────────────────────────────────
   if (pressed) {
     ctx.save(); ctx.beginPath(); ctx.ellipse(x, hitY, rx, ry, 0, 0, Math.PI*2); ctx.clip()
-    const sh = ctx.createRadialGradient(x - rx*0.22, hitY - ry*0.46, 0, x, hitY, rx*0.82)
-    sh.addColorStop(0, "rgba(255,255,255,0.92)")
-    sh.addColorStop(0.38, "rgba(255,255,255,0.15)")
-    sh.addColorStop(1, "transparent")
+    const sh = ctx.createRadialGradient(x - rx*0.22, hitY - ry*0.48, 0, x, hitY, rx*0.80)
+    sh.addColorStop(0,    "rgba(255,255,255,0.90)")
+    sh.addColorStop(0.25, "rgba(255,255,255,0.18)")
+    sh.addColorStop(1,    "transparent")
     ctx.fillStyle = sh; ctx.fill(); ctx.restore()
   }
 
-  // ── Chamas (striker_hit_flame / striker_hit_spark) ─────────────────────
+  // ── Chamas ao pressionar — estilo WoR: energia lateral ────────────────
   if (pressed || sp) {
-    const flameAlpha = pressed ? 1.0 : (0.35 + Math.sin(t + x*0.01)*0.2)
-    const flameRgb   = sp ? "0,220,255" : hexToRgb(color)
-    const flicker    = 0.72 + Math.sin(t*2.2 + x*0.02)*0.28
+    const flameRgb   = sp ? "0,255,255" : hexToRgb(HIT_FLAME_COLOR)
+    const flameAlpha = pressed ? 1.0 : 0.4 + Math.sin(t + x*0.01)*0.15
+    const flicker    = 0.70 + Math.sin(t*2.5 + x*0.02)*0.30
 
-    for (let f = 0; f < 3; f++) {
-      const fh  = (ry*3.5 + Math.sin(t*2.8 + f*1.5)*ry)*flicker
-      const fw  = rx*(0.38 - f*0.10)*flicker
-      const fy  = hitY + ry + 3
-      const flG = ctx.createLinearGradient(x, fy + fh, x, fy)
-      flG.addColorStop(0,    `rgba(${flameRgb},0)`)
-      flG.addColorStop(0.35, `rgba(${flameRgb},${flameAlpha*0.55})`)
-      flG.addColorStop(0.75, `rgba(255,220,150,${flameAlpha*0.80})`)
-      flG.addColorStop(1,    `rgba(255,255,255,${flameAlpha})`)
+    // Chamas saindo para cima (como no WoR)
+    for (let f = 0; f < 4; f++) {
+      const fh  = (ry * 4.5 + Math.sin(t*3.0 + f*1.4)*ry*1.2) * flicker
+      const fw  = rx * (0.32 - f*0.06) * flicker
+      const fy  = hitY - ry * 0.5
+      const dx  = Math.sin(t*1.6 + f*2.0 + x*0.01) * fw * 0.4
+      const flG = ctx.createLinearGradient(x, fy, x, fy - fh)
+      flG.addColorStop(0,    `rgba(255,255,255,${flameAlpha})`)
+      flG.addColorStop(0.20, `rgba(${flameRgb},${flameAlpha*0.90})`)
+      flG.addColorStop(0.65, `rgba(${flameRgb},${flameAlpha*0.35})`)
+      flG.addColorStop(1,    "transparent")
       ctx.fillStyle = flG
-      const dx = Math.sin(t*1.4 + f*2.1 + x*0.01)*fw*0.35
+      ctx.shadowColor = `rgba(${flameRgb},0.8)`; ctx.shadowBlur = 12
       ctx.beginPath()
       ctx.moveTo(x - fw, fy)
-      ctx.quadraticCurveTo(x - fw*0.4 + dx, fy + fh*0.45, x + dx*0.5, fy + fh)
-      ctx.quadraticCurveTo(x + fw*0.4 + dx, fy + fh*0.45, x + fw, fy)
+      ctx.quadraticCurveTo(x - fw*0.3 + dx, fy - fh*0.4, x + dx*0.5, fy - fh)
+      ctx.quadraticCurveTo(x + fw*0.3 + dx, fy - fh*0.4, x + fw, fy)
       ctx.closePath(); ctx.fill()
     }
+    ctx.shadowBlur = 0
 
-    // Faíscas (striker_hold_spark)
+    // Faíscas orbitando
     if (pressed) {
-      const sparkColor = sp ? SP_PARTICLE_COLOR : HIT_PARTICLE_COLOR
-      for (let s = 0; s < 5; s++) {
-        const ang  = (s/5)*Math.PI*2 + t*3
-        const dist = rx*(0.9 + Math.abs(Math.sin(t*4+s))*0.8)
+      const sparkRgb = sp ? "0,255,255" : hexToRgb(HIT_PARTICLE_COLOR)
+      for (let s = 0; s < 6; s++) {
+        const ang  = (s/6)*Math.PI*2 + t*4
+        const dist = rx*(0.85 + Math.abs(Math.sin(t*5+s))*0.7)
         const sx   = x + Math.cos(ang)*dist
-        const sy   = hitY + Math.sin(ang)*dist*0.45
-        const sr   = 2 + Math.abs(Math.sin(t*5+s))*2
+        const sy   = hitY + Math.sin(ang)*dist*0.42
+        const sr   = 1.5 + Math.abs(Math.sin(t*6+s))*2.5
         ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2)
-        ctx.fillStyle = sparkColor
-        ctx.shadowColor = sparkColor; ctx.shadowBlur = 8
+        ctx.fillStyle = `rgba(${sparkRgb},0.95)`
+        ctx.shadowColor = `rgba(${sparkRgb},1)`; ctx.shadowBlur = 10
         ctx.fill(); ctx.shadowBlur = 0
       }
     }
@@ -670,68 +738,128 @@ function drawLightBeam(ctx: CanvasRenderingContext2D, x: number, hitY: number, h
   ctx.shadowBlur=0; ctx.restore()
 }
 
-// ── Explosão ao acertar ───────────────────────────────────────────────────────
+// ── Explosão ao acertar — estilo GH:WoR: burst de energia + sparks laterais ──
 function drawHitExplosion(
   ctx: CanvasRenderingContext2D, x: number, hitY: number,
   color: string, progress: number, alpha: number, rating: string,
-  rx: number, ry: number
+  rx: number, ry: number,
+  starPower: boolean = false
 ) {
-  const isPerfect=rating==="perfect", isGreat=rating==="great", isGood=rating==="good"
+  const isPerfect = rating === "perfect"
+  const isGreat   = rating === "great"
+  // WoR: cor principal é sempre cyan/energia — não usa a cor da nota
+  const burstCol  = starPower ? "#ffffff" : "#00e5ff"
+  const burstRgb  = starPower ? "255,255,255" : "0,229,255"
+  const sparkCol  = starPower ? SP_PARTICLE_COLOR : HIT_PARTICLE_COLOR
+  const sparkRgb  = hexToRgb(sparkCol)
   ctx.save()
 
-  if (progress<0.18) {
-    const fp=progress/0.18, fR=rx*4.5*fp
-    const flash=ctx.createRadialGradient(x,hitY,0,x,hitY,fR)
-    flash.addColorStop(0,`rgba(255,255,255,${(1-fp)*0.95})`)
-    flash.addColorStop(0.35,color+Math.round((1-fp)*200).toString(16).padStart(2,"0"))
-    flash.addColorStop(1,"transparent"); ctx.fillStyle=flash
-    ctx.beginPath(); ctx.ellipse(x,hitY,fR,fR*0.55,0,0,Math.PI*2); ctx.fill()
+  // ── Flash inicial expansivo ───────────────────────────────────────────
+  if (progress < 0.22) {
+    const fp  = progress / 0.22
+    const fR  = rx * 6 * fp
+    const flash = ctx.createRadialGradient(x, hitY, 0, x, hitY, fR)
+    flash.addColorStop(0,    `rgba(255,255,255,${(1-fp)*1.0})`)
+    flash.addColorStop(0.25, `rgba(${burstRgb},${(1-fp)*0.85})`)
+    flash.addColorStop(0.60, `rgba(${burstRgb},${(1-fp)*0.30})`)
+    flash.addColorStop(1,    "transparent")
+    ctx.fillStyle = flash
+    ctx.beginPath(); ctx.ellipse(x, hitY, fR, fR*0.55, 0, 0, Math.PI*2); ctx.fill()
   }
 
-  const ringCount=isPerfect?5:isGreat?4:3
-  for (let ring=0; ring<ringCount; ring++) {
-    const rp=Math.min(progress+ring*0.09,1), ra=Math.max(0,(1-rp)*alpha*0.90)
-    const hexA=Math.round(ra*235).toString(16).padStart(2,"0")
-    ctx.beginPath(); ctx.ellipse(x,hitY,rx*(1.2+rp*3.6),ry*(1.2+rp*3.2),0,0,Math.PI*2)
-    ctx.strokeStyle=(isPerfect?"#fbbf24":isGreat?"#22c55e":color)+hexA
-    ctx.lineWidth=Math.max(0.3,(4-ring*0.6)*(1-rp)); ctx.stroke()
+  // ── Anéis elípticos de energia expandindo ─────────────────────────────
+  const ringCount = isPerfect ? 4 : isGreat ? 3 : 2
+  for (let ring = 0; ring < ringCount; ring++) {
+    const rp   = Math.min(progress + ring * 0.10, 1)
+    const ra   = Math.max(0, (1 - rp) * alpha * 0.80)
+    const hexA = Math.round(ra * 230).toString(16).padStart(2, "0")
+    ctx.beginPath()
+    ctx.ellipse(x, hitY, rx*(1.0 + rp*4.0), ry*(1.0 + rp*3.5), 0, 0, Math.PI*2)
+    ctx.strokeStyle = burstCol + hexA
+    ctx.lineWidth = Math.max(0.4, (3.5 - ring*0.6) * (1-rp))
+    ctx.shadowColor = burstCol; ctx.shadowBlur = 12*(1-rp)*alpha
+    ctx.stroke(); ctx.shadowBlur = 0
   }
 
-  const numSparks=isPerfect?20:isGreat?15:isGood?10:7
-  const sparkSpeed=isPerfect?4.5:isGreat?3.5:2.8
-  for (let p=0; p<numSparks; p++) {
-    const angle=(p/numSparks)*Math.PI*2+progress*0.3
-    const dist=rx*(1.2+progress*sparkSpeed)
-    const px=x+Math.cos(angle)*dist, py=hitY+Math.sin(angle)*dist*0.52
-    if (progress>0.05) {
-      const pd=rx*(1.2+(progress-0.05)*sparkSpeed)
-      const ppx=x+Math.cos(angle)*pd, ppy=hitY+Math.sin(angle)*pd*0.52
-      ctx.beginPath(); ctx.moveTo(ppx,ppy); ctx.lineTo(px,py)
-      ctx.strokeStyle=(isPerfect?"#fbbf24":color)+Math.round(alpha*130).toString(16).padStart(2,"0")
-      ctx.lineWidth=2; ctx.stroke()
-    }
-    const pr=Math.max(0,(isPerfect?6.5:isGreat?5:4)*(1-progress)*alpha)
-    ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2)
-    ctx.fillStyle=isPerfect?"#fbbf24":isGreat?"#22c55e":color
-    ctx.shadowColor=isPerfect?"#fbbf24":color; ctx.shadowBlur=7; ctx.fill(); ctx.shadowBlur=0
-  }
+  // ── Chamas de energia subindo (WoR: 2-3 colunas verticais) ───────────
+  if (progress < 0.70) {
+    const fp       = progress / 0.70
+    const numFlames = isPerfect ? 5 : isGreat ? 4 : 3
+    for (let f = 0; f < numFlames; f++) {
+      const offset   = (f - (numFlames-1)/2) * rx * 0.55
+      const flameX   = x + offset * (0.8 + fp * 0.4)
+      const riseH    = fp * (ry * 10 + f * ry * 1.0)
+      const flameW   = rx * (0.28 - f%2*0.06) * (1 - fp*0.5)
+      const fAlpha   = alpha * (1 - fp*0.88) * (0.65 + (f%2)*0.35)
+      const wobble   = Math.sin(performance.now()*0.007 + f*1.5) * flameW * 0.35
 
-  if (isPerfect&&progress<0.72) {
-    const t=performance.now()*0.003
-    for (let s=0; s<6; s++) {
-      const ang=(s/6)*Math.PI*2+t*1.8, dist=rx*(2.0+progress*5.2)
-      const sx=x+Math.cos(ang)*dist, sy=hitY+Math.sin(ang)*dist*0.58
-      const sr=Math.max(0,7*(1-progress/0.72)); if (sr<0.5) continue
-      ctx.save(); ctx.translate(sx,sy); ctx.rotate(t*2.5+s*1.04)
+      const flG = ctx.createLinearGradient(flameX, hitY, flameX, hitY - riseH)
+      flG.addColorStop(0,    `rgba(255,255,255,${fAlpha})`)
+      flG.addColorStop(0.10, `rgba(${burstRgb},${fAlpha*0.95})`)
+      flG.addColorStop(0.45, `rgba(${burstRgb},${fAlpha*0.50})`)
+      flG.addColorStop(0.80, `rgba(${sparkRgb},${fAlpha*0.15})`)
+      flG.addColorStop(1,    "transparent")
+      ctx.fillStyle = flG
+      ctx.shadowColor = burstCol; ctx.shadowBlur = 8
+
       ctx.beginPath()
-      for (let pt=0; pt<4; pt++) {
-        const a=(pt/4)*Math.PI*2
-        pt===0?ctx.moveTo(Math.cos(a)*sr*2.2,Math.sin(a)*sr*2.2):ctx.lineTo(Math.cos(a)*sr*2.2,Math.sin(a)*sr*2.2)
-        ctx.lineTo(Math.cos(a+Math.PI/4)*sr*0.5,Math.sin(a+Math.PI/4)*sr*0.5)
+      ctx.moveTo(flameX - flameW, hitY)
+      ctx.quadraticCurveTo(flameX + wobble*0.5 - flameW*0.4, hitY - riseH*0.5, flameX + wobble*0.5, hitY - riseH)
+      ctx.quadraticCurveTo(flameX + wobble*0.5 + flameW*0.4, hitY - riseH*0.5, flameX + flameW, hitY)
+      ctx.closePath(); ctx.fill()
+    }
+    ctx.shadowBlur = 0
+  }
+
+  // ── Sparks voando para os lados (WoR signature) ───────────────────────
+  const numSparks = isPerfect ? 18 : isGreat ? 13 : 9
+  const speed     = isPerfect ? 4.2 : isGreat ? 3.4 : 2.6
+  for (let p = 0; p < numSparks; p++) {
+    const angle = (p / numSparks) * Math.PI * 2 + progress * 0.25
+    const dist  = rx * (0.8 + progress * speed)
+    const px    = x + Math.cos(angle) * dist
+    const py    = hitY + Math.sin(angle) * dist * 0.48
+    // Trail
+    if (progress > 0.06) {
+      const pd  = rx * (0.8 + (progress - 0.06) * speed)
+      const ppx = x + Math.cos(angle) * pd
+      const ppy = hitY + Math.sin(angle) * pd * 0.48
+      ctx.beginPath(); ctx.moveTo(ppx, ppy); ctx.lineTo(px, py)
+      ctx.strokeStyle = `rgba(${burstRgb},${alpha*0.55})`
+      ctx.lineWidth = 1.5; ctx.stroke()
+    }
+    // Dot
+    const pr = Math.max(0, (isPerfect ? 5.5 : isGreat ? 4.5 : 3.5) * (1-progress) * alpha)
+    if (pr < 0.3) continue
+    ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI*2)
+    ctx.fillStyle = isPerfect ? "#ffffff" : burstCol
+    ctx.shadowColor = burstCol; ctx.shadowBlur = 10
+    ctx.fill(); ctx.shadowBlur = 0
+  }
+
+  // ── Estrelas girando (só Perfect) ─────────────────────────────────────
+  if (isPerfect && progress < 0.70) {
+    const tn = performance.now() * 0.003
+    for (let s = 0; s < 5; s++) {
+      const ang  = (s/5)*Math.PI*2 + tn*2.0
+      const dist = rx*(1.8 + progress*5.0)
+      const sx   = x + Math.cos(ang)*dist
+      const sy   = hitY + Math.sin(ang)*dist*0.55
+      const sr   = Math.max(0, 6.5*(1 - progress/0.70))
+      if (sr < 0.4) continue
+      ctx.save(); ctx.translate(sx, sy); ctx.rotate(tn*2.8 + s*1.26)
+      ctx.beginPath()
+      for (let pt = 0; pt < 4; pt++) {
+        const a = (pt/4)*Math.PI*2
+        pt === 0
+          ? ctx.moveTo(Math.cos(a)*sr*2.2, Math.sin(a)*sr*2.2)
+          : ctx.lineTo(Math.cos(a)*sr*2.2, Math.sin(a)*sr*2.2)
+        ctx.lineTo(Math.cos(a+Math.PI/4)*sr*0.45, Math.sin(a+Math.PI/4)*sr*0.45)
       }
       ctx.closePath()
-      ctx.fillStyle="#fbbf24"+Math.round(alpha*225).toString(16).padStart(2,"0")
-      ctx.shadowColor="#fbbf24"; ctx.shadowBlur=12; ctx.fill(); ctx.shadowBlur=0; ctx.restore()
+      ctx.fillStyle = `rgba(0,229,255,${alpha*0.90})`
+      ctx.shadowColor = "#00e5ff"; ctx.shadowBlur = 14
+      ctx.fill(); ctx.shadowBlur = 0; ctx.restore()
     }
   }
   ctx.restore()
@@ -865,6 +993,8 @@ export function renderFrame(state: RenderState): void {
   const tLB=(w-trackBot)/2, tRB=tLB+trackBot
   const now=performance.now()
   const starPower=stats.combo>=STAR_POWER_COMBO
+  // Limpa o canvas (bordas ficam transparentes — mostra o background da música)
+  ctx.clearRect(0, 0, w, h)
   // 1 – Fretboard (muda visual conforme star power)
   ctx.drawImage(getFretboard(w,h,starPower,difficulty),0,0)
 
@@ -876,7 +1006,7 @@ export function renderFrame(state: RenderState): void {
     const hw0=laneWidthAt(w,1-p0.scale)*0.5, hw4=laneWidthAt(w,1-p4.scale)*0.5
     const al=(1-ms/visMs)*(starPower?0.32:0.18)
     ctx.beginPath(); ctx.moveTo(p0.x-hw0,p0.y); ctx.lineTo(p4.x+hw4,p4.y)
-    ctx.strokeStyle=starPower?`rgba(0,220,255,${al})`:`rgba(150,220,170,${al})`
+    ctx.strokeStyle=`rgba(0,200,255,${al})`
     ctx.lineWidth=Math.max(0.4,p0.scale*1.2); ctx.stroke()
   }
   ctx.restore()
@@ -890,7 +1020,7 @@ export function renderFrame(state: RenderState): void {
     const nA=note.time-currentTime, tE=note.time+note.duration-currentTime
     if (tE<-TIMING_MISS) continue
     const ca=Math.max(nA,0), cb=Math.max(tE,0)
-    const color=starPower?SP_SUSTAIN_COLOR:(NOTE_COLORS[note.lane]??LANE_COLORS[note.lane])
+    const color=starPower?SP_SUSTAIN_COLOR:(SUSTAIN_COLORS[note.lane]??NOTE_COLORS[note.lane]??LANE_COLORS[note.lane])
     for (let s=0; s<14; s++) {
       const a0=ca+(cb-ca)*(s/14), a1=ca+(cb-ca)*((s+1)/14)
       const pp0=project(note.lane,a0,canvas,ns), pp1=project(note.lane,a1,canvas,ns)
@@ -907,7 +1037,7 @@ export function renderFrame(state: RenderState): void {
   }
 
   // 5 – Hit line glow
-  const hlColor=starPower?"0,220,255":"0,200,80"
+  const hlColor="0,210,255"
   const hlAlpha=starPower?0.70:0.32
   const hl=ctx.createLinearGradient(tLB,0,tRB,0)
   hl.addColorStop(0,"transparent"); hl.addColorStop(0.08,`rgba(${hlColor},${hlAlpha*0.5})`)
@@ -982,7 +1112,7 @@ export function renderFrame(state: RenderState): void {
     if (!isMiss) {
       // Feixe de luz vertical (como imagem 3)
       if (prog < 0.6) drawLightBeam(ctx,x,hitY,h,color,prog,alpha)
-      drawHitExplosion(ctx,x,hitY,color,prog,alpha,fx.rating,NOTE_RX_BASE,NOTE_RY_BASE)
+      drawHitExplosion(ctx,x,hitY,color,prog,alpha,fx.rating,NOTE_RX_BASE,NOTE_RY_BASE,starPower)
     } else {
       const xs=NOTE_RX_BASE*(1.1+prog*0.35)
       ctx.strokeStyle="#ef4444"+Math.round(alpha*180).toString(16).padStart(2,"0")
@@ -999,90 +1129,161 @@ export function renderFrame(state: RenderState): void {
     ctx.fillText(fx.rating.toUpperCase(),x,ty); ctx.shadowBlur=0; ctx.restore()
   }
 
-  // 9 – HUD: Score
-  {
-    const sc=stats.score.toLocaleString()
-    ctx.save(); ctx.font="bold 24px monospace"
-    const sw=ctx.measureText(sc).width, ph=40, ppx=12, ppy=60, ppw=sw+24
-    ctx.fillStyle="rgba(0,0,0,0.52)"
-    ctx.beginPath(); ctx.roundRect(w-ppw-ppx,ppy,ppw,ph,8); ctx.fill()
-    ctx.strokeStyle=starPower?"rgba(0,200,255,0.32)":"rgba(0,200,80,0.22)"; ctx.lineWidth=1; ctx.stroke()
-    ctx.shadowColor=starPower?"rgba(0,200,255,0.60)":"rgba(0,200,80,0.50)"; ctx.shadowBlur=12
-    ctx.fillStyle="#fff"; ctx.textAlign="right"; ctx.textBaseline="middle"
-    ctx.fillText(sc,w-ppx-10,ppy+ph/2); ctx.shadowBlur=0; ctx.restore()
-  }
-
-  if (stats.multiplier>1) {
-    ctx.save()
-    const mt=`×${stats.multiplier}`; ctx.font="bold 10px monospace"
-    const mw=ctx.measureText(mt).width+12, mx=w-mw-14, my=60+40+3
-    ctx.fillStyle=starPower?"rgba(0,200,255,0.18)":"rgba(0,180,80,0.18)"
-    ctx.beginPath(); ctx.roundRect(mx,my,mw,19,5); ctx.fill()
-    ctx.strokeStyle=starPower?"rgba(0,200,255,0.42)":"rgba(0,200,80,0.38)"; ctx.lineWidth=1; ctx.stroke()
-    ctx.fillStyle=starPower?"#00ccff":"#00cc55"; ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=6
-    ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(mt,mx+mw/2,my+9.5)
-    ctx.shadowBlur=0; ctx.restore()
-  }
-
-  if (stats.combo>1) {
-    ctx.save()
-    const cc=starPower?"#00ffff":starPower?"#00ffff":stats.combo>=40?COMBO_GLOW[4]:stats.combo>=20?COMBO_GLOW[3]:stats.combo>=10?COMBO_GLOW[2]:COMBO_GLOW[1]
-    const cs=Math.min(52,18+stats.combo*0.48), cy=h*0.082
-    ctx.shadowColor=cc; ctx.shadowBlur=stats.combo>=20?30:14
-    ctx.fillStyle=cc; ctx.font=`900 ${cs}px monospace`
-    ctx.textAlign="center"; ctx.textBaseline="middle"
-    ctx.fillText(`${stats.combo}`,w/2,cy); ctx.shadowBlur=0
-    const label=starPower?"⚡ STAR POWER! ⚡":"COMBO"
-    ctx.fillStyle=cc+"78"; ctx.font=starPower?"bold 11px monospace":"bold 9px monospace"
-    if (starPower){ctx.shadowColor=cc;ctx.shadowBlur=10}
-    ctx.fillText(label,w/2,cy+cs*0.76); ctx.shadowBlur=0; ctx.restore()
-  }
-
-  {
-    const mx=14,my=h-28,mw=152,mh=10
-    const fill=stats.rockMeter/100
-    const mColor=stats.rockMeter>60?"#22c55e":stats.rockMeter>30?"#fbbf24":"#ef4444"
-    ctx.save()
-    ctx.fillStyle="rgba(255,255,255,0.20)"; ctx.font="bold 8px monospace"
-    ctx.textAlign="left"; ctx.textBaseline="bottom"; ctx.fillText("ROCK",mx,my-2)
-    ctx.fillStyle="rgba(0,0,0,0.52)"; ctx.strokeStyle="rgba(255,255,255,0.05)"
-    ctx.lineWidth=1; ctx.beginPath(); ctx.roundRect(mx,my,mw,mh,5); ctx.fill(); ctx.stroke()
-    if (fill>0) {
-      const fg=ctx.createLinearGradient(mx,0,mx+mw*fill,0)
-      fg.addColorStop(0,mColor+"70"); fg.addColorStop(1,mColor)
-      ctx.shadowColor=mColor; ctx.shadowBlur=6
-      ctx.fillStyle=fg; ctx.beginPath(); ctx.roundRect(mx,my,mw*fill,mh,5); ctx.fill()
+  // 9 – HUD estilo GH clássico
+  // ── helper: desenha estrela de 5 pontas ─────────────────────────────────
+  function drawGHStar(cx: number, cy: number, r: number, filled: boolean, sp2: boolean) {
+    ctx.beginPath()
+    for (let i = 0; i < 10; i++) {
+      const ang = (i / 5) * Math.PI - Math.PI / 2
+      const rad = i % 2 === 0 ? r : r * 0.42
+      i === 0 ? ctx.moveTo(cx + Math.cos(ang)*rad, cy + Math.sin(ang)*rad)
+              : ctx.lineTo(cx + Math.cos(ang)*rad, cy + Math.sin(ang)*rad)
     }
-    ctx.restore()
-  }
-
-  // ── Indicador de volume do instrumento ──────────────────────────────────
-  {
-    const barW = 80, barH = 6, bx = w - barW - 14, by = h - 44
-    const volColor = instrumentVol > 0.65 ? "#22c55e" : instrumentVol > 0.30 ? "#fbbf24" : "#ef4444"
-    ctx.save()
-    // Label
-    ctx.fillStyle = "rgba(255,255,255,0.22)"; ctx.font = "bold 7px monospace"
-    ctx.textAlign = "left"; ctx.textBaseline = "bottom"
-    ctx.fillText("INSTRUMENTO", bx, by - 2)
-    // Fundo
-    ctx.fillStyle = "rgba(0,0,0,0.50)"; ctx.strokeStyle = "rgba(255,255,255,0.05)"
-    ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(bx, by, barW, barH, 3); ctx.fill(); ctx.stroke()
-    // Preenchimento
-    if (instrumentVol > 0.01) {
-      const fg = ctx.createLinearGradient(bx, 0, bx + barW * instrumentVol, 0)
-      fg.addColorStop(0, volColor + "88"); fg.addColorStop(1, volColor)
-      ctx.shadowColor = volColor; ctx.shadowBlur = 5
-      ctx.fillStyle = fg; ctx.beginPath(); ctx.roundRect(bx, by, barW * instrumentVol, barH, 3); ctx.fill()
+    ctx.closePath()
+    if (filled) {
+      const sg = ctx.createRadialGradient(cx, cy - r*0.2, 0, cx, cy, r)
+      sg.addColorStop(0, sp2 ? "#aaffff" : "#fff7aa")
+      sg.addColorStop(0.5, sp2 ? "#00ddff" : "#f59e0b")
+      sg.addColorStop(1,   sp2 ? "#007799" : "#92400e")
+      ctx.fillStyle = sg
+      ctx.shadowColor = sp2 ? "#00ffff" : "#fbbf24"
+      ctx.shadowBlur = 18
+    } else {
+      ctx.fillStyle = "rgba(255,255,255,0.12)"
       ctx.shadowBlur = 0
     }
-    // Ícone de guitarra (simples) ou X se silenciado
-    ctx.fillStyle = instrumentVol < 0.05 ? "#ef4444" : volColor
-    ctx.font = "bold 9px monospace"; ctx.textAlign = "left"
-    ctx.fillText(instrumentVol < 0.05 ? "🔇" : "🎸", bx + barW + 4, by + barH/2 + 3)
+    ctx.fill()
+    ctx.strokeStyle = filled ? (sp2 ? "#00ffff" : "#fbbf24") : "rgba(255,255,255,0.25)"
+    ctx.lineWidth = filled ? 1.5 : 1
+    ctx.stroke()
+    ctx.shadowBlur = 0
+  }
+
+  // ── Score: canto superior direito, grande ─────────────────────────────
+  {
+    ctx.save()
+    const sc = stats.score.toLocaleString()
+    ctx.font = "bold 28px 'Arial Black', Arial, sans-serif"
+    ctx.textAlign = "right"; ctx.textBaseline = "top"
+    ctx.shadowColor = starPower ? "#00ffff" : "rgba(255,255,255,0.6)"
+    ctx.shadowBlur = starPower ? 16 : 6
+    ctx.fillStyle = "#ffffff"
+    ctx.fillText(sc, w - 16, 14)
+    ctx.shadowBlur = 0
     ctx.restore()
   }
 
+  // ── 5 estrelas abaixo do score ────────────────────────────────────────
+  {
+    ctx.save()
+    // GH: 1 estrela a cada 20% do score máximo estimado (200k)
+    const totalEstimated = Math.max(stats.totalNotes * 100 * 4, 1)
+    const starsFilled = Math.min(5, Math.floor((stats.score / totalEstimated) * 5))
+    const starR = 11, starGap = 26
+    const starsW = 5 * starGap
+    const sx0 = w - starsW - 10
+    const sy0 = 50
+    for (let s = 0; s < 5; s++) {
+      drawGHStar(sx0 + s * starGap + starR, sy0 + starR, starR, s < starsFilled, starPower)
+    }
+    ctx.restore()
+  }
+
+  // ── Multiplicador: badge flutuando à direita da highway ───────────────
+  if (stats.multiplier > 1) {
+    ctx.save()
+    const mt   = `×${stats.multiplier}`
+    const mulX = tRB + 36
+    const mulY = hitY - 60
+    const mulR  = 26
+    // Fundo circular com gradiente
+    const mg = ctx.createRadialGradient(mulX, mulY - mulR*0.2, 0, mulX, mulY, mulR)
+    mg.addColorStop(0, starPower ? "rgba(0,80,110,0.95)" : "rgba(10,20,55,0.95)")
+    mg.addColorStop(1, starPower ? "rgba(0,30,50,0.95)"  : "rgba(5,10,30,0.95)")
+    ctx.beginPath(); ctx.arc(mulX, mulY, mulR, 0, Math.PI*2)
+    ctx.fillStyle = mg; ctx.fill()
+    // Borda brilhante
+    ctx.strokeStyle = starPower ? "#00ffff" : "#5599ff"
+    ctx.lineWidth = 2.2
+    ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 16
+    ctx.stroke(); ctx.shadowBlur = 0
+    // Texto
+    ctx.fillStyle = starPower ? "#00ffff" : "#ffffff"
+    ctx.font = "bold 15px 'Arial Black', Arial, sans-serif"
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"
+    ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10
+    ctx.fillText(mt, mulX, mulY)
+    ctx.shadowBlur = 0
+    // Combo abaixo do multiplicador
+    if (stats.combo > 1) {
+      ctx.fillStyle = "rgba(255,255,255,0.55)"
+      ctx.font = "bold 9px monospace"
+      ctx.fillText(`${stats.combo} COMBO`, mulX, mulY + mulR + 10)
+    }
+    ctx.restore()
+  }
+
+  // ── Rock meter: centralizado na parte inferior ────────────────────────
+  {
+    ctx.save()
+    const mw = 220, mh = 12
+    const mx = (w - mw) / 2
+    const my = h - 28
+    const fill = stats.rockMeter / 100
+    const mColor = stats.rockMeter > 60 ? "#22c55e" : stats.rockMeter > 30 ? "#f59e0b" : "#ef4444"
+
+    // Skull (baixo) à esquerda, nota à direita — apenas ícones simples
+    ctx.fillStyle = stats.rockMeter <= 20 ? "#ef4444" : "rgba(255,255,255,0.25)"
+    ctx.font = "bold 12px monospace"; ctx.textAlign = "right"; ctx.textBaseline = "middle"
+    ctx.fillText("💀", mx - 6, my + mh/2)
+    ctx.fillStyle = stats.rockMeter >= 80 ? "#22c55e" : "rgba(255,255,255,0.25)"
+    ctx.textAlign = "left"
+    ctx.fillText("🎸", mx + mw + 6, my + mh/2)
+
+    // Trilho
+    ctx.fillStyle = "rgba(0,0,0,0.55)"
+    ctx.beginPath(); ctx.roundRect(mx, my, mw, mh, 6); ctx.fill()
+    ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1; ctx.stroke()
+
+    // Preenchimento com gradiente vermelho→amarelo→verde
+    if (fill > 0) {
+      const fg = ctx.createLinearGradient(mx, 0, mx + mw, 0)
+      fg.addColorStop(0,    "#ef4444")
+      fg.addColorStop(0.30, "#f59e0b")
+      fg.addColorStop(0.60, "#22c55e")
+      fg.addColorStop(1,    "#4ade80")
+      ctx.fillStyle = fg
+      ctx.shadowColor = mColor; ctx.shadowBlur = 8
+      ctx.beginPath(); ctx.roundRect(mx, my, mw * fill, mh, 6); ctx.fill()
+      ctx.shadowBlur = 0
+    }
+
+    // Marcador central (linha divisória do rock meter — GH style)
+    const midX = mx + mw / 2
+    ctx.beginPath(); ctx.moveTo(midX, my - 3); ctx.lineTo(midX, my + mh + 3)
+    ctx.strokeStyle = "rgba(255,255,255,0.50)"; ctx.lineWidth = 1.5; ctx.stroke()
+
+    ctx.restore()
+  }
+
+  // ── Instrumento: canto inferior direito, minimalista ─────────────────
+  {
+    ctx.save()
+    const barW = 68, barH = 4, bx = w - barW - 12, by = h - 14
+    const vc = instrumentVol > 0.65 ? "#22c55e" : instrumentVol > 0.30 ? "#f59e0b" : "#ef4444"
+    ctx.fillStyle = "rgba(255,255,255,0.10)"; ctx.font = "600 6px monospace"
+    ctx.textAlign = "right"; ctx.textBaseline = "bottom"
+    ctx.fillText("INSTR", bx + barW, by - 2)
+    ctx.fillStyle = "rgba(255,255,255,0.06)"
+    ctx.beginPath(); ctx.roundRect(bx, by, barW, barH, 2); ctx.fill()
+    if (instrumentVol > 0.01) {
+      const fg = ctx.createLinearGradient(bx, 0, bx + barW*instrumentVol, 0)
+      fg.addColorStop(0, vc+"99"); fg.addColorStop(1, vc)
+      ctx.fillStyle = fg
+      ctx.beginPath(); ctx.roundRect(bx, by, barW*instrumentVol, barH, 2); ctx.fill()
+    }
+    ctx.restore()
+  }
   // Guitarra decorativa (muda com dificuldade)
   {
     const gSize = 36, gx = 14, gy = 14
