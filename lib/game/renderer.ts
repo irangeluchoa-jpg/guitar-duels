@@ -60,9 +60,12 @@ export function getLaneX(lane: number, cw: number) {
 }
 export function getLaneWidth(cw: number) { return (cw * TRACK_WIDTH_RATIO) / LANE_COUNT }
 
-function shade(hex: string, amt: number) {
-  const n = parseInt(hex.replace("#",""), 16)
-  return `rgb(${Math.max(0,Math.min(255,(n>>16)+amt))},${Math.max(0,Math.min(255,((n>>8)&0xff)+amt))},${Math.max(0,Math.min(255,(n&0xff)+amt))})`
+function shade(hex: string, amt: number): string {
+  const n = parseInt(hex.replace("#", ""), 16)
+  const r = Math.max(0, Math.min(255, ((n >> 16) & 0xff) + amt))
+  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + amt))
+  const b = Math.max(0, Math.min(255, (n & 0xff) + amt))
+  return "rgb(" + r + "," + g + "," + b + ")"
 }
 
 // ── Aranha vetorial no centro do fretboard ────────────────────────────────────
@@ -887,4 +890,3 @@ export function renderFrame(state: RenderState): void {
     drawDiffLabel(ctx, gx + gSize*0.38, gy + gSize + 2, difficulty)
   }
 }
-
