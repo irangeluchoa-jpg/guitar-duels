@@ -236,6 +236,15 @@ function PlayInner() {
     load()
   }, [trackId, roomCode])
 
+  // Busca sala imediatamente ao montar
+  useEffect(() => {
+    if (!roomCode) return
+    fetch(`/api/rooms/${roomCode}`).then(r => r.json()).then(room => {
+      setRoomSnapshot(room)
+      if (room.state === "playing") setGameStarted(true)
+    }).catch(() => {})
+  }, [roomCode])
+
   // Polling multiplayer
   useEffect(() => {
     if (!roomCode || !playerId) return
@@ -259,12 +268,11 @@ function PlayInner() {
         const room: RoomSnapshot = await res.json()
         setRoomSnapshot(room)
         setGamePaused(room.state === "paused")
-        // Se estado mudou para "playing", iniciar jogo
         if (room.state === "playing" && !gameStarted) {
           setGameStarted(true)
         }
       } catch {}
-    }, 1000)
+    }, 800)
 
     return () => { clearInterval(pushScore); clearInterval(pollRoom) }
   }, [roomCode, playerId, gameStarted])
@@ -273,6 +281,11 @@ function PlayInner() {
   const handleReady = useCallback(async () => {
     if (!roomCode || !playerId || !chosenInstrument) return
     setIAmReady(true)
+    // Atualizar localmente já para mostrar "pronto" imediatamente
+    setRoomSnapshot(prev => prev ? {
+      ...prev,
+      players: prev.players.map(p => p.id === playerId ? { ...p, ready: true, instrument: chosenInstrument.key } : p)
+    } : prev)
     try {
       await fetch(`/api/rooms/${roomCode}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -363,13 +376,23 @@ function PlayInner() {
     )
   }
 
+  // Multiplayer: aguardar roomSnapshot carregar
+  if (roomCode && chosenInstrument && !gameStarted && !roomSnapshot) {
+    return (
+      <div className="flex items-center justify-center h-screen flex-col gap-3" style={{ background: "#060608" }}>
+        <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-white/40 text-sm">Conectando à sala...</p>
+      </div>
+    )
+  }
+
   // Multiplayer: tela de espera (antes do jogo iniciar)
-  if (roomCode && chosenInstrument && !gameStarted) {
+  if (roomCode && chosenInstrument && !gameStarted && roomSnapshot) {
     return (
       <WaitingRoom
-        players={roomSnapshot?.players ?? []}
+        players={roomSnapshot.players ?? []}
         myId={playerId ?? ""}
-        hostId={roomSnapshot?.hostId ?? ""}
+        hostId={roomSnapshot.hostId ?? ""}
         chosenInstrument={chosenInstrument}
         iAmReady={iAmReady}
         onReady={handleReady}

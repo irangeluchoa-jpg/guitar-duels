@@ -271,10 +271,11 @@ export function getSongBackgroundUrl(trackId: string): string | null {
     const path = require("path") as typeof import("path")
     const SONGS_DIR = path.join(process.cwd(), "public", "songs")
     const songDir   = path.join(SONGS_DIR, trackId)
-    // Suporta: background.jpg/jpeg/png/webp (imagem) e background.mp4/webm (vídeo)
+    // Suporta: video.mp4/webm e background.jpg/jpeg/png/webp (imagem)
     for (const n of [
-      "background.jpg", "background.jpeg", "background.png", "background.webp",
+      "video.mp4", "video.webm",
       "background.mp4", "background.webm",
+      "background.jpg", "background.jpeg", "background.png", "background.webp",
     ]) {
       if (fs.existsSync(path.join(songDir, n))) return `/songs/${trackId}/${n}`
     }
