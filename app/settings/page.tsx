@@ -3,12 +3,18 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Volume2, Gauge, Eye, Keyboard, RotateCcw, AlertTriangle } from "lucide-react"
-import { loadSettings, saveSettings, DEFAULT_SETTINGS, DEFAULT_KEY_BINDINGS, type GameSettings } from "@/lib/settings"
+import { loadSettings, saveSettings, DEFAULT_SETTINGS, DEFAULT_KEY_BINDINGS, DEFAULT_KEY_BINDINGS4, DEFAULT_KEY_BINDINGS5, type GameSettings } from "@/lib/settings"
 import { loadGamepadBindings, saveGamepadBindings, DEFAULT_GAMEPAD_BINDINGS, GAMEPAD_PROFILES, detectProfile, type GamepadProfile } from "@/hooks/use-gamepad"
 import { playClickSound, playHoverSound, playHitSound } from "@/lib/game/sounds"
 
-const LANE_COLORS = ["#22c55e", "#ef4444", "#eab308", "#3b82f6", "#f97316"]
-const LANE_NAMES  = ["Verde", "Vermelho", "Amarelo", "Azul", "Laranja"]
+const LANE_COLORS = ["#22c55e", "#ef4444", "#eab308", "#3b82f6", "#f97316", "#a855f7"]
+const LANE_NAMES  = ["Verde", "Vermelho", "Amarelo", "Azul", "Laranja", "Roxo"]
+
+const LANE_MODE_OPTS = [
+  { count: 4 as const, label: "Fácil",   desc: "4 lanes",  color: "#3b82f6", keys: DEFAULT_KEY_BINDINGS4, bindKey: "keyBindings4" as const },
+  { count: 5 as const, label: "Normal",  desc: "5 lanes",  color: "#22c55e", keys: DEFAULT_KEY_BINDINGS5, bindKey: "keyBindings5" as const },
+  { count: 6 as const, label: "Difícil", desc: "6 lanes",  color: "#e11d48", keys: DEFAULT_KEY_BINDINGS,  bindKey: "keyBindings"  as const },
+]
 
 function getVol(s: GameSettings) {
   return (s.masterVolume / 100) * (s.sfxVolume / 100)
@@ -28,6 +34,7 @@ export default function SettingsPage() {
 
   // Key binding state
   const [listeningFor, setListeningFor] = useState<number | null>(null)  // lane index
+  const [keyMode, setKeyMode] = useState<4|5|6>(5)  // modo de lanes sendo editado
   const [conflict, setConflict] = useState<string | null>(null)           // conflict message
   const listenRef = useRef<number | null>(null)
 
@@ -166,11 +173,13 @@ export default function SettingsPage() {
         return
       }
 
-      const currentBindings = [...settings.keyBindings]
+      const modeOpt = LANE_MODE_OPTS.find(o => o.count === keyMode)!
+      const currentBindings = [...(settings[modeOpt.bindKey] as string[])]
 
       // Verifica conflito com outra lane
       const existingIndex = currentBindings.indexOf(key)
       if (existingIndex !== -1 && existingIndex !== listeningFor) {
+        const mOpt2 = LANE_MODE_OPTS.find(o => o.count === keyMode)!
         setConflict(`"${key.toUpperCase()}" já está sendo usada pela lane ${existingIndex + 1} (${LANE_NAMES[existingIndex]}). Escolha outra tecla.`)
         return
       }
@@ -440,80 +449,80 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* Lane key editor grid */}
-            <div className="grid grid-cols-5 gap-3">
-              {settings.keyBindings.map((key, i) => {
-                const isListening = listeningFor === i
-                const color = LANE_COLORS[i]
-                return (
-                  <div key={i} className="flex flex-col items-center gap-2" data-keybind>
-                    {/* Lane color dot */}
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
-                      <span className="text-[10px] text-white/30 uppercase tracking-wide">{LANE_NAMES[i]}</span>
-                    </div>
-
-                    {/* Key button */}
-                    <button
-                      data-keybind
-                      onClick={() => {
-                        if (isListening) { cancelListening(); return }
-                        playClickSound(vol)
-                        startListening(i)
-                      }}
-                      className="relative w-full h-14 rounded-xl font-black text-xl transition-all duration-150"
-                      style={isListening ? {
-                        background: `${color}25`,
-                        border: `2px solid ${color}`,
-                        color: color,
-                        boxShadow: `0 0 20px ${color}50, 0 0 40px ${color}25`,
-                        transform: "scale(1.06)",
-                        animation: "key-pulse 0.8s ease-in-out infinite",
-                      } : {
-                        background: `${color}12`,
-                        border: `1px solid ${color}35`,
-                        color: color,
-                        boxShadow: `0 0 8px ${color}20`,
-                      }}
-                    >
-                      {isListening ? (
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="text-[10px] font-bold tracking-widest" style={{ color: color }}>
-                            TECLA?
-                          </span>
-                          <div className="flex gap-1">
-                            {[0, 1, 2].map(d => (
-                              <div key={d} className="w-1 h-1 rounded-full"
-                                style={{ background: color, animation: `dot-blink 0.8s ease-in-out ${d * 0.2}s infinite` }} />
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="uppercase">{key}</span>
-                      )}
-                    </button>
-
-                    {/* Reset individual */}
-                    {key !== DEFAULT_KEY_BINDINGS[i] && !isListening && (
-                      <button
-                        onClick={() => {
-                          playClickSound(vol)
-                          const newBindings = [...settings.keyBindings]
-                          newBindings[i] = DEFAULT_KEY_BINDINGS[i]
-                          update({ keyBindings: newBindings })
-                        }}
-                        className="text-[10px] text-white/25 hover:text-white/50 transition-colors"
-                      >
-                        ↺ padrão ({DEFAULT_KEY_BINDINGS[i].toUpperCase()})
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
+            {/* Seletor de modo de lanes */}
+            <div className="flex gap-2">
+              {LANE_MODE_OPTS.map(opt => (
+                <button key={opt.count}
+                  onClick={() => { setKeyMode(opt.count); setListeningFor(null); setConflict(null) }}
+                  className="flex-1 flex flex-col items-center py-2.5 rounded-xl transition-all"
+                  style={{
+                    background: keyMode === opt.count ? `${opt.color}20` : "rgba(255,255,255,0.04)",
+                    border: keyMode === opt.count ? `1px solid ${opt.color}66` : "1px solid rgba(255,255,255,0.08)",
+                    boxShadow: keyMode === opt.count ? `0 0 16px ${opt.color}30` : "none",
+                  }}>
+                  <span className="text-sm font-black" style={{ color: keyMode === opt.count ? opt.color : "rgba(255,255,255,0.4)" }}>
+                    {opt.label}
+                  </span>
+                  <span className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.25)" }}>{opt.desc}</span>
+                </button>
+              ))}
             </div>
 
-            {/* Preview das teclas no teclado (visual) */}
-            <KeyboardPreview bindings={settings.keyBindings} listeningFor={listeningFor} />
+            {/* Lane key editor grid — muda conforme modo */}
+            {(() => {
+              const modeOpt = LANE_MODE_OPTS.find(o => o.count === keyMode)!
+              const currentBindings = settings[modeOpt.bindKey] as string[]
+              const defaultBindings = modeOpt.keys
+              const cols = keyMode === 4 ? "grid-cols-4" : keyMode === 5 ? "grid-cols-5" : "grid-cols-6"
+              return (
+                <div className={`grid ${cols} gap-3`}>
+                  {currentBindings.map((key, i) => {
+                    const isListening = listeningFor === i
+                    const color = LANE_COLORS[i]
+                    return (
+                      <div key={i} className="flex flex-col items-center gap-2" data-keybind>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
+                          <span className="text-[10px] text-white/30 uppercase tracking-wide">{LANE_NAMES[i]}</span>
+                        </div>
+                        <button data-keybind
+                          onClick={() => { if (isListening) { cancelListening(); return }; playClickSound(vol); startListening(i) }}
+                          className="relative w-full h-14 rounded-xl font-black text-xl transition-all duration-150"
+                          style={isListening ? {
+                            background: `${color}25`, border: `2px solid ${color}`, color,
+                            boxShadow: `0 0 20px ${color}50, 0 0 40px ${color}25`,
+                            transform: "scale(1.06)", animation: "key-pulse 0.8s ease-in-out infinite",
+                          } : { background: `${color}12`, border: `1px solid ${color}35`, color, boxShadow: `0 0 8px ${color}20` }}>
+                          {isListening ? (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="text-[10px] font-bold tracking-widest" style={{ color }}>TECLA?</span>
+                              <div className="flex gap-1">
+                                {[0,1,2].map(d => <div key={d} className="w-1 h-1 rounded-full" style={{ background: color, animation: `dot-blink 0.8s ease-in-out ${d*0.2}s infinite` }}/>)}
+                              </div>
+                            </div>
+                          ) : <span className="uppercase">{key}</span>}
+                        </button>
+                        {key !== defaultBindings[i] && !isListening && (
+                          <button onClick={() => {
+                            playClickSound(vol)
+                            const nb = [...currentBindings]; nb[i] = defaultBindings[i]
+                            update({ [modeOpt.bindKey]: nb })
+                          }} className="text-[10px] text-white/25 hover:text-white/50 transition-colors">
+                            ↺ padrão ({defaultBindings[i].toUpperCase()})
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+
+            {/* Preview das teclas no teclado (visual) — modo correto */}
+            {(() => {
+              const modeOpt = LANE_MODE_OPTS.find(o => o.count === keyMode)!
+              return <KeyboardPreview bindings={settings[modeOpt.bindKey] as string[]} listeningFor={listeningFor} />
+            })()}
 
             {/* ── GAMEPAD ── */}
             <div className="mt-2 rounded-xl overflow-hidden"

@@ -101,16 +101,43 @@ export function SongSelect() {
     if (!previewAudio) return
     const song = songs[sel]
     if (prevTimeout.current) clearTimeout(prevTimeout.current)
-    previewAudio.pause(); setIsPlaying(false)
-    if (song?.previewUrl) {
+
+    // Fade out antes de trocar
+    const fadeOut = () => {
+      if (previewAudio.volume > 0.02) {
+        previewAudio.volume = Math.max(0, previewAudio.volume - 0.05)
+        setTimeout(fadeOut, 30)
+      } else {
+        previewAudio.pause()
+        previewAudio.volume = 0
+        setIsPlaying(false)
+      }
+    }
+    if (!previewAudio.paused) { fadeOut() } else { previewAudio.pause(); setIsPlaying(false) }
+
+    // Usa preview dedicado ou song.opus como fallback (começa em previewStart ou 30s)
+    const src = (song as any)?.previewUrl || (song as any)?.songUrl || null
+    const startAt = (song as any)?.previewUrl ? 0 : ((song as any)?.previewStart ?? 30)
+
+    if (src) {
       prevTimeout.current = setTimeout(() => {
-        if (previewAudio) {
-          previewAudio.src = song.previewUrl!
-          previewAudio.volume = 0.4
-          previewAudio.play().then(() => setIsPlaying(true)).catch(() => {})
-          previewAudio.onended = () => setIsPlaying(false)
-        }
-      }, 600)
+        if (!previewAudio) return
+        previewAudio.src = src
+        previewAudio.volume = 0
+        previewAudio.currentTime = startAt
+        previewAudio.play().then(() => {
+          setIsPlaying(true)
+          // Fade in
+          const fadeIn = () => {
+            if (previewAudio.volume < 0.38) {
+              previewAudio.volume = Math.min(0.4, previewAudio.volume + 0.04)
+              setTimeout(fadeIn, 30)
+            }
+          }
+          fadeIn()
+        }).catch(() => {})
+        previewAudio.onended = () => setIsPlaying(false)
+      }, 500)
     }
     return () => { if (prevTimeout.current) clearTimeout(prevTimeout.current) }
   }, [sel, songs, previewAudio])

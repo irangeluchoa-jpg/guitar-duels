@@ -17,7 +17,7 @@ import {
 } from "@/lib/game/engine"
 import { renderFrame, getHitLineY } from "@/lib/game/renderer"
 import { playComboSound, playPauseSound, playResumeSound, playGameOverSound } from "@/lib/game/sounds"
-import { loadSettings, DEFAULT_KEY_BINDINGS } from "@/lib/settings"
+import { loadSettings, getKeyBindingsForLanes } from "@/lib/settings"
 import { useGamepad } from "@/hooks/use-gamepad"
 
 interface UseGameEngineOptions {
@@ -51,14 +51,14 @@ export function useGameEngine({
 
   // Carrega volume de SFX das configurações
   const sfxVolRef = useRef(1)
-  const keyBindingsRef    = useRef<string[]>(getKeysForLaneCount(laneCount))
+  const keyBindingsRef    = useRef<string[]>(getKeyBindingsForLanes(loadSettings(), laneCount))
   const keyboardEnabledRef = useRef<boolean>(true)
   const gamepadEnabledRef  = useRef<boolean>(true)
 
   useEffect(() => {
     const s = loadSettings()
     sfxVolRef.current       = (s.masterVolume / 100) * (s.sfxVolume / 100)
-    keyBindingsRef.current  = getKeysForLaneCount(laneCount)
+    keyBindingsRef.current  = getKeyBindingsForLanes(s, laneCount)
     keyboardEnabledRef.current = s.keyboardEnabled ?? true
     gamepadEnabledRef.current  = s.gamepadEnabled  ?? true
   }, [])
@@ -67,7 +67,7 @@ export function useGameEngine({
   useEffect(() => {
     const onStorage = () => {
       const s = loadSettings()
-      keyBindingsRef.current     = getKeysForLaneCount(laneCount)
+      keyBindingsRef.current     = getKeyBindingsForLanes(s, laneCount)
       keyboardEnabledRef.current = s.keyboardEnabled ?? true
       gamepadEnabledRef.current  = s.gamepadEnabled  ?? true
     }

@@ -3,18 +3,22 @@
  */
 
 export interface GameSettings {
-  masterVolume: number      // 0–100
-  musicVolume: number       // 0–100
-  sfxVolume: number         // 0–100
-  noteSpeed: number         // 0.5 | 0.75 | 1 | 1.25 | 1.5 | 2
+  masterVolume: number
+  musicVolume: number
+  sfxVolume: number
+  noteSpeed: number
   showGuide: boolean
-  calibrationOffset: number // -100 a +100 ms
-  keyBindings: string[]     // 6 teclas max, uma por lane
-  keyboardEnabled: boolean  // ativa/desativa teclado
-  gamepadEnabled: boolean   // ativa/desativa controle
+  calibrationOffset: number
+  keyBindings: string[]      // 6 teclas (modo 6 lanes)
+  keyBindings4: string[]     // 4 teclas (modo fácil)
+  keyBindings5: string[]     // 5 teclas (modo normal)
+  keyboardEnabled: boolean
+  gamepadEnabled: boolean
 }
 
-export const DEFAULT_KEY_BINDINGS = ["a", "s", "d", "j", "k", "l"]
+export const DEFAULT_KEY_BINDINGS  = ["a", "s", "d", "j", "k", "l"]
+export const DEFAULT_KEY_BINDINGS4 = ["a", "s", "d", "j"]
+export const DEFAULT_KEY_BINDINGS5 = ["a", "s", "d", "j", "k"]
 
 export const DEFAULT_SETTINGS: GameSettings = {
   masterVolume: 80,
@@ -23,7 +27,9 @@ export const DEFAULT_SETTINGS: GameSettings = {
   noteSpeed: 1,
   showGuide: true,
   calibrationOffset: 0,
-  keyBindings: [...DEFAULT_KEY_BINDINGS],
+  keyBindings:  [...DEFAULT_KEY_BINDINGS],
+  keyBindings4: [...DEFAULT_KEY_BINDINGS4],
+  keyBindings5: [...DEFAULT_KEY_BINDINGS5],
   keyboardEnabled: true,
   gamepadEnabled: true,
 }
@@ -31,7 +37,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
 const KEY = "guitar-duels-settings"
 
 export function loadSettings(): GameSettings {
-  if (typeof window === "undefined") return { ...DEFAULT_SETTINGS, keyBindings: [...DEFAULT_KEY_BINDINGS] }
+  if (typeof window === "undefined") return { ...DEFAULT_SETTINGS }
   try {
     const stored = localStorage.getItem(KEY)
     if (stored) {
@@ -39,16 +45,15 @@ export function loadSettings(): GameSettings {
       return {
         ...DEFAULT_SETTINGS,
         ...parsed,
-        // Garante que keyBindings sempre tem 5 teclas válidas
-        keyBindings: Array.isArray(parsed.keyBindings) && (parsed.keyBindings.length === 5 || parsed.keyBindings.length === 6)
-          ? parsed.keyBindings
-          : [...DEFAULT_KEY_BINDINGS],
+        keyBindings:  Array.isArray(parsed.keyBindings)  && parsed.keyBindings.length  === 6 ? parsed.keyBindings  : [...DEFAULT_KEY_BINDINGS],
+        keyBindings4: Array.isArray(parsed.keyBindings4) && parsed.keyBindings4.length === 4 ? parsed.keyBindings4 : [...DEFAULT_KEY_BINDINGS4],
+        keyBindings5: Array.isArray(parsed.keyBindings5) && parsed.keyBindings5.length === 5 ? parsed.keyBindings5 : [...DEFAULT_KEY_BINDINGS5],
         keyboardEnabled: parsed.keyboardEnabled ?? true,
         gamepadEnabled:  parsed.gamepadEnabled  ?? true,
       }
     }
   } catch {}
-  return { ...DEFAULT_SETTINGS, keyBindings: [...DEFAULT_KEY_BINDINGS] }
+  return { ...DEFAULT_SETTINGS }
 }
 
 export function saveSettings(s: GameSettings): void {
@@ -56,7 +61,13 @@ export function saveSettings(s: GameSettings): void {
   localStorage.setItem(KEY, JSON.stringify(s))
 }
 
-/** Converte volume 0-100 para ganho 0.0-1.0 */
+/** Retorna as keybindings corretas para o número de lanes */
+export function getKeyBindingsForLanes(s: GameSettings, laneCount: number): string[] {
+  if (laneCount === 4) return s.keyBindings4
+  if (laneCount === 5) return s.keyBindings5
+  return s.keyBindings
+}
+
 export function toGain(master: number, channel: number): number {
   return (master / 100) * (channel / 100)
 }
