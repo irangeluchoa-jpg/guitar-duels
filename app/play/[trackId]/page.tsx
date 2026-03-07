@@ -238,17 +238,24 @@ function PlayInner() {
         const instruments = data.availableInstruments || []
         setAvailableInstruments(instruments)
         setBackgroundUrl(data.backgroundUrl || null)
-        // Se só tem 1 instrumento (ou nenhum), escolhe automaticamente e marca ready
+        // Se só tem 1 instrumento (ou nenhum), escolhe automaticamente
         if (instruments.length <= 1) {
           const autoInstr = instruments[0] ?? { key: "guitar", label: "Guitarra", icon: "🎸", url: data.audioUrls?.guitar || "" }
           setChosenInstrument(autoInstr)
+          // Só ativa espera se estiver em sala multiplayer
+          const rc = new URLSearchParams(window.location.search).get("room")
           const pid = playerIdParam || (typeof window !== "undefined" ? sessionStorage.getItem("playerId") : null)
-          const rc  = new URLSearchParams(window.location.search).get("room")
           if (rc && pid) {
-            setWaitingForPlayers(true)
-            fetch(`/api/rooms/${rc}`, {
-              method: "PATCH", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "instrument", playerId: pid, instrument: autoInstr.key }),
+            // Verificar se a sala tem mais de 1 jogador antes de mostrar tela de espera
+            fetch(`/api/rooms/${rc}`).then(r => r.json()).then(room => {
+              if (room.players && room.players.length > 1) {
+                setWaitingForPlayers(true)
+                fetch(`/api/rooms/${rc}`, {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "instrument", playerId: pid, instrument: autoInstr.key }),
+                }).catch(() => {})
+              }
+              // Se só 1 jogador na sala, não precisa esperar
             }).catch(() => {})
           }
         }
@@ -285,11 +292,9 @@ function PlayInner() {
         // Se todos escolheram instrumento (ready=true), liberar o jogo
         if (room.players && room.players.length > 0) {
           const allReady = room.players.every((p: {ready: boolean}) => p.ready)
-          if (allReady) setWaitingForPlayers(false)
-        }
-        // Se só tem 1 jogador (solo em sala), liberar imediatamente
-        if (room.players && room.players.length === 1) {
-          setWaitingForPlayers(false)
+          if (allReady) {
+            setWaitingForPlayers(false)
+          }
         }
       } catch {}
     }, 1000)
@@ -342,9 +347,9 @@ function PlayInner() {
     router.push(roomCode ? `/room/${roomCode}` : "/songs")
   }, [roomCode, playerId, router])
 
-  // Tela de seleção de instrumento
   // Tela de aguardando outros jogadores escolherem instrumento
-  if (waitingForPlayers && roomCode && chosenInstrument) {
+  if (waitingForPlayers && chosenInstrument) {
+    const allNowReady = roomPlayersReady.length > 0 && roomPlayersReady.every(p => p.ready)
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center flex-col gap-6"
         style={{ background: "rgba(0,0,0,0.97)" }}>
@@ -353,19 +358,28 @@ function PlayInner() {
           <p className="text-lg font-black text-white">{chosenInstrument.label}</p>
           <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>instrumento escolhido</p>
         </div>
-        <div className="flex flex-col gap-2 w-64">
-          {roomPlayersReady.map((p) => (
-            <div key={p.id} className="flex items-center justify-between px-4 py-2 rounded-xl"
-              style={{ background: p.ready ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.04)",
-                border: p.ready ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,255,255,0.08)" }}>
-              <span className="text-sm text-white font-bold">{p.name}{p.id === playerId ? " (você)" : ""}</span>
-              {p.ready
-                ? <span className="text-xs" style={{ color: "#4ade80" }}>✓ pronto</span>
-                : <span className="text-xs animate-pulse" style={{ color: "rgba(255,255,255,0.3)" }}>escolhendo...</span>}
-            </div>
-          ))}
-        </div>
-        <p className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>Aguardando todos escolherem o instrumento...</p>
+        {roomPlayersReady.length > 0 && (
+          <div className="flex flex-col gap-2 w-64">
+            {roomPlayersReady.map((p) => (
+              <div key={p.id} className="flex items-center justify-between px-4 py-2 rounded-xl"
+                style={{ background: p.ready ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.04)",
+                  border: p.ready ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,255,255,0.08)" }}>
+                <span className="text-sm text-white font-bold">{p.name}{p.id === playerId ? " (você)" : ""}</span>
+                {p.ready
+                  ? <span className="text-xs" style={{ color: "#4ade80" }}>✓ pronto</span>
+                  : <span className="text-xs animate-pulse" style={{ color: "rgba(255,255,255,0.3)" }}>escolhendo...</span>}
+              </div>
+            ))}
+          </div>
+        )}
+        {allNowReady
+          ? <p className="text-sm font-bold animate-pulse" style={{ color: "#4ade80" }}>Iniciando...</p>
+          : <p className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>Aguardando todos escolherem o instrumento...</p>
+        }
+        <button onClick={() => setWaitingForPlayers(false)}
+          className="text-xs underline mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
+          Pular espera
+        </button>
       </div>
     )
   }
@@ -379,7 +393,11 @@ function PlayInner() {
         onSelect={async (instr) => {
           setChosenInstrument(instr)
           if (roomCode && playerId) {
-            setWaitingForPlayers(true)
+            // Só mostra tela de espera se tiver mais de 1 jogador na sala
+            const notAllReady = roomPlayersReady.some(p => p.id !== playerId && !p.ready)
+            if (notAllReady) {
+              setWaitingForPlayers(true)
+            }
             // Marcar localmente como pronto imediatamente
             setRoomPlayersReady(prev => prev.map(p =>
               p.id === playerId ? { ...p, ready: true, instrument: instr.key } : p
