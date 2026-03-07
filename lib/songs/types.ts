@@ -86,12 +86,11 @@ export interface SongListItem {
 // Row 2 (keys J, K, L): Lane 3 = Blue, Lane 4 = Orange, Lane 5 = Open/Tap
 
 export const LANE_COLORS = [
-  "#22c55e", // Green  (lane 0)
-  "#ef4444", // Red    (lane 1)
-  "#eab308", // Yellow (lane 2)
-  "#3b82f6", // Blue   (lane 3)
-  "#f97316", // Orange (lane 4)
-  
+  "#00E14F", // Green  (lane 0) — YARG theme
+  "#FF2828", // Red    (lane 1)
+  "#FFFD4B", // Yellow (lane 2)
+  "#55ADFF", // Blue   (lane 3)
+  "#FF9537", // Orange (lane 4)
 ] as const
 
 export const LANE_KEYS_ROW1 = ["s", "d", "f"] as const

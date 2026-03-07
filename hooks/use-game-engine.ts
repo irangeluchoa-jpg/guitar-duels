@@ -29,6 +29,7 @@ interface UseGameEngineOptions {
   calibrationOffset?: number   // ← novo: deslocamento em ms para calibração
   onSongEnd?: (stats: GameStats) => void
   onScoreUpdate?: (stats: GameStats) => void
+  instrumentVol?: React.MutableRefObject<number>
 }
 
 export function useGameEngine({
@@ -41,6 +42,7 @@ export function useGameEngine({
   calibrationOffset = 0,
   onSongEnd,
   onScoreUpdate,
+  instrumentVol,
 }: UseGameEngineOptions) {
   const [gameState, setGameState] = useState<GameState>("idle")
   const [stats, setStats] = useState<GameStats>(() => createInitialStats(chart.notes.length))
@@ -264,6 +266,7 @@ export function useGameEngine({
       showGuide: showGuideRef.current,
       keyLabels: keyBindingsRef.current,
       difficulty: meta.difficulty,
+      instrumentVol: instrumentVol?.current ?? 1,
     })
 
     animFrameRef.current = requestAnimationFrame(gameLoop)

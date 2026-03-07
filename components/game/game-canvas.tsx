@@ -60,6 +60,9 @@ export function GameCanvas({ chart, meta, audioUrls, speed, onBack, onScoreUpdat
     }
   }, [settings])
 
+
+  const instrumentVolRef = useRef(1.0)   // volume atual suavizado (0-1)
+
   const { gameState, stats, countdown, startGame, pause, resume, restart, accuracy, grade } =
     useGameEngine({
       chart, meta,
@@ -70,7 +73,49 @@ export function GameCanvas({ chart, meta, audioUrls, speed, onBack, onScoreUpdat
       calibrationOffset: settings.calibrationOffset,
       onSongEnd: () => { onSongEnd?.() },
       onScoreUpdate,
+      instrumentVol: instrumentVolRef,
     })
+
+  // ── Mix dinâmico: volume do instrumento sobe/desce com o desempenho ──────
+  // Guitar Hero faz isso: quando você erra demais, a faixa da guitarra some.
+  // rockMeter 0-100: abaixo de 30 a guitarra some, acima de 70 volta totalmente.
+  useEffect(() => {
+    if (gameState !== "playing") return
+    const interval = setInterval(() => {
+      const musicGain  = toGain(settings.masterVolume, settings.musicVolume)
+      const rock       = stats.rockMeter               // 0-100
+      // Target: 0% volume abaixo de 20, 100% acima de 65, interpolado entre
+      const targetGain = rock <= 20 ? 0
+        : rock >= 65 ? 1
+        : (rock - 20) / 45
+
+      // Suaviza a transição (lerp 12% por tick de 80ms ≈ ~1s para subir)
+      const prev   = instrumentVolRef.current
+      const next   = prev + (targetGain - prev) * 0.12
+      instrumentVolRef.current = next
+
+      const guitar  = guitarAudioRef.current
+      const rhythm  = rhythmAudioRef.current
+      const primary = primaryAudioRef.current
+
+      // Se tem trilha de guitarra separada: ela muda com o desempenho
+      // A backing/song/rhythm fica sempre no volume cheio (música de fundo não some)
+      if (guitar) {
+        guitar.volume = Math.max(0, Math.min(1, next * musicGain))
+      }
+      // Se só tem uma trilha mista (song), aplica degradação mais suave (mín 35%)
+      if (!guitar && primary) {
+        primary.volume = Math.max(0, Math.min(1, (0.35 + next * 0.65) * musicGain))
+      }
+      // Rhythm/bass: sobe quando guitarra some (compensação de mix)
+      if (rhythm) {
+        const rhythmBoost = 1 + (1 - next) * 0.3  // sobe até 30% quando guitarra some
+        rhythm.volume = Math.max(0, Math.min(1, Math.min(rhythmBoost, 1) * musicGain))
+      }
+    }, 80)
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, stats.rockMeter, settings])
 
   // Sincroniza áudios secundários com o primário
   const syncSecondary = useCallback((action: "play" | "pause" | "seek", time?: number) => {
