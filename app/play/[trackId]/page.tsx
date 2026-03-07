@@ -17,78 +17,43 @@ const PLAYER_COLORS = ["#e11d48", "#3b82f6", "#22c55e", "#f97316"]
 
 interface RoomPlayer {
   id: string; name: string; score: number; combo: number; rockMeter: number
+  ready?: boolean; instrument?: string
 }
-
 interface RoomSnapshot {
+  code: string; hostId: string
   state: "waiting" | "playing" | "paused" | "ended"
   pausedBy: string | null
   players: RoomPlayer[]
 }
 
-function MultiplayerHUD({
-  players, myId, isPaused, pausedByName,
-  onPause, onResume, canResume,
-}: {
-  players: RoomPlayer[]
-  myId: string
-  isPaused: boolean
-  pausedByName: string
-  onPause: () => void
-  onResume: () => void
-  canResume: boolean
-}) {
+// ── MultiplayerHUD ────────────────────────────────────────────────────────────
+function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResume, canResume }:
+  { players: RoomPlayer[]; myId: string; isPaused: boolean; pausedByName: string; onPause: () => void; onResume: () => void; canResume: boolean }) {
   return (
     <>
-      {/* Top bar com todos os placares */}
       <div className="fixed top-0 left-0 right-0 z-30 pointer-events-none">
         <div className="flex items-stretch gap-0 mx-3 mt-3 rounded-2xl overflow-hidden"
-          style={{
-            background: "rgba(0,0,0,0.6)",
-            backdropFilter: "blur(12px)",
-            border: "1px solid rgba(255,255,255,0.07)",
-            boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
-          }}>
+          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 4px 24px rgba(0,0,0,0.5)" }}>
           {players.map((p, i) => {
-            const color = PLAYER_COLORS[i % 4]
-            const isMe = p.id === myId
+            const color = PLAYER_COLORS[i % 4]; const isMe = p.id === myId
             return (
               <div key={p.id} className="flex-1 flex flex-col items-center py-2.5 px-2 relative"
-                style={{
-                  borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.06)" : "none",
-                  background: isMe ? `${color}10` : "transparent",
-                }}>
-                {/* Indicador "você" */}
-                {isMe && (
-                  <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-sm"
-                    style={{ background: color }} />
-                )}
-                {/* Nome */}
+                style={{ borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.06)" : "none", background: isMe ? `${color}10` : "transparent" }}>
+                {isMe && <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-sm" style={{ background: color }} />}
                 <div className="flex items-center gap-1 mb-0.5">
-                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{ background: color, boxShadow: `0 0 4px ${color}` }} />
-                  <span className="text-[10px] font-semibold truncate max-w-[80px]"
-                    style={{ color: isMe ? color : "rgba(255,255,255,0.4)" }}>
+                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color, boxShadow: `0 0 4px ${color}` }} />
+                  <span className="text-[10px] font-semibold truncate max-w-[80px]" style={{ color: isMe ? color : "rgba(255,255,255,0.4)" }}>
                     {isMe ? "Você" : p.name}
                   </span>
                 </div>
-                {/* Score */}
-                <span className="text-base font-black font-mono leading-none"
-                  style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.65)" }}>
+                <span className="text-base font-black font-mono leading-none" style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.65)" }}>
                   {p.score.toLocaleString()}
                 </span>
-                {/* Combo + Rock meter */}
                 <div className="flex items-center gap-2 mt-1 w-full">
-                  {p.combo > 1 && (
-                    <span className="text-[9px] font-bold" style={{ color: color + "cc" }}>
-                      {p.combo}x
-                    </span>
-                  )}
+                  {p.combo > 1 && <span className="text-[9px] font-bold" style={{ color: color + "cc" }}>{p.combo}x</span>}
                   <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
                     <div className="h-full rounded-full transition-all duration-300"
-                      style={{
-                        width: `${p.rockMeter}%`,
-                        background: p.rockMeter > 60 ? "#22c55e" : p.rockMeter > 30 ? "#fbbf24" : "#ef4444",
-                      }} />
+                      style={{ width: `${p.rockMeter}%`, background: p.rockMeter > 60 ? "#22c55e" : p.rockMeter > 30 ? "#fbbf24" : "#ef4444" }} />
                   </div>
                 </div>
               </div>
@@ -96,78 +61,37 @@ function MultiplayerHUD({
           })}
         </div>
       </div>
-
-      {/* Botão Pausar — canto inferior direito, pointer-events ativo */}
       {!isPaused && (
         <div className="fixed bottom-6 right-6 z-30">
-          <button
-            onClick={onPause}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all hover:scale-105 active:scale-95"
-            style={{
-              background: "rgba(0,0,0,0.6)",
-              backdropFilter: "blur(8px)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "rgba(255,255,255,0.45)",
-            }}>
+          <button onClick={onPause} className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all hover:scale-105 active:scale-95"
+            style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.45)" }}>
             <span>⏸</span> Pausar para todos
           </button>
         </div>
       )}
-
-      {/* Overlay de pause */}
       {isPaused && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.82)", backdropFilter: "blur(12px)" }}>
-          <div className="flex flex-col items-center gap-6 w-64"
-            style={{ animation: "pause-in 0.25s cubic-bezier(0.34,1.56,0.64,1) both" }}>
-
-            {/* Ícone + título */}
+        <div className="fixed inset-0 z-40 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.82)", backdropFilter: "blur(12px)" }}>
+          <div className="flex flex-col items-center gap-6 w-64">
             <div className="text-center">
-              <div className="flex items-center gap-3 justify-center mb-2">
-                <div className="h-px w-10" style={{ background: "linear-gradient(90deg, transparent, rgba(225,29,72,0.6))" }} />
-                <div className="w-9 h-9 rounded-full flex items-center justify-center text-lg"
-                  style={{ background: "rgba(225,29,72,0.15)", border: "1px solid rgba(225,29,72,0.3)" }}>
-                  ⏸
-                </div>
-                <div className="h-px w-10" style={{ background: "linear-gradient(90deg, rgba(225,29,72,0.6), transparent)" }} />
-              </div>
               <h2 className="text-xl font-black tracking-[0.2em] uppercase text-white">Pausado</h2>
               <p className="text-xs text-white/35 mt-1">por {pausedByName}</p>
             </div>
-
-            {/* Placar rápido no pause */}
-            <div className="w-full rounded-2xl overflow-hidden"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              {players
-                .slice()
-                .sort((a, b) => b.score - a.score)
-                .map((p, rank) => {
-                  const color = PLAYER_COLORS[players.indexOf(p) % 4]
-                  const isMe = p.id === myId
-                  return (
-                    <div key={p.id} className="flex items-center gap-3 px-4 py-2.5"
-                      style={{ borderBottom: rank < players.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                      <span className="text-sm font-black w-5 text-center"
-                        style={{ color: rank === 0 ? "#fbbf24" : "rgba(255,255,255,0.25)" }}>
-                        {rank + 1}
-                      </span>
-                      <div className="w-2 h-2 rounded-full" style={{ background: color }} />
-                      <span className="flex-1 text-sm font-semibold truncate"
-                        style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.55)" }}>
-                        {isMe ? "Você" : p.name}
-                      </span>
-                      <span className="text-sm font-black font-mono" style={{ color: isMe ? color : "rgba(255,255,255,0.5)" }}>
-                        {p.score.toLocaleString()}
-                      </span>
-                    </div>
-                  )
-                })}
+            <div className="w-full rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              {players.slice().sort((a, b) => b.score - a.score).map((p, rank) => {
+                const color = PLAYER_COLORS[players.indexOf(p) % 4]; const isMe = p.id === myId
+                return (
+                  <div key={p.id} className="flex items-center gap-3 px-4 py-2.5"
+                    style={{ borderBottom: rank < players.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
+                    <span className="text-sm font-black w-5 text-center" style={{ color: rank === 0 ? "#fbbf24" : "rgba(255,255,255,0.25)" }}>{rank + 1}</span>
+                    <div className="w-2 h-2 rounded-full" style={{ background: color }} />
+                    <span className="flex-1 text-sm font-semibold truncate" style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.55)" }}>{isMe ? "Você" : p.name}</span>
+                    <span className="text-sm font-black font-mono" style={{ color: isMe ? color : "rgba(255,255,255,0.5)" }}>{p.score.toLocaleString()}</span>
+                  </div>
+                )
+              })}
             </div>
-
-            {/* Botão retomar */}
             {canResume ? (
-              <button onClick={onResume}
-                className="flex items-center justify-center gap-2 w-full h-12 rounded-xl font-bold text-sm transition-all hover:scale-[1.03] active:scale-[0.97]"
+              <button onClick={onResume} className="flex items-center justify-center gap-2 w-full h-12 rounded-xl font-bold text-sm transition-all hover:scale-[1.03] active:scale-[0.97]"
                 style={{ background: "linear-gradient(135deg, #e11d48, #be123c)", color: "#fff", boxShadow: "0 0 24px rgba(225,29,72,0.4)" }}>
                 ▶ Retomar jogo
               </button>
@@ -180,19 +104,81 @@ function MultiplayerHUD({
           </div>
         </div>
       )}
-
-      <style>{`
-        @keyframes pause-in {
-          from { opacity: 0; transform: scale(0.88) translateY(12px); }
-          to   { opacity: 1; transform: scale(1) translateY(0); }
-        }
-      `}</style>
     </>
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Tela de espera multiplayer ────────────────────────────────────────────────
+function WaitingRoom({ players, myId, hostId, chosenInstrument, iAmReady, onReady, onStart, onBack }:
+  { players: RoomPlayer[]; myId: string; hostId: string; chosenInstrument: { icon: string; label: string } | null
+    iAmReady: boolean; onReady: () => void; onStart: () => void; onBack: () => void }) {
 
+  const isHost   = myId === hostId
+  const allReady = players.length > 0 && players.every(p => p.ready)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center flex-col gap-5"
+      style={{ background: "#060608" }}>
+      <div className="text-center">
+        <p className="text-4xl mb-2">{chosenInstrument?.icon ?? "🎸"}</p>
+        <p className="text-lg font-black text-white">{chosenInstrument?.label ?? "Guitarra"}</p>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>instrumento escolhido</p>
+      </div>
+
+      {/* Lista de jogadores */}
+      <div className="flex flex-col gap-2 w-72">
+        {players.map((p) => (
+          <div key={p.id} className="flex items-center justify-between px-4 py-3 rounded-xl"
+            style={{ background: p.ready ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.04)",
+              border: p.ready ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,255,255,0.08)" }}>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{p.instrument === "vocals" ? "🎤" : p.instrument === "rhythm" ? "🎸" : p.instrument === "keys" ? "🎹" : "🎸"}</span>
+              <div>
+                <p className="text-sm font-bold text-white">{p.name}{p.id === myId ? " (você)" : ""}</p>
+                {p.id === hostId && <p className="text-[10px]" style={{ color: "rgba(255,180,60,0.7)" }}>👑 Anfitrião</p>}
+              </div>
+            </div>
+            {p.ready
+              ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ background: "rgba(34,197,94,0.2)", color: "#4ade80" }}>✓ Pronto</span>
+              : <span className="text-xs animate-pulse" style={{ color: "rgba(255,255,255,0.3)" }}>aguardando...</span>}
+          </div>
+        ))}
+      </div>
+
+      {/* Botão Pronto (para quem ainda não marcou) */}
+      {!iAmReady && (
+        <button onClick={onReady}
+          className="w-72 h-12 rounded-2xl font-black text-sm tracking-wide transition-all hover:scale-[1.02] active:scale-[0.98]"
+          style={{ background: "linear-gradient(135deg,#22c55e,#16a34a)", color: "#fff", boxShadow: "0 0 24px rgba(34,197,94,0.3)" }}>
+          ✓ Estou Pronto
+        </button>
+      )}
+
+      {/* Botão Iniciar (só host, só quando todos prontos) */}
+      {isHost && allReady && (
+        <button onClick={onStart}
+          className="w-72 h-14 rounded-2xl font-black text-lg tracking-wide transition-all hover:scale-[1.02] active:scale-[0.98]"
+          style={{ background: "linear-gradient(135deg,#e11d48,#be123c)", color: "#fff", boxShadow: "0 0 30px rgba(225,29,72,0.4)" }}>
+          🎸 Iniciar Batalha!
+        </button>
+      )}
+      {isHost && !allReady && iAmReady && (
+        <p className="text-xs animate-pulse" style={{ color: "rgba(255,255,255,0.25)" }}>
+          Aguardando outros jogadores ficarem prontos...
+        </p>
+      )}
+      {!isHost && iAmReady && (
+        <p className="text-xs animate-pulse" style={{ color: "rgba(255,255,255,0.25)" }}>
+          Aguardando o anfitrião iniciar...
+        </p>
+      )}
+
+      <button onClick={onBack} className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.2)" }}>← Voltar</button>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 function PlayInner() {
   const params       = useParams()
   const searchParams = useSearchParams()
@@ -208,23 +194,23 @@ function PlayInner() {
     return null
   })
 
-  const [chart, setChart]     = useState<ChartData | null>(null)
-  const [meta, setMeta]       = useState<SongMeta | null>(null)
+  const [chart, setChart]       = useState<ChartData | null>(null)
+  const [meta, setMeta]         = useState<SongMeta | null>(null)
   const [audioUrls, setAudioUrls] = useState<Record<string, string>>({})
   const [availableInstruments, setAvailableInstruments] = useState<{key:string;label:string;icon:string;url:string}[]>([])
   const [chosenInstrument, setChosenInstrument] = useState<{key:string;label:string;icon:string;url:string}|null>(null)
-  const [waitingForPlayers, setWaitingForPlayers] = useState(false)
-  const [roomPlayersReady, setRoomPlayersReady] = useState<{id:string;name:string;instrument?:string;ready:boolean}[]>([])
   const [backgroundUrl, setBackgroundUrl] = useState<string | null>(null)
   const [albumArt, setAlbumArt] = useState<string | null>(null)
-  const isLeavingRef = useRef(false)   // previne startGame após onBack
-  const [error, setError]     = useState<string | null>(null)
+  const [error, setError]       = useState<string | null>(null)
 
-  // Estado multiplayer
+  // Multiplayer
   const [roomSnapshot, setRoomSnapshot] = useState<RoomSnapshot | null>(null)
   const [gamePaused, setGamePaused]     = useState(false)
-  const latestStatsRef  = useRef<GameStats | null>(null)
-  const gameEndedRef    = useRef(false)   // local game já terminou
+  const [gameStarted, setGameStarted]   = useState(false)  // jogo realmente iniciado
+  const [iAmReady, setIAmReady]         = useState(false)
+  const latestStatsRef = useRef<GameStats | null>(null)
+  const gameEndedRef   = useRef(false)
+  const isLeavingRef   = useRef(false)
 
   // Carrega música
   useEffect(() => {
@@ -235,42 +221,28 @@ function PlayInner() {
         const data = await res.json()
         setMeta(data.meta); setChart(data.chart); setAudioUrls(data.audioUrls || {})
         setAlbumArt(data.albumArt || null)
-        const instruments = data.availableInstruments || []
-        setAvailableInstruments(instruments)
+        setAvailableInstruments(data.availableInstruments || [])
         setBackgroundUrl(data.backgroundUrl || null)
-        // Se só tem 1 instrumento (ou nenhum), escolhe automaticamente
-        if (instruments.length <= 1) {
-          const autoInstr = instruments[0] ?? { key: "guitar", label: "Guitarra", icon: "🎸", url: data.audioUrls?.guitar || "" }
-          setChosenInstrument(autoInstr)
-          // Só ativa espera se estiver em sala multiplayer
-          const rc = new URLSearchParams(window.location.search).get("room")
-          const pid = playerIdParam || (typeof window !== "undefined" ? sessionStorage.getItem("playerId") : null)
-          if (rc && pid) {
-            // Verificar se a sala tem mais de 1 jogador antes de mostrar tela de espera
-            fetch(`/api/rooms/${rc}`).then(r => r.json()).then(room => {
-              if (room.players && room.players.length > 1) {
-                setWaitingForPlayers(true)
-                fetch(`/api/rooms/${rc}`, {
-                  method: "PATCH", headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ action: "instrument", playerId: pid, instrument: autoInstr.key }),
-                }).catch(() => {})
-              }
-              // Se só 1 jogador na sala, não precisa esperar
-            }).catch(() => {})
+        // Solo ou instrumento único: auto-escolhe e vai direto
+        if (!roomCode) {
+          const instruments = data.availableInstruments || []
+          if (instruments.length <= 1) {
+            setChosenInstrument(instruments[0] ?? { key: "guitar", label: "Guitarra", icon: "🎸", url: data.audioUrls?.guitar || "" })
+            setGameStarted(true)
           }
         }
       } catch (err) { setError(err instanceof Error ? err.message : "Erro ao carregar") }
     }
     load()
-  }, [trackId])
+  }, [trackId, roomCode])
 
-  // Multiplayer: push score + poll room state
+  // Polling multiplayer
   useEffect(() => {
     if (!roomCode || !playerId) return
 
     const pushScore = setInterval(async () => {
-      const s = latestStatsRef.current
-      if (!s) return
+      if (!gameStarted) return
+      const s = latestStatsRef.current; if (!s) return
       try {
         await fetch(`/api/rooms/${roomCode}`, {
           method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -287,19 +259,38 @@ function PlayInner() {
         const room: RoomSnapshot = await res.json()
         setRoomSnapshot(room)
         setGamePaused(room.state === "paused")
-        // Atualizar lista de jogadores prontos (para tela de espera de instrumento)
-        setRoomPlayersReady(room.players || [])
-        // Se todos escolheram instrumento (ready=true), liberar o jogo
-        if (room.players && room.players.length > 0) {
-          const allReady = room.players.every((p: {ready: boolean}) => p.ready)
-          if (allReady) {
-            setWaitingForPlayers(false)
-          }
+        // Se estado mudou para "playing", iniciar jogo
+        if (room.state === "playing" && !gameStarted) {
+          setGameStarted(true)
         }
       } catch {}
     }, 1000)
 
     return () => { clearInterval(pushScore); clearInterval(pollRoom) }
+  }, [roomCode, playerId, gameStarted])
+
+  // Marcar como pronto
+  const handleReady = useCallback(async () => {
+    if (!roomCode || !playerId || !chosenInstrument) return
+    setIAmReady(true)
+    try {
+      await fetch(`/api/rooms/${roomCode}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "instrument", playerId, instrument: chosenInstrument.key }),
+      })
+    } catch {}
+  }, [roomCode, playerId, chosenInstrument])
+
+  // Host inicia a partida
+  const handleStart = useCallback(async () => {
+    if (!roomCode || !playerId) return
+    try {
+      await fetch(`/api/rooms/${roomCode}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "setState", state: "playing" }),
+      })
+      setGameStarted(true)
+    } catch {}
   }, [roomCode, playerId])
 
   const handlePause = useCallback(async () => {
@@ -324,18 +315,12 @@ function PlayInner() {
     } catch {}
   }, [roomCode, playerId])
 
-  const handleScoreUpdate = useCallback((stats: GameStats) => {
-    latestStatsRef.current = stats
-  }, [])
-
-  const handleSongEnd = useCallback(() => {
-    gameEndedRef.current = true
-  }, [])
+  const handleScoreUpdate = useCallback((stats: GameStats) => { latestStatsRef.current = stats }, [])
+  const handleSongEnd     = useCallback(() => { gameEndedRef.current = true }, [])
 
   const handleBack = useCallback(async () => {
     if (isLeavingRef.current) return
     isLeavingRef.current = true
-    // No multiplayer: marca a sala como ended no servidor antes de sair
     if (roomCode && playerId) {
       try {
         await fetch(`/api/rooms/${roomCode}`, {
@@ -347,73 +332,7 @@ function PlayInner() {
     router.push(roomCode ? `/room/${roomCode}` : "/songs")
   }, [roomCode, playerId, router])
 
-  // Tela de aguardando outros jogadores escolherem instrumento
-  if (waitingForPlayers && chosenInstrument) {
-    const allNowReady = roomPlayersReady.length > 0 && roomPlayersReady.every(p => p.ready)
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center flex-col gap-6"
-        style={{ background: "rgba(0,0,0,0.97)" }}>
-        <div className="text-center">
-          <p className="text-4xl mb-2">{chosenInstrument.icon}</p>
-          <p className="text-lg font-black text-white">{chosenInstrument.label}</p>
-          <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>instrumento escolhido</p>
-        </div>
-        {roomPlayersReady.length > 0 && (
-          <div className="flex flex-col gap-2 w-64">
-            {roomPlayersReady.map((p) => (
-              <div key={p.id} className="flex items-center justify-between px-4 py-2 rounded-xl"
-                style={{ background: p.ready ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.04)",
-                  border: p.ready ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,255,255,0.08)" }}>
-                <span className="text-sm text-white font-bold">{p.name}{p.id === playerId ? " (você)" : ""}</span>
-                {p.ready
-                  ? <span className="text-xs" style={{ color: "#4ade80" }}>✓ pronto</span>
-                  : <span className="text-xs animate-pulse" style={{ color: "rgba(255,255,255,0.3)" }}>escolhendo...</span>}
-              </div>
-            ))}
-          </div>
-        )}
-        {allNowReady
-          ? <p className="text-sm font-bold animate-pulse" style={{ color: "#4ade80" }}>Iniciando...</p>
-          : <p className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>Aguardando todos escolherem o instrumento...</p>
-        }
-        <button onClick={() => setWaitingForPlayers(false)}
-          className="text-xs underline mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
-          Pular espera
-        </button>
-      </div>
-    )
-  }
-
-  if (chart && meta && availableInstruments.length > 1 && !chosenInstrument) {
-    return (
-      <InstrumentSelect
-        songName={meta.name}
-        artist={meta.artist}
-        instruments={availableInstruments}
-        onSelect={async (instr) => {
-          setChosenInstrument(instr)
-          if (roomCode && playerId) {
-            // Só mostra tela de espera se tiver mais de 1 jogador na sala
-            const notAllReady = roomPlayersReady.some(p => p.id !== playerId && !p.ready)
-            if (notAllReady) {
-              setWaitingForPlayers(true)
-            }
-            // Marcar localmente como pronto imediatamente
-            setRoomPlayersReady(prev => prev.map(p =>
-              p.id === playerId ? { ...p, ready: true, instrument: instr.key } : p
-            ))
-            try {
-              await fetch(`/api/rooms/${roomCode}`, {
-                method: "PATCH", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "instrument", playerId, instrument: instr.key }),
-              })
-            } catch {}
-          }
-        }}
-        onBack={handleBack}
-      />
-    )
-  }
+  // ── Renders ──────────────────────────────────────────────────────────────
 
   if (error) return (
     <div className="flex items-center justify-center h-screen flex-col gap-4" style={{ background: "#060608" }}>
@@ -428,12 +347,43 @@ function PlayInner() {
     </div>
   )
 
+  // Multiplayer: tela de seleção de instrumento
+  if (roomCode && !chosenInstrument) {
+    const instruments = availableInstruments.length > 0
+      ? availableInstruments
+      : [{ key: "guitar", label: "Guitarra", icon: "🎸", url: audioUrls?.guitar || "" }]
+    return (
+      <InstrumentSelect
+        songName={meta.name}
+        artist={meta.artist}
+        instruments={instruments}
+        onSelect={(instr) => setChosenInstrument(instr)}
+        onBack={handleBack}
+      />
+    )
+  }
+
+  // Multiplayer: tela de espera (antes do jogo iniciar)
+  if (roomCode && chosenInstrument && !gameStarted) {
+    return (
+      <WaitingRoom
+        players={roomSnapshot?.players ?? []}
+        myId={playerId ?? ""}
+        hostId={roomSnapshot?.hostId ?? ""}
+        chosenInstrument={chosenInstrument}
+        iAmReady={iAmReady}
+        onReady={handleReady}
+        onStart={handleStart}
+        onBack={handleBack}
+      />
+    )
+  }
+
+  // Jogo
   const isMultiplayer = !!roomCode
   const isPaused      = gamePaused
-  const pausedByName  = roomSnapshot
-    ? roomSnapshot.players.find(p => p.id === roomSnapshot.pausedBy)?.name ?? "alguém"
-    : ""
-  const canResume = roomSnapshot?.pausedBy === playerId
+  const pausedByName  = roomSnapshot?.players.find(p => p.id === roomSnapshot.pausedBy)?.name ?? "alguém"
+  const canResume     = roomSnapshot?.pausedBy === playerId
 
   return (
     <>
@@ -441,10 +391,7 @@ function PlayInner() {
         chart={chart}
         meta={meta}
         audioUrls={chosenInstrument
-          ? { ...audioUrls, guitar: chosenInstrument.url,
-              // Remove a faixa original do instrumento escolhido da posição dela
-              // para não tocar duplicado
-              [chosenInstrument.key]: chosenInstrument.url }
+          ? { ...audioUrls, guitar: chosenInstrument.url, [chosenInstrument.key]: chosenInstrument.url }
           : audioUrls}
         backgroundUrl={backgroundUrl || albumArt}
         onBack={handleBack}
@@ -452,7 +399,6 @@ function PlayInner() {
         onSongEnd={handleSongEnd}
         externalPaused={isMultiplayer ? isPaused : undefined}
       />
-
       {isMultiplayer && roomSnapshot && (
         <MultiplayerHUD
           players={roomSnapshot.players}
