@@ -14,6 +14,9 @@ export interface GameSettings {
   keyBindings5: string[]     // 5 teclas (modo normal)
   keyboardEnabled: boolean
   gamepadEnabled: boolean
+  highwayTheme: "default" | "neon" | "fire" | "space" | "wood"
+  noteShape: "circle" | "square" | "diamond"
+  cameraShake: boolean
 }
 
 export const DEFAULT_KEY_BINDINGS  = ["a", "s", "d", "j", "k", "l"]
@@ -32,6 +35,9 @@ export const DEFAULT_SETTINGS: GameSettings = {
   keyBindings5: [...DEFAULT_KEY_BINDINGS5],
   keyboardEnabled: true,
   gamepadEnabled: true,
+  highwayTheme: "default",
+  noteShape: "circle",
+  cameraShake: true,
 }
 
 const KEY = "guitar-duels-settings"
@@ -50,6 +56,9 @@ export function loadSettings(): GameSettings {
         keyBindings5: Array.isArray(parsed.keyBindings5) && parsed.keyBindings5.length === 5 ? parsed.keyBindings5 : [...DEFAULT_KEY_BINDINGS5],
         keyboardEnabled: parsed.keyboardEnabled ?? true,
         gamepadEnabled:  parsed.gamepadEnabled  ?? true,
+        highwayTheme:    parsed.highwayTheme    ?? "default",
+        noteShape:       parsed.noteShape       ?? "circle",
+        cameraShake:     parsed.cameraShake     ?? true,
       }
     }
   } catch {}

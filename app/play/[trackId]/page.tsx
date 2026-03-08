@@ -5,8 +5,10 @@ import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { GameCanvas } from "@/components/game/game-canvas"
 import type { ChartData, SongMeta } from "@/lib/songs/types"
 import type { GameStats } from "@/lib/game/engine"
+import { getGrade, getAccuracy } from "@/lib/game/engine"
 import { playPauseSound, playResumeSound } from "@/lib/game/sounds"
 import { loadSettings } from "@/lib/settings"
+import { saveRecord } from "@/app/history/page"
 
 function getVol() {
   try { const s = loadSettings(); return (s.masterVolume / 100) * (s.sfxVolume / 100) } catch { return 0.5 }
@@ -354,7 +356,30 @@ function PlayInner() {
   }, [roomCode, playerId])
 
   const handleScoreUpdate = useCallback((stats: GameStats) => { latestStatsRef.current = stats }, [])
-  const handleSongEnd     = useCallback(() => { gameEndedRef.current = true }, [])
+  const handleSongEnd = useCallback(() => {
+    gameEndedRef.current = true
+    const stats = latestStatsRef.current
+    if (stats && meta) {
+      const settings = loadSettings()
+      saveRecord({
+        songId:     meta.id ?? "",
+        songName:   meta.name ?? "",
+        artist:     meta.artist ?? "",
+        albumArt:   meta.albumArt,
+        score:      stats.score,
+        accuracy:   Math.round(getAccuracy(stats)),
+        combo:      stats.maxCombo,
+        grade:      getGrade(getAccuracy(stats)),
+        laneCount:  (laneCount as 4|5|6),
+        noteSpeed:  settings.noteSpeed,
+        perfect:    stats.perfect ?? 0,
+        great:      stats.great ?? 0,
+        good:       stats.good ?? 0,
+        miss:       stats.miss ?? 0,
+        timestamp:  Date.now(),
+      })
+    }
+  }, [meta, laneCount])
 
   const handleBack = useCallback(async () => {
     if (isLeavingRef.current) return

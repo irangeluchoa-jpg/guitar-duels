@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Play, Music, Clock, Star, Zap, ChevronRight } from "lucide-react"
 import type { SongListItem } from "@/lib/songs/types"
 import { playClickSound, playHoverSound } from "@/lib/game/sounds"
-import { loadSettings, DEFAULT_KEY_BINDINGS, getKeyBindingsForLanes } from "@/lib/settings"
+import { loadSettings, saveSettings, DEFAULT_KEY_BINDINGS, getKeyBindingsForLanes } from "@/lib/settings"
 import { GHBackground, GHLogo, GHBackButton, GHCard, GHSectionTitle, GHButton } from "@/components/ui/gh-layout"
 
 function getVol() { try { const s=loadSettings(); return (s.masterVolume/100)*(s.sfxVolume/100) } catch { return .5 } }
@@ -81,6 +81,9 @@ export function SongSelect() {
   const [allSettings, setAllSettings] = useState(loadSettings)
   const [songs, setSongs]             = useState<SongListItem[]>([])
   const [sel, setSel]                 = useState(0)
+  const [query, setQuery]              = useState("")
+  const [filterDiff, setFilterDiff]    = useState<number | null>(null)
+  const [sortBy, setSortBy]            = useState<"name" | "difficulty" | "duration">("name")
   const [loading, setLoading]         = useState(true)
   const [isPlaying, setIsPlaying]     = useState(false)
   const [previewAudio]                = useState(() => typeof Audio !== "undefined" ? new Audio() : null)
@@ -148,17 +151,41 @@ export function SongSelect() {
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key === "ArrowUp" || e.key === "w") { e.preventDefault(); setSel(p => Math.max(0, p - 1)) }
-      else if (e.key === "ArrowDown" || e.key === "s") { e.preventDefault(); setSel(p => Math.min(songs.length - 1, p + 1)) }
-      else if (e.key === "Enter" && songs[sel]) { previewAudio?.pause(); router.push(`/play/${encodeURIComponent(songs[sel].id)}?lanes=${laneCount}`) }
+      else if (e.key === "ArrowDown" || e.key === "s") { e.preventDefault(); setSel(p => Math.min(filteredSongs.length - 1, p + 1)) }
+      else if (e.key === "Enter" && filteredSongs[sel]) { previewAudio?.pause(); router.push(`/play/${encodeURIComponent(filteredSongs[sel].id)}?lanes=${laneCount}`) }
       else if (e.key === "Escape") { previewAudio?.pause(); router.push("/") }
     }
     window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h)
   }, [songs, sel, router, previewAudio])
 
-  const selected  = songs[sel]
+  // Filtro + ordenação
+  const filteredSongs = songs
+    .filter(s => {
+      const q = query.toLowerCase()
+      const matchText = !q || s.name.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q) || (s.genre ?? "").toLowerCase().includes(q)
+      const matchDiff = filterDiff === null || s.difficulty === filterDiff
+      return matchText && matchDiff
+    })
+    .sort((a, b) => {
+      if (sortBy === "difficulty") return (a.difficulty ?? 0) - (b.difficulty ?? 0)
+      if (sortBy === "duration")   return (a.songLength ?? 0) - (b.songLength ?? 0)
+      return a.name.localeCompare(b.name)
+    })
+
+  const selected  = filteredSongs[sel] ?? songs[sel]
   const diffIdx   = Math.min(selected?.difficulty ?? 0, DIFF_COLORS.length - 1)
   const diffColor = DIFF_COLORS[diffIdx]
   const diffLabel = DIFF_LABELS[diffIdx]
+
+  // Velocidade sugerida baseada na densidade das notas e dificuldade
+  const suggestedSpeed = (() => {
+    if (!selected) return null
+    const d = selected.difficulty ?? 3
+    // Densidade: notas por segundo (estimativa via songLength)
+    const secs = (selected.songLength ?? 180000) / 1000
+    const speeds = [0.75, 1, 1, 1.25, 1.5, 2]
+    return speeds[Math.min(d, speeds.length - 1)]
+  })()
 
   return (
     <GHBackground>
@@ -180,7 +207,53 @@ export function SongSelect() {
         <div className="flex flex-1 overflow-hidden gap-4 px-4 pb-4">
 
           {/* ── Song list ── */}
-          <div ref={listRef} className="w-[300px] overflow-y-auto flex flex-col gap-1 flex-shrink-0" style={{ scrollbarWidth: "none" }}>
+          <div className="w-[300px] flex flex-col gap-2 flex-shrink-0">
+
+            {/* Busca + filtros */}
+            <div className="flex flex-col gap-1.5">
+              <div className="relative">
+                <input
+                  value={query} onChange={e => { setQuery(e.target.value); setSel(0) }}
+                  placeholder="Buscar por nome, artista, gênero..."
+                  className="w-full text-xs rounded-lg pl-3 pr-3 py-2 outline-none"
+                  style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}
+                />
+              </div>
+              {/* Filtro dificuldade */}
+              <div className="flex gap-1 flex-wrap">
+                <button onClick={() => { setFilterDiff(null); setSel(0) }}
+                  className="text-[10px] px-2 py-1 rounded-full font-bold transition-all"
+                  style={{ background: filterDiff === null ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.04)", color: filterDiff === null ? "#fff" : "rgba(255,255,255,0.35)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  Todas
+                </button>
+                {DIFF_LABELS.slice(1).map((label, i) => {
+                  const d = i + 1; const dc = DIFF_COLORS[d]
+                  return (
+                    <button key={d} onClick={() => { setFilterDiff(filterDiff === d ? null : d); setSel(0) }}
+                      className="text-[10px] px-2 py-1 rounded-full font-bold transition-all"
+                      style={{ background: filterDiff === d ? `${dc}33` : "rgba(255,255,255,0.04)", color: filterDiff === d ? dc : "rgba(255,255,255,0.35)", border: filterDiff === d ? `1px solid ${dc}55` : "1px solid rgba(255,255,255,0.08)" }}>
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+              {/* Ordenação */}
+              <div className="flex gap-1">
+                {([["name","A-Z"],["difficulty","Dific."],["duration","Duração"]] as const).map(([key, label]) => (
+                  <button key={key} onClick={() => setSortBy(key)}
+                    className="flex-1 text-[10px] py-1 rounded-lg font-semibold transition-all"
+                    style={{ background: sortBy === key ? "rgba(225,29,72,0.2)" : "rgba(255,255,255,0.04)", color: sortBy === key ? "#e11d48" : "rgba(255,255,255,0.3)", border: sortBy === key ? "1px solid rgba(225,29,72,0.4)" : "1px solid rgba(255,255,255,0.06)" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {filteredSongs.length > 0 && (
+                <p className="text-[9px] text-white/20 text-right">{filteredSongs.length} músicas</p>
+              )}
+            </div>
+
+            {/* Lista */}
+            <div ref={listRef} className="flex-1 overflow-y-auto flex flex-col gap-1" style={{ scrollbarWidth: "none" }}>
             {loading ? (
               <div className="flex items-center justify-center h-24">
                 <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
@@ -194,7 +267,7 @@ export function SongSelect() {
                   Adicione em <code style={{ color: "#ff6060" }}>public/songs/</code>
                 </p>
               </div>
-            ) : songs.map((song, i) => {
+            ) : filteredSongs.map((song, i) => {
               const isS = i === sel
               const dc  = DIFF_COLORS[Math.min(song.difficulty, DIFF_COLORS.length - 1)]
               return (
@@ -209,9 +282,13 @@ export function SongSelect() {
                     transform: isS ? "translateX(3px)" : "none",
                   }}>
                   {isS && <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l" style={{ background: dc }} />}
-                  <div className="w-7 h-7 rounded flex items-center justify-center flex-shrink-0"
-                    style={{ background: isS ? `${dc}22` : "rgba(255,255,255,.04)" }}>
-                    <Music className="w-3.5 h-3.5" style={{ color: isS ? dc : "#555" }} />
+                  <div className="w-8 h-8 rounded-md flex-shrink-0 overflow-hidden"
+                    style={{ border: isS ? `1px solid ${dc}55` : "1px solid rgba(255,255,255,0.06)", boxShadow: isS ? `0 0 8px ${dc}33` : "none" }}>
+                    {song.albumArt
+                      ? <img src={song.albumArt} alt="" className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center" style={{ background: isS ? `${dc}22` : "rgba(255,255,255,.04)" }}>
+                          <Music className="w-3.5 h-3.5" style={{ color: isS ? dc : "#444" }} />
+                        </div>}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-xs truncate" style={{ color: isS ? "#fff" : "#888", fontFamily: "'Arial Black',sans-serif" }}>{song.name}</p>
@@ -227,6 +304,7 @@ export function SongSelect() {
                 </button>
               )
             })}
+            </div>
           </div>
 
           {/* ── Detail panel ── */}
@@ -335,6 +413,19 @@ export function SongSelect() {
                             <span className="flex items-center gap-1 text-sm font-bold" style={{ color: "rgba(255,255,255,.4)" }}>
                               <Clock className="w-3.5 h-3.5" />{formatDuration(selected.songLength)}
                             </span>
+                          )}
+                          {suggestedSpeed && (
+                            <button
+                              onClick={() => {
+                                const s = loadSettings()
+                                saveSettings({ ...s, noteSpeed: suggestedSpeed! })
+                              }}
+                              title="Clique para aplicar velocidade sugerida"
+                              className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full transition-all hover:scale-105 active:scale-95"
+                              style={{ background: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}>
+                              <Zap className="w-3 h-3" />
+                              {suggestedSpeed}x sugerido
+                            </button>
                           )}
                         </div>
                         {/* Difficulty bar */}

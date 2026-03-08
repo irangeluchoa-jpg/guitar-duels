@@ -86,6 +86,9 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       showGuide: settings.showGuide,
       calibrationOffset: settings.calibrationOffset,
       laneCount,
+      noteShape: settings.noteShape,
+      highwayTheme: settings.highwayTheme,
+      cameraShake: settings.cameraShake,
       onSongEnd: () => { onSongEnd?.() },
       onScoreUpdate,
     })

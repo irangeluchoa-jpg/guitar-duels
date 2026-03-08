@@ -29,6 +29,9 @@ interface UseGameEngineOptions {
   showGuide?: boolean
   calibrationOffset?: number
   laneCount?: number
+  noteShape?: "circle" | "square" | "diamond"
+  highwayTheme?: "default" | "neon" | "fire" | "space" | "wood"
+  cameraShake?: boolean
   onSongEnd?: (stats: GameStats) => void
   onScoreUpdate?: (stats: GameStats) => void
 }
@@ -42,6 +45,9 @@ export function useGameEngine({
   showGuide = true,
   calibrationOffset = 0,
   laneCount = 5,
+  noteShape = "circle" as "circle" | "square" | "diamond",
+  highwayTheme = "default" as "default" | "neon" | "fire" | "space" | "wood",
+  cameraShake = true,
   onSongEnd,
   onScoreUpdate,
 }: UseGameEngineOptions) {
@@ -286,6 +292,9 @@ export function useGameEngine({
       keyLabels: keyBindingsRef.current,
       laneCount,
       difficulty: meta.difficulty,
+      noteShape,
+      highwayTheme,
+      cameraShake,
     })
 
     animFrameRef.current = requestAnimationFrame(gameLoop)

@@ -178,6 +178,7 @@ export function MainMenu() {
     { label: "Jogar Solo",       sub: "Modo carreira",     icon: "🎸", path: "/songs",    primary: true },
     { label: "Multiplayer",      sub: "Até 4 jogadores",   icon: "⚔️",  path: "/lobby",   primary: false },
     { label: "Ranking",          sub: "Melhores placares", icon: "🏆", path: "/ranking",  primary: false },
+    { label: "Histórico",        sub: "Últimas partidas",  icon: "📋", path: "/history",  primary: false },
     { label: "Opções",           sub: "Configurações",     icon: "⚙️",  path: "/settings", primary: false },
   ]
 

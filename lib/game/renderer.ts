@@ -115,6 +115,9 @@ interface RenderState {
   keyLabels?: string[]
   difficulty?: number
   laneCount?: number
+  noteShape?: "circle" | "square" | "diamond"
+  highwayTheme?: "default" | "neon" | "fire" | "space" | "wood"
+  cameraShake?: boolean
 }
 
 export function getHitLineY(h: number) { return h * HIT_LINE_Y_RATIO }
@@ -454,13 +457,43 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
 }
 
 // ── Nota estilo GH:WoR — disco flat prata/cinza, aro cyan luminoso ──────────
+
+// Traça o path do shape da nota (usado para clip e fill)
+function noteShapePath(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, shape: string) {
+  ctx.beginPath()
+  if (shape === "square") {
+    const s = rx * 1.55
+    const r = s * 0.22
+    ctx.moveTo(x - s + r, y - s)
+    ctx.lineTo(x + s - r, y - s)
+    ctx.quadraticCurveTo(x + s, y - s, x + s, y - s + r)
+    ctx.lineTo(x + s, y + s - r)
+    ctx.quadraticCurveTo(x + s, y + s, x + s - r, y + s)
+    ctx.lineTo(x - s + r, y + s)
+    ctx.quadraticCurveTo(x - s, y + s, x - s, y + s - r)
+    ctx.lineTo(x - s, y - s + r)
+    ctx.quadraticCurveTo(x - s, y - s, x - s + r, y - s)
+    ctx.closePath()
+  } else if (shape === "diamond") {
+    const s = rx * 1.6
+    ctx.moveTo(x,     y - s)
+    ctx.lineTo(x + s, y)
+    ctx.lineTo(x,     y + s)
+    ctx.lineTo(x - s, y)
+    ctx.closePath()
+  } else {
+    ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2)
+  }
+}
+
 function drawNoteGH(
   ctx: CanvasRenderingContext2D,
   x: number, y: number,
   rx: number, ry: number,
   laneIdx: number,
   starPower: boolean,
-  now: number
+  now: number,
+  shape: "circle" | "square" | "diamond" = "circle"
 ) {
   const sp   = starPower
   const t    = now * 0.003
@@ -475,12 +508,12 @@ function drawNoteGH(
 
   ctx.save()
 
-  // ── Glow externo sutil (halo cyan) ───────────────────────────────────
+  // ── Glow externo sutil ───────────────────────────────────────────────
   const haloG = ctx.createRadialGradient(x, y, rx*0.5, x, y, rx*3.2)
   haloG.addColorStop(0,   `rgba(${rimAnimRgb},${sp?0.30:0.18})`)
   haloG.addColorStop(1,   "transparent")
   ctx.fillStyle = haloG
-  ctx.beginPath(); ctx.ellipse(x, y, rx*3.2, ry*3.2, 0, 0, Math.PI*2); ctx.fill()
+  noteShapePath(ctx, x, y, rx*3.2, ry*3.2, shape); ctx.fill()
 
   // ── Shadow drop ───────────────────────────────────────────────────────
   ctx.save(); ctx.globalAlpha = 0.35
@@ -490,18 +523,18 @@ function drawNoteGH(
   // ── Glow edge ─────────────────────────────────────────────────────────
   ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt
 
-  // ── Base do disco — gradiente escuro metálico ─────────────────────────
+  // ── Base — gradiente escuro metálico ─────────────────────────────────
   const baseG = ctx.createRadialGradient(x - rx*0.20, y - ry*0.35, 0, x, y, rx*1.05)
   baseG.addColorStop(0,    "#3a3a3a")
   baseG.addColorStop(0.30, "#1e1e1e")
   baseG.addColorStop(0.70, "#111111")
   baseG.addColorStop(1,    "#080808")
-  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2)
+  noteShapePath(ctx, x, y, rx, ry, shape)
   ctx.fillStyle = baseG; ctx.fill()
   ctx.shadowBlur = 0
 
-  // ── Aro externo brilhante (o "rim" cyan do WoR) ───────────────────────
-  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2)
+  // ── Aro externo brilhante ─────────────────────────────────────────────
+  noteShapePath(ctx, x, y, rx, ry, shape)
   ctx.strokeStyle = rimCol
   ctx.lineWidth = Math.max(1.8, rx * 0.12)
   ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt * 1.2
@@ -971,7 +1004,7 @@ function drawDiffLabel(ctx: CanvasRenderingContext2D, x: number, y: number, diff
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────────────────────
 export function renderFrame(state: RenderState): void {
-  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LC } = state
+  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true } = state
   const w=canvas.width, h=canvas.height
   const ns=NOTE_SPEED_BASE*speed
   const hitY=h*HIT_LINE_Y_RATIO, vanishY=h*VANISHING_Y_RATIO
@@ -981,6 +1014,34 @@ export function renderFrame(state: RenderState): void {
   const starPower=stats.combo>=STAR_POWER_COMBO
   // Limpa o canvas (bordas ficam transparentes — mostra o background da música)
   ctx.clearRect(0, 0, w, h)
+
+  // ── Câmera shake (star power ativo) ────────────────────────────────────
+  let shakeX = 0, shakeY = 0
+  if (cameraShake && starPower) {
+    const t = performance.now()
+    shakeX = (Math.sin(t * 0.041) * 2 + Math.sin(t * 0.073) * 1.5) * 0.8
+    shakeY = (Math.cos(t * 0.031) * 1.5 + Math.cos(t * 0.059) * 1)  * 0.6
+    ctx.save()
+    ctx.translate(shakeX, shakeY)
+  }
+
+  // ── Overlay de tema da highway ──────────────────────────────────────────
+  if (highwayTheme !== "default") {
+    const themeOverlays: Record<string, [string, number][]> = {
+      neon:  [["rgba(0,255,200,0.04)", 0], ["rgba(255,0,200,0.03)", 1]],
+      fire:  [["rgba(255,80,0,0.06)",  0], ["rgba(255,200,0,0.04)", 1]],
+      space: [["rgba(100,0,255,0.07)", 0], ["rgba(0,100,255,0.04)", 1]],
+      wood:  [["rgba(120,60,0,0.08)",  0], ["rgba(80,40,0,0.05)",   1]],
+    }
+    const stops = themeOverlays[highwayTheme]
+    if (stops) {
+      const grad = ctx.createLinearGradient(0, 0, 0, h)
+      stops.forEach(([c, p]) => grad.addColorStop(p, c))
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, w, h)
+    }
+  }
+
   // 1 – Fretboard (muda visual conforme star power)
   ctx.drawImage(getFretboard(w,h,starPower,difficulty,LC),0,0)
 
@@ -1104,7 +1165,7 @@ export function renderFrame(state: RenderState): void {
     const {x,y,scale}=project(lane,Math.max(ahead,0),canvas,ns,LC)
     if (y>hitY+NOTE_RY_BASE*4) continue
     const rx=NOTE_RX_BASE*scale, ry=NOTE_RY_BASE*scale
-    drawNoteGH(ctx,x,y,rx,ry,lane,starPower,now)
+    drawNoteGH(ctx,x,y,rx,ry,lane,starPower,now,noteShape)
   }
 
   // 8 – Hit effects (explosão + feixe de luz vertical)
@@ -1196,6 +1257,9 @@ export function renderFrame(state: RenderState): void {
     }
     ctx.restore()
   }
+
+  // ── Restaurar translate do camera shake ──────────────────────────────
+  if (cameraShake && starPower) { ctx.restore() }
 
   // ── Multiplicador: badge flutuando à direita da highway ───────────────
   if (stats.multiplier > 1) {

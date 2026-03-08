@@ -347,12 +347,19 @@ export default function SettingsPage() {
                 <span>← Notas adiantadas</span>
                 <span>Notas atrasadas →</span>
               </div>
-              {settings.calibrationOffset !== 0 && (
-                <button onClick={() => update({ calibrationOffset: 0 })}
-                  className="self-center text-xs text-white/30 hover:text-white/60 underline underline-offset-2 transition-colors mt-1">
-                  Zerar calibração
+              <div className="flex items-center gap-3 mt-1">
+                {settings.calibrationOffset !== 0 && (
+                  <button onClick={() => update({ calibrationOffset: 0 })}
+                    className="text-xs text-white/30 hover:text-white/60 underline underline-offset-2 transition-colors">
+                    Zerar
+                  </button>
+                )}
+                <button onClick={() => router.push("/calibration")}
+                  className="flex items-center gap-1.5 ml-auto text-xs font-bold px-3 py-1.5 rounded-xl transition-all hover:scale-105"
+                  style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }}>
+                  🎵 Calibração Automática com Metrônomo
                 </button>
-              )}
+              </div>
             </div>
           </Section>
 
@@ -361,6 +368,70 @@ export default function SettingsPage() {
             <ToggleRow label="Mostrar Guia de Teclas"
               description="Exibe as letras das teclas nas lanes durante o jogo"
               value={settings.showGuide} onChange={v => update({ showGuide: v })} color="#a855f7" />
+
+            <ToggleRow label="Câmera Dinâmica"
+              description="Leve tremor de câmera durante Star Power ativo"
+              value={settings.cameraShake ?? true} onChange={v => update({ cameraShake: v })} color="#a855f7" />
+
+            {/* Tema da Highway */}
+            <div className="space-y-2">
+              <p className="text-sm text-white font-medium">Tema da Highway</p>
+              <div className="grid grid-cols-5 gap-2">
+                {([
+                  { id: "default", label: "Padrão",  preview: "linear-gradient(180deg,#1a1a2e,#0d0d1a)", border: "#444" },
+                  { id: "neon",    label: "Neon",     preview: "linear-gradient(180deg,#001a1a,#00ff88,#ff00cc)", border: "#00ff88" },
+                  { id: "fire",    label: "Fogo",     preview: "linear-gradient(180deg,#1a0000,#ff4400,#ffcc00)", border: "#ff4400" },
+                  { id: "space",   label: "Espaço",   preview: "linear-gradient(180deg,#000010,#0033ff,#6600ff)", border: "#6600ff" },
+                  { id: "wood",    label: "Madeira",  preview: "linear-gradient(180deg,#2a1500,#8b4513,#d2691e)", border: "#8b4513" },
+                ] as const).map(theme => {
+                  const isSel = (settings.highwayTheme ?? "default") === theme.id
+                  return (
+                    <button key={theme.id} onClick={() => update({ highwayTheme: theme.id })}
+                      className="flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all hover:scale-105 active:scale-95"
+                      style={{
+                        background: isSel ? "rgba(168,85,247,0.15)" : "rgba(255,255,255,0.04)",
+                        border: isSel ? "1.5px solid #a855f7" : "1px solid rgba(255,255,255,0.08)",
+                        boxShadow: isSel ? "0 0 14px rgba(168,85,247,0.3)" : "none",
+                      }}>
+                      <div className="w-full h-10 rounded-lg overflow-hidden" style={{ background: theme.preview, border: `1px solid ${theme.border}44` }}/>
+                      <span className="text-[10px] font-bold" style={{ color: isSel ? "#a855f7" : "rgba(255,255,255,0.4)" }}>
+                        {theme.label}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Forma das Notas */}
+            <div className="space-y-2">
+              <p className="text-sm text-white font-medium">Forma das Notas</p>
+              <div className="flex gap-3">
+                {([
+                  { id: "circle",  label: "Círculo",   svg: <circle cx="24" cy="24" r="18" /> },
+                  { id: "square",  label: "Quadrado",  svg: <rect x="7" y="7" width="34" height="34" rx="7" /> },
+                  { id: "diamond", label: "Diamante",  svg: <polygon points="24,4 44,24 24,44 4,24" /> },
+                ] as const).map(shape => {
+                  const isSel = (settings.noteShape ?? "circle") === shape.id
+                  return (
+                    <button key={shape.id} onClick={() => update({ noteShape: shape.id })}
+                      className="flex-1 flex flex-col items-center gap-2 p-3 rounded-xl transition-all hover:scale-105 active:scale-95"
+                      style={{
+                        background: isSel ? "rgba(168,85,247,0.15)" : "rgba(255,255,255,0.04)",
+                        border: isSel ? "1.5px solid #a855f7" : "1px solid rgba(255,255,255,0.08)",
+                        boxShadow: isSel ? "0 0 14px rgba(168,85,247,0.3)" : "none",
+                      }}>
+                      <svg width="48" height="48" viewBox="0 0 48 48" style={{ fill: isSel ? "#a855f7" : "rgba(255,255,255,0.2)", filter: isSel ? "drop-shadow(0 0 6px #a855f7)" : "none" }}>
+                        {shape.svg}
+                      </svg>
+                      <span className="text-xs font-bold" style={{ color: isSel ? "#a855f7" : "rgba(255,255,255,0.4)" }}>
+                        {shape.label}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </Section>
 
           {/* ── CONTROLES ── */}
