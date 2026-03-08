@@ -14,6 +14,7 @@ import {
   prepareNotes,
   getAccuracy,
   getGrade,
+  MISS_PENALTY_BASE,
 } from "@/lib/game/engine"
 import { renderFrame, getHitLineY } from "@/lib/game/renderer"
 import { playComboSound, playPauseSound, playResumeSound, playGameOverSound } from "@/lib/game/sounds"
@@ -217,6 +218,7 @@ export function useGameEngine({
             rating: "miss",
             time: performance.now(),
             y: getHitLineY((canvasRef.current?.height ?? 600) / (window.devicePixelRatio || 1)),
+            penalty: MISS_PENALTY_BASE * (statsRef.current.multiplier || 1),
           })
         }
       }

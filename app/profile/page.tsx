@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Star, Trophy, Target, Zap, Clock, Music2, Edit2, Check } from "lucide-react"
+import { ArrowLeft, Star, Trophy, Target, Zap, Clock, Music2, Edit2, Check, Download, Upload, RefreshCw } from "lucide-react"
+import { HISTORY_KEY } from "@/app/history/page"
 import {
   loadProfile, saveProfile, type PlayerProfile, type Achievement,
   ACHIEVEMENTS, RARITY_COLORS, RARITY_LABELS,
@@ -114,6 +115,50 @@ function AchievementCard({ ach, unlocked }: { ach: Achievement; unlocked: boolea
 
 // ── Página ─────────────────────────────────────────────────────────────────
 
+
+// ── Backup / Restore ────────────────────────────────────────────────────────
+
+function exportBackup() {
+  try {
+    const profile  = localStorage.getItem("guitar-duels-profile") ?? "{}"
+    const history  = localStorage.getItem(HISTORY_KEY) ?? "[]"
+    const avatar   = localStorage.getItem("guitar-duels-avatar") ?? "🎸"
+    const scores   = localStorage.getItem("guitar-duels-scores") ?? "[]"
+    const payload  = { v: 1, profile, history, avatar, scores, exportedAt: Date.now() }
+    const json     = JSON.stringify(payload)
+    const b64      = btoa(unescape(encodeURIComponent(json)))
+    const blob     = new Blob([b64], { type: "text/plain" })
+    const url      = URL.createObjectURL(blob)
+    const a        = document.createElement("a")
+    a.href         = url
+    a.download     = `guitar-duels-backup-${new Date().toISOString().slice(0,10)}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    return true
+  } catch { return false }
+}
+
+function importBackup(file: File): Promise<boolean> {
+  return new Promise(resolve => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const b64     = (e.target?.result as string).trim()
+        const json    = decodeURIComponent(escape(atob(b64)))
+        const payload = JSON.parse(json)
+        if (payload.v !== 1) { resolve(false); return }
+        if (payload.profile) localStorage.setItem("guitar-duels-profile", payload.profile)
+        if (payload.history) localStorage.setItem(HISTORY_KEY, payload.history)
+        if (payload.avatar)  localStorage.setItem("guitar-duels-avatar", payload.avatar)
+        if (payload.scores)  localStorage.setItem("guitar-duels-scores", payload.scores)
+        resolve(true)
+      } catch { resolve(false) }
+    }
+    reader.onerror = () => resolve(false)
+    reader.readAsText(file)
+  })
+}
+
 export default function ProfilePage() {
   const router = useRouter()
   const [profile, setProfile] = useState<PlayerProfile | null>(null)
@@ -121,6 +166,28 @@ export default function ProfilePage() {
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState("")
   const [showAvatarPicker, setShowAvatarPicker] = useState(false)
+  const [backupMsg, setBackupMsg] = useState<string | null>(null)
+  const importInputRef = useRef<HTMLInputElement>(null)
+
+  const handleExport = () => {
+    const ok = exportBackup()
+    setBackupMsg(ok ? "✅ Backup exportado!" : "❌ Erro ao exportar")
+    setTimeout(() => setBackupMsg(null), 3000)
+  }
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const ok = await importBackup(file)
+    if (ok) {
+      setBackupMsg("✅ Backup restaurado! Recarregando...")
+      setTimeout(() => window.location.reload(), 1200)
+    } else {
+      setBackupMsg("❌ Arquivo inválido")
+      setTimeout(() => setBackupMsg(null), 3000)
+    }
+    e.target.value = ""
+  }
   const [achFilter, setAchFilter] = useState<"all" | "unlocked" | "locked">("all")
   const [achRarity, setAchRarity] = useState<"all" | "common" | "rare" | "epic" | "legendary">("all")
   const nameRef = useRef<HTMLInputElement>(null)
@@ -158,7 +225,7 @@ export default function ProfilePage() {
     : 0
 
   return (
-    <div className="min-h-screen" style={{ background: "#060608", fontFamily: "'Inter',sans-serif" }}>
+    <div className="min-h-screen overflow-y-auto" style={{ background: "#060608", fontFamily: "'Inter',sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800;900&display=swap');
         .bebas { font-family: 'Bebas Neue','Impact',sans-serif !important; }
@@ -177,6 +244,14 @@ export default function ProfilePage() {
           <ArrowLeft className="w-4 h-4" /> Voltar
         </button>
         <h1 className="bebas text-2xl tracking-[0.2em]" style={{ color: "rgba(168,85,247,0.9)" }}>MEU PERFIL</h1>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={handleExport}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl transition-all hover:scale-105"
+            style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", color: "rgba(34,197,94,0.8)" }}
+            title="Exportar backup dos dados">
+            <Download className="w-3.5 h-3.5" /> Backup
+          </button>
+        </div>
       </div>
 
       <div className="max-w-3xl mx-auto px-6 py-6 space-y-6" style={{ animation: "fade-up 0.3s ease" }}>
@@ -301,6 +376,42 @@ export default function ProfilePage() {
               )
             })}
           </div>
+        </div>
+
+        {/* Backup / Restaurar */}
+        <div className="p-4 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <p className="text-sm font-black text-white">Seus Dados</p>
+              <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>
+                Exporte um backup para não perder seu progresso se o servidor reiniciar
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={handleExport}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
+                style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)", color: "#22c55e" }}>
+                <Download className="w-3.5 h-3.5" /> Exportar
+              </button>
+              <button onClick={() => importInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
+                style={{ background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)", color: "#3b82f6" }}>
+                <Upload className="w-3.5 h-3.5" /> Importar
+              </button>
+              <input
+                ref={importInputRef} type="file" accept=".txt" className="hidden"
+                onChange={handleImport}
+              />
+            </div>
+          </div>
+          {backupMsg && (
+            <p className="text-xs mt-2 font-semibold" style={{ color: backupMsg.startsWith("✅") ? "#22c55e" : "#ef4444" }}>
+              {backupMsg}
+            </p>
+          )}
+          <p className="text-[9px] mt-2" style={{ color: "rgba(255,255,255,0.18)" }}>
+            💡 Dica: salve seu arquivo de backup em um lugar seguro (Google Drive, e-mail...). Para restaurar, clique em "Importar" e selecione o arquivo.
+          </p>
         </div>
 
         {/* Conquistas */}

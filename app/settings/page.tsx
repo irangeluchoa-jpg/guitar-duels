@@ -237,7 +237,7 @@ export default function SettingsPage() {
   const vol = getVol(settings)
 
   return (
-    <div className="relative w-full h-screen overflow-hidden" style={{ fontFamily:"'Impact','Arial Black',sans-serif", background:"#000", isolation:"isolate" }}>
+    <div className="relative w-full min-h-screen overflow-y-auto" style={{ fontFamily:"'Impact','Arial Black',sans-serif", background:"#000", isolation:"isolate" }}>
       {/* GH3 Background layers */}
       <div className="pointer-events-none absolute inset-0 z-0"
         style={{ background:"linear-gradient(180deg,#000 0%,#0a0004 50%,#180008 100%)" }}/>

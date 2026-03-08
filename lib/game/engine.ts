@@ -39,6 +39,7 @@ export interface HitEffect {
   rating: HitRating
   time: number
   y: number
+  penalty?: number  // pontos perdidos (miss)
 }
 
 export interface GameStats {
@@ -86,10 +87,17 @@ export function updateRockMeter(current: number, rating: HitRating): number {
   return Math.max(0, Math.min(100, current + delta[rating]))
 }
 
+// Penalidade por miss: perde o equivalente a uma nota "good" × multiplicador atual (mínimo 0)
+export const MISS_PENALTY_BASE = 50
+
 export function applyHit(stats: GameStats, rating: HitRating): GameStats {
   const s = { ...stats }
   if (rating === "miss") {
-    s.miss += 1; s.combo = 0; s.streak = 0; s.multiplier = 1
+    s.miss += 1
+    // Desconta pontos: base × multiplicador atual (quanto maior o combo perdido, maior a dor)
+    const penalty = MISS_PENALTY_BASE * s.multiplier
+    s.score = Math.max(0, s.score - penalty)
+    s.combo = 0; s.streak = 0; s.multiplier = 1
     s.rockMeter = updateRockMeter(s.rockMeter, rating)
     return s
   }

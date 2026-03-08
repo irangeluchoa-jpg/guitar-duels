@@ -1202,7 +1202,27 @@ export function renderFrame(state: RenderState): void {
     ctx.globalAlpha=alpha*(isMiss?0.50:1); ctx.fillStyle=rc
     ctx.shadowColor=rc; ctx.shadowBlur=isMiss?0:10
     ctx.font=`900 ${fs}px 'Arial Black', Arial, sans-serif`; ctx.textAlign="center"; ctx.textBaseline="middle"
-    ctx.fillText(fx.rating.toUpperCase(),x,ty); ctx.shadowBlur=0; ctx.restore()
+    ctx.fillText(fx.rating.toUpperCase(),x,ty)
+    // Penalidade de pontos no miss: "-50", "-100", "-200" em vermelho flutuando acima
+    if (isMiss && fx.penalty && fx.penalty > 0) {
+      const penaltyY = ty - 18 - prog * 22
+      const penaltyAlpha = Math.max(0, 1 - prog * 1.4)
+      const penaltyScale = 0.85 + (1 - prog) * 0.35
+      ctx.globalAlpha = alpha * penaltyAlpha
+      ctx.save()
+      ctx.translate(x, penaltyY)
+      ctx.scale(penaltyScale, penaltyScale)
+      ctx.fillStyle = "#ff4444"
+      ctx.shadowColor = "#ff0000"
+      ctx.shadowBlur = 8 * penaltyAlpha
+      ctx.font = `900 13px 'Arial Black', Arial, sans-serif`
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.fillText(`-${fx.penalty}`, 0, 0)
+      ctx.shadowBlur = 0
+      ctx.restore()
+    }
+    ctx.shadowBlur=0; ctx.restore()
   }
 
   // 9 – HUD estilo GH clássico

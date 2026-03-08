@@ -12,7 +12,7 @@ function getVol() { try { const s=loadSettings(); return (s.masterVolume/100)*(s
 
 const DIFF_LABELS = ["Beginner","Easy","Medium","Hard","Expert","Expert+","Extreme"]
 const DIFF_COLORS = ["#22c55e","#86efac","#eab308","#f97316","#ef4444","#a855f7","#ec4899"]
-const LANE_COLORS = ["#00E14F","#FF2828","#FFFD4B","#55ADFF","#FF9537","#a855f7"]
+const LANE_COLORS = ["#FF0000","#FF7800","#FFFF00","#0089FF","#5AFF00","#CC44FF"]
 const LANE_NAMES  = ["Verde","Verm.","Amar.","Azul","Lar.","Roxo"]
 
 function formatDuration(ms: number) {

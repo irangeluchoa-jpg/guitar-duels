@@ -66,7 +66,7 @@ export default function HistoryPage() {
   const fcCount     = history.filter((r: GameRecord) => r.miss === 0).length
 
   return (
-    <div className="min-h-screen" style={{ background:"#060608", fontFamily:"'Inter',sans-serif" }}>
+    <div className="min-h-screen overflow-y-auto" style={{ background:"#060608", fontFamily:"'Inter',sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800;900&display=swap');
         .bebas { font-family:'Bebas Neue','Impact',sans-serif !important; }

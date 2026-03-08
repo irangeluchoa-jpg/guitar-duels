@@ -32,7 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt">
-      <body className="font-sans antialiased overflow-hidden">
+      <body className="font-sans antialiased">
         {children}
       </body>
     </html>
