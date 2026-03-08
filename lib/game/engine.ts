@@ -81,40 +81,16 @@ export function calculateMultiplier(combo: number): number {
   return 1
 }
 
-// Penalidade de miss por dificuldade:
-//   Easy   (0-1): miss = -3  (precisa de ~17 misses seguidos para falhar do meio)
-//   Medium (2-3): miss = -6
-//   Hard   (4-5): miss = -10
-//   Expert (6+):  miss = -14
-export function getMissPenalty(difficulty: number): number {
-  if (difficulty <= 1) return -3
-  if (difficulty <= 3) return -6
-  if (difficulty <= 5) return -10
-  return -14
+export function updateRockMeter(current: number, rating: HitRating): number {
+  const delta: Record<HitRating, number> = { perfect: 3, great: 2, good: 1, miss: -8 }
+  return Math.max(0, Math.min(100, current + delta[rating]))
 }
 
-export function updateRockMeter(current: number, rating: HitRating, difficulty = 3): number {
-  const missPenalty = getMissPenalty(difficulty)
-  const delta: Record<HitRating, number> = { perfect: 3, great: 2, good: 1, miss: missPenalty }
-  // Mínimo de 1 — rock meter nunca chega a zero (sem game over)
-  return Math.max(1, Math.min(100, current + delta[rating]))
-}
-
-// Pontos descontados por miss (por dificuldade)
-export function getMissScorePenalty(difficulty: number): number {
-  if (difficulty <= 1) return 25
-  if (difficulty <= 3) return 50
-  if (difficulty <= 5) return 100
-  return 150
-}
-
-export function applyHit(stats: GameStats, rating: HitRating, difficulty = 3): GameStats {
+export function applyHit(stats: GameStats, rating: HitRating): GameStats {
   const s = { ...stats }
   if (rating === "miss") {
     s.miss += 1; s.combo = 0; s.streak = 0; s.multiplier = 1
-    s.rockMeter = updateRockMeter(s.rockMeter, rating, difficulty)
-    // Desconta pontos ao invés de dar game over
-    s.score = Math.max(0, s.score - getMissScorePenalty(difficulty))
+    s.rockMeter = updateRockMeter(s.rockMeter, rating)
     return s
   }
   s[rating] += 1
@@ -122,7 +98,7 @@ export function applyHit(stats: GameStats, rating: HitRating, difficulty = 3): G
   s.maxCombo = Math.max(s.maxCombo, s.combo)
   s.multiplier = calculateMultiplier(s.combo)
   s.score += getScoreForRating(rating, s.multiplier)
-  s.rockMeter = updateRockMeter(s.rockMeter, rating, difficulty)
+  s.rockMeter = updateRockMeter(s.rockMeter, rating)
   return s
 }
 
@@ -181,21 +157,3 @@ export function getGrade(accuracy: number): string {
   if (accuracy >= 60) return "D"
   return "F"
 }
-
-// ── Modo Prática ──────────────────────────────────────────────────────────────
-export interface PracticeConfig {
-  enabled: boolean
-  speed: number       // 0.5 | 0.75 | 1.0
-  loopStart: number   // ms
-  loopEnd: number     // ms
-}
-export const PRACTICE_SPEEDS = [0.5, 0.75, 1.0] as const
-
-// ── Whammy Bar ────────────────────────────────────────────────────────────────
-export interface WhammyState {
-  active: boolean        // tecla W / btn whammy pressionada
-  accumulatedMs: number  // tempo acumulado de whammy em ms
-  bonusScore: number     // bônus acumulado
-}
-
-export const WHAMMY_BONUS_PER_SEC = 25  // pontos por segundo de whammy

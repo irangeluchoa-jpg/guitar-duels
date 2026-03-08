@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Trophy, Star, Music2, Target } from "lucide-react"
 import { loadSettings } from "@/lib/settings"
@@ -55,7 +55,7 @@ export default function HistoryPage() {
     try { setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]")) } catch {}
   }, [])
 
-  const filtered = history.filter(r => {
+  const filtered = history.filter((r: GameRecord) => {
     if (filter === "s")  return r.grade.startsWith("S")
     if (filter === "fc") return r.miss === 0
     return true
@@ -63,7 +63,7 @@ export default function HistoryPage() {
 
   const bestScore   = history.reduce((m,r) => Math.max(m, r.score), 0)
   const avgAccuracy = history.length ? Math.round(history.reduce((s,r) => s+r.accuracy, 0) / history.length) : 0
-  const fcCount     = history.filter(r => r.miss === 0).length
+  const fcCount     = history.filter((r: GameRecord) => r.miss === 0).length
 
   return (
     <div className="min-h-screen" style={{ background:"#060608", fontFamily:"'Inter',sans-serif" }}>
@@ -132,7 +132,7 @@ export default function HistoryPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {filtered.map((r, i) => {
+            {filtered.map((r: GameRecord, i: number) => {
               const gc = GRADE_COLORS[r.grade] ?? "#fff"
               const lc = LANE_COLORS[r.laneCount] ?? "#fff"
               return (

@@ -4,9 +4,27 @@
  */
 
 let ctx: AudioContext | null = null
+let pendingSinkId: string | null = null
+
+/** Define o dispositivo de saída para os sons SFX/WebAudio */
+export async function setAudioOutputDevice(deviceId: string) {
+  pendingSinkId = deviceId
+  if (ctx && "setSinkId" in ctx) {
+    try {
+      await (ctx as AudioContext & { setSinkId(id: string): Promise<void> }).setSinkId(deviceId)
+    } catch (e) {
+      console.warn("AudioContext setSinkId:", e)
+    }
+  }
+}
 
 function getCtx(): AudioContext {
-  if (!ctx) ctx = new AudioContext()
+  if (!ctx) {
+    ctx = new AudioContext()
+    if (pendingSinkId && "setSinkId" in ctx) {
+      (ctx as AudioContext & { setSinkId(id: string): Promise<void> }).setSinkId(pendingSinkId).catch(() => {})
+    }
+  }
   if (ctx.state === "suspended") ctx.resume()
   return ctx
 }

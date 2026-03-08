@@ -14,7 +14,6 @@ import {
   prepareNotes,
   getAccuracy,
   getGrade,
-  type PracticeConfig, type WhammyState, WHAMMY_BONUS_PER_SEC,
 } from "@/lib/game/engine"
 import { renderFrame, getHitLineY } from "@/lib/game/renderer"
 import { playComboSound, playPauseSound, playResumeSound, playGameOverSound } from "@/lib/game/sounds"
@@ -33,8 +32,7 @@ interface UseGameEngineOptions {
   noteShape?: "circle" | "square" | "diamond"
   highwayTheme?: "default" | "neon" | "fire" | "space" | "wood"
   cameraShake?: boolean
-  practice?: PracticeConfig
-  onSongEnd?: (stats: GameStats, failed?: boolean) => void
+  onSongEnd?: (stats: GameStats) => void
   onScoreUpdate?: (stats: GameStats) => void
 }
 
@@ -50,7 +48,6 @@ export function useGameEngine({
   noteShape = "circle" as "circle" | "square" | "diamond",
   highwayTheme = "default" as "default" | "neon" | "fire" | "space" | "wood",
   cameraShake = true,
-  practice,
   onSongEnd,
   onScoreUpdate,
 }: UseGameEngineOptions) {
@@ -61,20 +58,13 @@ export function useGameEngine({
   // Carrega volume de SFX das configurações
   const sfxVolRef = useRef(1)
   const keyBindingsRef    = useRef<string[]>(getKeyBindingsForLanes(loadSettings(), laneCount))
-  const instrumentVolRef  = useRef<number>(1)
   const keyboardEnabledRef = useRef<boolean>(true)
-  const whammyRef = useRef<WhammyState>({ active: false, accumulatedMs: 0, bonusScore: 0 })
-  const whammyKeyRef = useRef(false)
-  const lastWhammyTime = useRef(0)
-  const pendingHitsRef = useRef<number[]>([])   // lanes pendentes para processar no início do frame
-  const difficultyRef   = useRef<number>(meta.difficulty ?? 3)
   const gamepadEnabledRef  = useRef<boolean>(true)
 
   useEffect(() => {
     const s = loadSettings()
     sfxVolRef.current       = (s.masterVolume / 100) * (s.sfxVolume / 100)
     keyBindingsRef.current  = getKeyBindingsForLanes(s, laneCount)
-    instrumentVolRef.current = (s.masterVolume/100)*(s.musicVolume/100)
     keyboardEnabledRef.current = s.keyboardEnabled ?? true
     gamepadEnabledRef.current  = s.gamepadEnabled  ?? true
   }, [])
@@ -115,43 +105,24 @@ export function useGameEngine({
    * Tempo atual da música em ms, com calibração aplicada.
    * Valor positivo = notas ficam mais "adiantadas" para o jogador (compensa áudio atrasado).
    */
-  // Ref para sincronização periódica com audio.currentTime
-  const lastAudioSyncTime = useRef(0)     // performance.now() da última sync
-  const lastAudioSyncMs   = useRef(0)     // audio.currentTime em ms na última sync
-  const wallClockOffset   = useRef(0)     // diferença entre wallClock e áudio na última sync
-
   const getCurrentTime = useCallback((): number => {
     const audio = audioRef.current
     let t = 0
-
     if (audio && !audio.paused && !audio.ended && audio.readyState >= 2) {
-      const now = performance.now()
-      const audioMs = audio.currentTime * 1000
-
-      // Re-sincroniza com audio.currentTime a cada 500ms para corrigir drift
-      // Entre sincronizações usa performance.now() (resolução de 0.1ms)
-      if (now - lastAudioSyncTime.current > 500) {
-        lastAudioSyncTime.current = now
-        lastAudioSyncMs.current   = audioMs
-        wallClockOffset.current   = audioMs - now
-      }
-
-      // Usa o relógio de parede (performance.now) para precisão de input,
-      // corrigido pelo offset medido na última sincronização
-      t = now + wallClockOffset.current
+      t = audio.currentTime * 1000
     } else if (gameStartWallRef.current > 0) {
       t = performance.now() - gameStartWallRef.current
     } else {
       t = gameTimeRef.current
     }
-
-    // Aplica calibração
+    // Aplica calibração: offset positivo = janela de hit avança, offset negativo = recua
     return t + calibrationRef.current
   }, [audioRef])
 
-  // Versão interna: recebe currentTime já calculado (chamada no início do frame)
-  const _processHit = useCallback(
-    (lane: number, currentTime: number) => {
+  const processHit = useCallback(
+    (lane: number) => {
+      if (gameStateRef.current !== "playing") return
+      const currentTime = getCurrentTime()
       const notes = notesRef.current
 
       let bestNote: ActiveNote | null = null
@@ -173,7 +144,7 @@ export function useGameEngine({
           bestNote.hitRating = rating
           bestNote.hitTime = currentTime
 
-          const newStats = applyHit(statsRef.current, rating, difficultyRef.current)
+          const newStats = applyHit(statsRef.current, rating)
           statsRef.current = newStats
           setStats(newStats)
           onScoreUpdate?.(newStats)
@@ -191,17 +162,7 @@ export function useGameEngine({
         }
       }
     },
-    [canvasRef, onScoreUpdate]
-  )
-
-  // API pública: enfileira o hit para processamento no início do próximo frame
-  const processHit = useCallback(
-    (lane: number) => {
-      if (gameStateRef.current !== "playing") return
-      // Enfileira para processar ANTES do checkMisses no próximo frame
-      pendingHitsRef.current.push(lane)
-    },
-    []
+    [getCurrentTime, canvasRef, onScoreUpdate]
   )
 
   // Teclado
@@ -209,7 +170,6 @@ export function useGameEngine({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return
       if (e.key === "Escape" && gameStateRef.current === "playing") { pause(); return }
-      if (e.key.toLowerCase() === "w" && gameStateRef.current === "playing") { whammyKeyRef.current = true; return }
       if (!keyboardEnabledRef.current) return
       const laneIndex = keyBindingsRef.current.indexOf(e.key.toLowerCase())
       if (laneIndex !== -1) {
@@ -219,7 +179,6 @@ export function useGameEngine({
       }
     }
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === "w") { whammyKeyRef.current = false; return }
       if (!keyboardEnabledRef.current) return
       const laneIndex = keyBindingsRef.current.indexOf(e.key.toLowerCase())
       if (laneIndex !== -1) keysDownRef.current.delete(laneIndex)
@@ -234,24 +193,21 @@ export function useGameEngine({
 
   // Controle (gamepad) — suporta Xbox, PlayStation, guitarra GH e genéricos
   useGamepad({
-    enabled: true, // enabledRef dentro do hook cuida de ligar/desligar dinamicamente
+    enabled: gamepadEnabledRef.current,
     keysDownRef,
     laneCount,
-    onLanePress:   (lane) => { if (gamepadEnabledRef.current) processHit(lane) },
+    onLanePress:   (lane) => { processHit(lane) },
     onLaneRelease: (lane) => { keysDownRef.current.delete(lane) },
     onPause:       () => { if (gameStateRef.current === "playing") pause() },
   })
 
   const checkMisses = useCallback(
     (currentTime: number) => {
-      // Margem extra de 40ms (≈2-3 frames a 60fps) para que o keydown sempre chegue primeiro
-      // Isso evita que checkMisses marque miss enquanto o jogador ainda tem tempo de acertar
-      const MISS_GUARD = TIMING_MISS + 40
       for (const note of notesRef.current) {
         if (note.hit || note.missed) continue
-        if (currentTime - note.time > MISS_GUARD) {
+        if (currentTime - note.time > TIMING_MISS) {
           note.missed = true
-          const newStats = applyHit(statsRef.current, "miss", difficultyRef.current)
+          const newStats = applyHit(statsRef.current, "miss")
           statsRef.current = newStats
           setStats(newStats)
           onScoreUpdate?.(newStats)
@@ -277,47 +233,10 @@ export function useGameEngine({
 
     const currentTime = getCurrentTime()
     gameTimeRef.current = currentTime
-    // IMPORTANTE: processar hits pendentes ANTES de checkMisses
-    // para evitar que notas sejam marcadas como missed no mesmo frame em que foram acertadas
-    const pending = pendingHitsRef.current.splice(0)
-    for (const lane of pending) _processHit(lane, currentTime)
     checkMisses(currentTime)
 
     const now = performance.now()
     hitEffectsRef.current = hitEffectsRef.current.filter(e => now - e.time < 400)
-
-    // ── Whammy bar — acumula bônus enquanto tecla W está pressionada ────
-    if (whammyKeyRef.current) {
-      const dt = lastWhammyTime.current > 0 ? now - lastWhammyTime.current : 0
-      lastWhammyTime.current = now
-      if (dt > 0 && dt < 200) {
-        whammyRef.current.accumulatedMs += dt
-        const bonusDelta = Math.floor((dt / 1000) * WHAMMY_BONUS_PER_SEC)
-        if (bonusDelta > 0) {
-          const newStats = { ...statsRef.current, score: statsRef.current.score + bonusDelta }
-          statsRef.current = newStats
-          setStats(newStats)
-          onScoreUpdate?.(newStats)
-        }
-      }
-    } else {
-      lastWhammyTime.current = 0
-    }
-
-    // ── Modo Prática: loop automático ────────────────────────────────────
-    if (practice?.enabled && audioRef.current) {
-      const audio = audioRef.current
-      const ct = audio.currentTime * 1000
-      if (ct >= practice.loopEnd) {
-        audio.currentTime = practice.loopStart / 1000
-        // Reset notas na janela do loop
-        for (const note of notesRef.current) {
-          if (note.time >= practice.loopStart) {
-            note.hit = false; note.missed = false; note.hitRating = undefined
-          }
-        }
-      }
-    }
 
     const lastNote = notesRef.current[notesRef.current.length - 1]
     const audio = audioRef.current
@@ -347,7 +266,7 @@ export function useGameEngine({
       setGameState("ended")
       gameStateRef.current = "ended"
       playGameOverSound(sfxVolRef.current)
-      onSongEnd?.(statsRef.current, false)
+      onSongEnd?.(statsRef.current)
       return
     }
 
@@ -357,7 +276,7 @@ export function useGameEngine({
       setGameState("ended")
       gameStateRef.current = "ended"
       playGameOverSound(sfxVolRef.current)
-      onSongEnd?.(statsRef.current, false)
+      onSongEnd?.(statsRef.current)
       return
     }
 
@@ -376,8 +295,6 @@ export function useGameEngine({
       noteShape,
       highwayTheme,
       cameraShake,
-      practice,
-      whammyActive: whammyKeyRef.current,
     })
 
     animFrameRef.current = requestAnimationFrame(gameLoop)
@@ -392,9 +309,6 @@ export function useGameEngine({
     keysDownRef.current.clear()
     gameTimeRef.current = 0
     gameStartWallRef.current = 0
-    lastAudioSyncTime.current = 0
-    lastAudioSyncMs.current = 0
-    wallClockOffset.current = 0
 
     setGameState("countdown")
     gameStateRef.current = "countdown"
@@ -462,6 +376,5 @@ export function useGameEngine({
     startGame, pause, resume, restart,
     accuracy: getAccuracy(stats),
     grade: getGrade(getAccuracy(stats)),
-    whammyRef,
   }
 }

@@ -2,13 +2,13 @@
 
 import { useRef, useEffect, useCallback, useState } from "react"
 import type { ChartData as Chart, SongMeta } from "@/lib/songs/types"
+import { ArtistSilhouette } from "@/components/game/artist-silhouette"
+import { useAudioOutput } from "@/hooks/use-audio-output"
 import type { GameStats } from "@/lib/game/engine"
 import { useGameEngine } from "@/hooks/use-game-engine"
 import { GameCountdown } from "./game-countdown"
 import { GameOverScreen } from "./game-over-screen"
 import { PauseOverlay } from "./pause-overlay"
-import { PracticePanel } from "./practice-panel"
-import type { PracticeConfig } from "@/lib/game/engine"
 import { loadSettings, toGain } from "@/lib/settings"
 import { useGamepad } from "@/hooks/use-gamepad"
 
@@ -45,25 +45,18 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
   const vocalsAudioRef  = useRef<HTMLAudioElement>(null)
   const crowdAudioRef   = useRef<HTMLAudioElement>(null)
   const keysAudioRef    = useRef<HTMLAudioElement>(null)
-  const allAudioRefs = [primaryAudioRef, guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef]
 
   // Carrega configurações salvas
   const [settings] = useState(() => loadSettings())
 
-  // Aplica dispositivo de saída de áudio escolhido nas configurações
-  useEffect(() => {
-    const deviceId = settings.audioOutputDeviceId ?? ""
-    for (const ref of allAudioRefs) {
-      const el = ref.current
-      if (!el) continue
-      // setSinkId é suportado no Chrome/Edge; Firefox e Safari ainda não suportam
-      if (typeof (el as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }).setSinkId === "function") {
-        ;(el as HTMLAudioElement & { setSinkId: (id: string) => Promise<void> })
-          .setSinkId(deviceId)
-          .catch(() => {/* dispositivo pode ter sido desconectado */})
-      }
-    }
-  }, [settings.audioOutputDeviceId])
+  // Aplicar dispositivo de saída de áudio em todos os elementos
+  useAudioOutput(
+    [primaryAudioRef, guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef],
+    settings.audioOutputDeviceId ?? ""
+  )
+
+  // Se speed não foi passado via prop, usa o das configurações
+  const effectiveSpeed = speed ?? settings.noteSpeed
 
   // Faixa principal: song > backing > guitar > rhythm (para sincronizar o tempo)
   const primarySrc = audioUrls?.song || audioUrls?.backing || audioUrls?.guitar || audioUrls?.rhythm || null
@@ -91,14 +84,6 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
 
 
   const [gpConnected, setGpConnected] = useState(false)
-  const [songFailed, setSongFailed] = useState(false)
-  const [practiceConfig, setPracticeConfig] = useState<PracticeConfig>({
-    enabled: false, speed: 0.75, loopStart: 0, loopEnd: 30000,
-  })
-
-  // Se speed não foi passado via prop, usa o das configurações (respeitando prática)
-  const practiceEffectiveSpeed = practiceConfig.enabled ? practiceConfig.speed : speed
-  const effectiveSpeed = practiceEffectiveSpeed ?? settings.noteSpeed
 
   const { gameState, stats, countdown, startGame, pause, resume, restart, accuracy, grade } =
     useGameEngine({
@@ -112,8 +97,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       noteShape: settings.noteShape,
       highwayTheme: settings.highwayTheme,
       cameraShake: settings.cameraShake,
-      practice: practiceConfig,
-      onSongEnd: (_stats, failed) => { setSongFailed(failed ?? false); onSongEnd?.() },
+      onSongEnd: () => { onSongEnd?.() },
       onScoreUpdate,
     })
 
@@ -280,6 +264,16 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
         )
       )}
 
+      {/* Silhueta animada do artista */}
+      {settings.showArtist !== false && (
+        <ArtistSilhouette
+          combo={stats.combo}
+          starPower={stats.combo >= 30}
+          isPlaying={gameState === "playing"}
+          albumArt={meta.albumArt}
+        />
+      )}
+
       {realPrimary && (
         <audio ref={primaryAudioRef} preload="auto">
           <source src={realPrimary} type={getMimeType(realPrimary)} />
@@ -375,21 +369,10 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
         </div>
       )}
 
-      {/* Practice Panel */}
-      {gameState === "playing" && (
-        <PracticePanel
-          songLengthMs={(meta.songLength ?? 180000)}
-          config={practiceConfig}
-          onChange={setPracticeConfig}
-          currentMs={Math.round((primaryAudioRef.current?.currentTime ?? 0) * 1000)}
-          onMarkStart={() => setPracticeConfig(c => ({ ...c, loopStart: Math.round((primaryAudioRef.current?.currentTime ?? 0) * 1000) }))}
-          onMarkEnd={() => setPracticeConfig(c => ({ ...c, loopEnd: Math.round((primaryAudioRef.current?.currentTime ?? 0) * 1000) }))}
-        />
-      )}
       {gameState === "countdown" && <GameCountdown count={countdown} />}
       {gameState === "paused" && externalPaused === undefined && <PauseOverlay onResume={resume} onRestart={handleRestart} onQuit={handleBack} />}
       {gameState === "ended"     && (
-        <GameOverScreen stats={stats} accuracy={accuracy} grade={grade} meta={meta} failed={songFailed} onRestart={handleRestart} onBack={handleBack} />
+        <GameOverScreen stats={stats} accuracy={accuracy} grade={grade} meta={meta} onRestart={handleRestart} onBack={handleBack} />
       )}
     </div>
   )

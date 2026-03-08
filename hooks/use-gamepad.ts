@@ -84,12 +84,6 @@ export function useGamepad({
   const rafRef             = useRef<number | null>(null)
   const connectedRef       = useRef(false)
   const customBindingsRef  = useRef<number[]>([...DEFAULT_GAMEPAD_BINDINGS])
-  const enabledRef         = useRef(enabled)
-
-  // Mantém enabledRef sempre atualizado
-  useEffect(() => {
-    enabledRef.current = enabled
-  }, [enabled])
 
   // Carrega mapeamento customizado do localStorage
   useEffect(() => {
@@ -104,7 +98,7 @@ export function useGamepad({
   }, [])
 
   const pollGamepad = useCallback(() => {
-    if (!enabledRef.current) { rafRef.current = requestAnimationFrame(pollGamepad); return }
+    if (!enabled) { rafRef.current = requestAnimationFrame(pollGamepad); return }
 
     const gamepads = navigator.getGamepads?.() ?? []
     const gp = gamepadIndexRef.current !== null ? gamepads[gamepadIndexRef.current] : null
@@ -158,7 +152,7 @@ export function useGamepad({
     }
 
     rafRef.current = requestAnimationFrame(pollGamepad)
-  }, [onLanePress, onLaneRelease, onPause, keysDownRef])
+  }, [enabled, onLanePress, onLaneRelease, onPause, keysDownRef])
 
   // Conexão / desconexão — usa polling ativo para suportar Bluetooth
   // (eventos gamepadconnected não são confiáveis em conexões BT)
