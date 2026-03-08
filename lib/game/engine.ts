@@ -96,7 +96,16 @@ export function getMissPenalty(difficulty: number): number {
 export function updateRockMeter(current: number, rating: HitRating, difficulty = 3): number {
   const missPenalty = getMissPenalty(difficulty)
   const delta: Record<HitRating, number> = { perfect: 3, great: 2, good: 1, miss: missPenalty }
-  return Math.max(0, Math.min(100, current + delta[rating]))
+  // Mínimo de 1 — rock meter nunca chega a zero (sem game over)
+  return Math.max(1, Math.min(100, current + delta[rating]))
+}
+
+// Pontos descontados por miss (por dificuldade)
+export function getMissScorePenalty(difficulty: number): number {
+  if (difficulty <= 1) return 25
+  if (difficulty <= 3) return 50
+  if (difficulty <= 5) return 100
+  return 150
 }
 
 export function applyHit(stats: GameStats, rating: HitRating, difficulty = 3): GameStats {
@@ -104,6 +113,8 @@ export function applyHit(stats: GameStats, rating: HitRating, difficulty = 3): G
   if (rating === "miss") {
     s.miss += 1; s.combo = 0; s.streak = 0; s.multiplier = 1
     s.rockMeter = updateRockMeter(s.rockMeter, rating, difficulty)
+    // Desconta pontos ao invés de dar game over
+    s.score = Math.max(0, s.score - getMissScorePenalty(difficulty))
     return s
   }
   s[rating] += 1

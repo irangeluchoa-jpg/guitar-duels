@@ -322,16 +322,6 @@ export function useGameEngine({
     const lastNote = notesRef.current[notesRef.current.length - 1]
     const audio = audioRef.current
 
-    // ── Rock meter zero → FAIL ─────────────────────────────────────────
-    if (statsRef.current.rockMeter <= 0 && gameStateRef.current === "playing") {
-      if (audioRef.current) audioRef.current.pause()
-      setGameState("ended")
-      gameStateRef.current = "ended"
-      playGameOverSound(sfxVolRef.current)
-      onSongEnd?.(statsRef.current, true)   // true = failed
-      return
-    }
-
     // Calcula o ponto de encerramento — o mais tarde entre: última nota + 2s OU duração do áudio
     const lastNoteMs  = lastNote ? lastNote.time + 2000 : 4000
     const audioDurMs  = audio && audio.duration > 0 ? audio.duration * 1000 : 0
