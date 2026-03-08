@@ -7,6 +7,8 @@ import { useGameEngine } from "@/hooks/use-game-engine"
 import { GameCountdown } from "./game-countdown"
 import { GameOverScreen } from "./game-over-screen"
 import { PauseOverlay } from "./pause-overlay"
+import { PracticePanel } from "./practice-panel"
+import type { PracticeConfig } from "@/lib/game/engine"
 import { loadSettings, toGain } from "@/lib/settings"
 import { useGamepad } from "@/hooks/use-gamepad"
 
@@ -47,9 +49,6 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
   // Carrega configurações salvas
   const [settings] = useState(() => loadSettings())
 
-  // Se speed não foi passado via prop, usa o das configurações
-  const effectiveSpeed = speed ?? settings.noteSpeed
-
   // Faixa principal: song > backing > guitar > rhythm (para sincronizar o tempo)
   const primarySrc = audioUrls?.song || audioUrls?.backing || audioUrls?.guitar || audioUrls?.rhythm || null
   // Faixas secundárias: tocam junto, mesmo nível de volume
@@ -76,6 +75,14 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
 
 
   const [gpConnected, setGpConnected] = useState(false)
+  const [songFailed, setSongFailed] = useState(false)
+  const [practiceConfig, setPracticeConfig] = useState<PracticeConfig>({
+    enabled: false, speed: 0.75, loopStart: 0, loopEnd: 30000,
+  })
+
+  // Se speed não foi passado via prop, usa o das configurações (respeitando prática)
+  const practiceEffectiveSpeed = practiceConfig.enabled ? practiceConfig.speed : speed
+  const effectiveSpeed = practiceEffectiveSpeed ?? settings.noteSpeed
 
   const { gameState, stats, countdown, startGame, pause, resume, restart, accuracy, grade } =
     useGameEngine({
@@ -89,7 +96,8 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       noteShape: settings.noteShape,
       highwayTheme: settings.highwayTheme,
       cameraShake: settings.cameraShake,
-      onSongEnd: () => { onSongEnd?.() },
+      practice: practiceConfig,
+      onSongEnd: (_stats, failed) => { setSongFailed(failed ?? false); onSongEnd?.() },
       onScoreUpdate,
     })
 
@@ -351,10 +359,21 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
         </div>
       )}
 
+      {/* Practice Panel */}
+      {gameState === "playing" && (
+        <PracticePanel
+          songLengthMs={(meta.songLength ?? 180000)}
+          config={practiceConfig}
+          onChange={setPracticeConfig}
+          currentMs={Math.round((primaryAudioRef.current?.currentTime ?? 0) * 1000)}
+          onMarkStart={() => setPracticeConfig(c => ({ ...c, loopStart: Math.round((primaryAudioRef.current?.currentTime ?? 0) * 1000) }))}
+          onMarkEnd={() => setPracticeConfig(c => ({ ...c, loopEnd: Math.round((primaryAudioRef.current?.currentTime ?? 0) * 1000) }))}
+        />
+      )}
       {gameState === "countdown" && <GameCountdown count={countdown} />}
       {gameState === "paused" && externalPaused === undefined && <PauseOverlay onResume={resume} onRestart={handleRestart} onQuit={handleBack} />}
       {gameState === "ended"     && (
-        <GameOverScreen stats={stats} accuracy={accuracy} grade={grade} meta={meta} onRestart={handleRestart} onBack={handleBack} />
+        <GameOverScreen stats={stats} accuracy={accuracy} grade={grade} meta={meta} failed={songFailed} onRestart={handleRestart} onBack={handleBack} />
       )}
     </div>
   )

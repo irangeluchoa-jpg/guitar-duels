@@ -157,3 +157,21 @@ export function getGrade(accuracy: number): string {
   if (accuracy >= 60) return "D"
   return "F"
 }
+
+// ── Modo Prática ──────────────────────────────────────────────────────────────
+export interface PracticeConfig {
+  enabled: boolean
+  speed: number       // 0.5 | 0.75 | 1.0
+  loopStart: number   // ms
+  loopEnd: number     // ms
+}
+export const PRACTICE_SPEEDS = [0.5, 0.75, 1.0] as const
+
+// ── Whammy Bar ────────────────────────────────────────────────────────────────
+export interface WhammyState {
+  active: boolean        // tecla W / btn whammy pressionada
+  accumulatedMs: number  // tempo acumulado de whammy em ms
+  bonusScore: number     // bônus acumulado
+}
+
+export const WHAMMY_BONUS_PER_SEC = 25  // pontos por segundo de whammy

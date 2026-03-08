@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
-import { getSongChart, getSongMeta, getSongAudioUrls, getSongBackgroundUrl, getSongAlbumArt } from "@/lib/songs/library"
+import { getSongChart, getSongMeta, getSongAudioUrls, getSongBackgroundUrl } from "@/lib/songs/library"
 import { computeAutodifficulty } from "@/lib/songs/difficulty"
 
+// Impede que a Vercel empacote arquivos estáticos nesta função
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
@@ -27,24 +28,5 @@ export async function GET(
 
   const audioUrls     = getSongAudioUrls(decodedId)
   const backgroundUrl = getSongBackgroundUrl(decodedId)
-  const albumArt      = getSongAlbumArt(decodedId)
-
-  const PLAYABLE_KEYS = ["guitar", "rhythm", "bass", "vocals", "keys"]
-  const INSTRUMENT_INFO: Record<string, {label: string; icon: string}> = {
-    guitar:  { label: "Guitarra",         icon: "🎸" },
-    rhythm:  { label: "Guitarra Rítmica", icon: "🎸" },
-    bass:    { label: "Baixo",            icon: "🎵" },
-    vocals:  { label: "Vocais",           icon: "🎤" },
-    keys:    { label: "Teclado",          icon: "🎹" },
-  }
-  const availableInstruments = PLAYABLE_KEYS
-    .filter(k => !!(audioUrls as Record<string,string>)[k])
-    .map(k => ({
-      key:   k,
-      label: INSTRUMENT_INFO[k]?.label ?? k,
-      icon:  INSTRUMENT_INFO[k]?.icon  ?? "🎵",
-      url:   (audioUrls as Record<string,string>)[k],
-    }))
-
-  return NextResponse.json({ meta, chart, audioUrls, backgroundUrl, albumArt, availableInstruments })
+  return NextResponse.json({ meta, chart, audioUrls, backgroundUrl })
 }

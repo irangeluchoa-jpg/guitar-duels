@@ -14,6 +14,7 @@ import {
   prepareNotes,
   getAccuracy,
   getGrade,
+  type PracticeConfig, type WhammyState, WHAMMY_BONUS_PER_SEC,
 } from "@/lib/game/engine"
 import { renderFrame, getHitLineY } from "@/lib/game/renderer"
 import { playComboSound, playPauseSound, playResumeSound, playGameOverSound } from "@/lib/game/sounds"
@@ -32,7 +33,8 @@ interface UseGameEngineOptions {
   noteShape?: "circle" | "square" | "diamond"
   highwayTheme?: "default" | "neon" | "fire" | "space" | "wood"
   cameraShake?: boolean
-  onSongEnd?: (stats: GameStats) => void
+  practice?: PracticeConfig
+  onSongEnd?: (stats: GameStats, failed?: boolean) => void
   onScoreUpdate?: (stats: GameStats) => void
 }
 
@@ -48,6 +50,7 @@ export function useGameEngine({
   noteShape = "circle" as "circle" | "square" | "diamond",
   highwayTheme = "default" as "default" | "neon" | "fire" | "space" | "wood",
   cameraShake = true,
+  practice,
   onSongEnd,
   onScoreUpdate,
 }: UseGameEngineOptions) {
@@ -58,13 +61,18 @@ export function useGameEngine({
   // Carrega volume de SFX das configurações
   const sfxVolRef = useRef(1)
   const keyBindingsRef    = useRef<string[]>(getKeyBindingsForLanes(loadSettings(), laneCount))
+  const instrumentVolRef  = useRef<number>(1)
   const keyboardEnabledRef = useRef<boolean>(true)
+  const whammyRef = useRef<WhammyState>({ active: false, accumulatedMs: 0, bonusScore: 0 })
+  const whammyKeyRef = useRef(false)
+  const lastWhammyTime = useRef(0)
   const gamepadEnabledRef  = useRef<boolean>(true)
 
   useEffect(() => {
     const s = loadSettings()
     sfxVolRef.current       = (s.masterVolume / 100) * (s.sfxVolume / 100)
     keyBindingsRef.current  = getKeyBindingsForLanes(s, laneCount)
+    instrumentVolRef.current = (s.masterVolume/100)*(s.musicVolume/100)
     keyboardEnabledRef.current = s.keyboardEnabled ?? true
     gamepadEnabledRef.current  = s.gamepadEnabled  ?? true
   }, [])
@@ -170,6 +178,7 @@ export function useGameEngine({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return
       if (e.key === "Escape" && gameStateRef.current === "playing") { pause(); return }
+      if (e.key.toLowerCase() === "w" && gameStateRef.current === "playing") { whammyKeyRef.current = true; return }
       if (!keyboardEnabledRef.current) return
       const laneIndex = keyBindingsRef.current.indexOf(e.key.toLowerCase())
       if (laneIndex !== -1) {
@@ -179,6 +188,7 @@ export function useGameEngine({
       }
     }
     const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === "w") { whammyKeyRef.current = false; return }
       if (!keyboardEnabledRef.current) return
       const laneIndex = keyBindingsRef.current.indexOf(e.key.toLowerCase())
       if (laneIndex !== -1) keysDownRef.current.delete(laneIndex)
@@ -238,8 +248,51 @@ export function useGameEngine({
     const now = performance.now()
     hitEffectsRef.current = hitEffectsRef.current.filter(e => now - e.time < 400)
 
+    // ── Whammy bar — acumula bônus enquanto tecla W está pressionada ────
+    if (whammyKeyRef.current) {
+      const dt = lastWhammyTime.current > 0 ? now - lastWhammyTime.current : 0
+      lastWhammyTime.current = now
+      if (dt > 0 && dt < 200) {
+        whammyRef.current.accumulatedMs += dt
+        const bonusDelta = Math.floor((dt / 1000) * WHAMMY_BONUS_PER_SEC)
+        if (bonusDelta > 0) {
+          const newStats = { ...statsRef.current, score: statsRef.current.score + bonusDelta }
+          statsRef.current = newStats
+          setStats(newStats)
+          onScoreUpdate?.(newStats)
+        }
+      }
+    } else {
+      lastWhammyTime.current = 0
+    }
+
+    // ── Modo Prática: loop automático ────────────────────────────────────
+    if (practice?.enabled && audioRef.current) {
+      const audio = audioRef.current
+      const ct = audio.currentTime * 1000
+      if (ct >= practice.loopEnd) {
+        audio.currentTime = practice.loopStart / 1000
+        // Reset notas na janela do loop
+        for (const note of notesRef.current) {
+          if (note.time >= practice.loopStart) {
+            note.hit = false; note.missed = false; note.hitRating = undefined
+          }
+        }
+      }
+    }
+
     const lastNote = notesRef.current[notesRef.current.length - 1]
     const audio = audioRef.current
+
+    // ── Rock meter zero → FAIL ─────────────────────────────────────────
+    if (statsRef.current.rockMeter <= 0 && gameStateRef.current === "playing") {
+      if (audioRef.current) audioRef.current.pause()
+      setGameState("ended")
+      gameStateRef.current = "ended"
+      playGameOverSound(sfxVolRef.current)
+      onSongEnd?.(statsRef.current, true)   // true = failed
+      return
+    }
 
     // Calcula o ponto de encerramento — o mais tarde entre: última nota + 2s OU duração do áudio
     const lastNoteMs  = lastNote ? lastNote.time + 2000 : 4000
@@ -266,7 +319,7 @@ export function useGameEngine({
       setGameState("ended")
       gameStateRef.current = "ended"
       playGameOverSound(sfxVolRef.current)
-      onSongEnd?.(statsRef.current)
+      onSongEnd?.(statsRef.current, false)
       return
     }
 
@@ -276,7 +329,7 @@ export function useGameEngine({
       setGameState("ended")
       gameStateRef.current = "ended"
       playGameOverSound(sfxVolRef.current)
-      onSongEnd?.(statsRef.current)
+      onSongEnd?.(statsRef.current, false)
       return
     }
 
@@ -295,6 +348,8 @@ export function useGameEngine({
       noteShape,
       highwayTheme,
       cameraShake,
+      practice,
+      whammyActive: whammyKeyRef.current,
     })
 
     animFrameRef.current = requestAnimationFrame(gameLoop)
@@ -376,5 +431,6 @@ export function useGameEngine({
     startGame, pause, resume, restart,
     accuracy: getAccuracy(stats),
     grade: getGrade(getAccuracy(stats)),
+    whammyRef,
   }
 }

@@ -4,6 +4,7 @@
  */
 
 import type { SongListItem, SongMeta, ChartData } from "./types"
+
 function hasFs(): boolean {
   try { require("fs"); return true } catch { return false }
 }
@@ -74,18 +75,13 @@ export async function getSongList(): Promise<SongListItem[]> {
         // Album art — aceita .jpg, .jpeg, .png, .webp
         let albumArt: string | undefined
         for (const n of ["album.jpg", "album.jpeg", "album.png", "album.webp", "background.jpg", "background.jpeg", "background.png"]) {
-          if (fs.existsSync(path.join(songDir, n))) { albumArt = `/api/songs/file?path=${encodeURIComponent(entry.name)}/${n}`; break }
+          if (fs.existsSync(path.join(songDir, n))) { albumArt = `/songs/${entry.name}/${n}`; break }
         }
 
         // Preview audio — aceita .ogg, .mp3, .opus, .wav
         let previewUrl: string | undefined
         for (const n of ["preview.ogg", "preview.mp3", "preview.opus", "preview.wav"]) {
-          if (fs.existsSync(path.join(songDir, n))) { previewUrl = `/api/songs/file?path=${encodeURIComponent(entry.name)}/${n}`; break }
-        }
-        // songUrl: fallback para preview quando não há arquivo dedicado
-        let songUrl: string | undefined
-        for (const n of ["song.opus", "song.ogg", "song.mp3", "audio.opus", "audio.ogg"]) {
-          if (fs.existsSync(path.join(songDir, n))) { songUrl = `/api/songs/file?path=${encodeURIComponent(entry.name)}/${n}`; break }
+          if (fs.existsSync(path.join(songDir, n))) { previewUrl = `/songs/${entry.name}/${n}`; break }
         }
 
         songs.push({
@@ -100,8 +96,6 @@ export async function getSongList(): Promise<SongListItem[]> {
           charter: meta.charter || "",
           albumArt,
           previewUrl,
-          songUrl,
-          previewStart: meta?.previewStart ?? 30,
         })
       }
       return songs.sort((a, b) => a.name.localeCompare(b.name))
@@ -228,24 +222,16 @@ export function getSongAudioUrls(trackId: string): Record<string, string> {
 
     const audioFiles: Record<string, string[]> = {
       guitar:  EXTS.map(e => `guitar${e}`),
-      rhythm:  EXTS.map(e => `rhythm${e}`),
-      bass:    EXTS.map(e => `bass${e}`),
+      rhythm:  EXTS.flatMap(e => [`rhythm${e}`, `bass${e}`]),
       backing: EXTS.map(e => `backing${e}`),
       song:    EXTS.flatMap(e => [`song${e}`, `audio${e}`]),
-      vocals:  EXTS.flatMap(e => [`vocals${e}`, `vocal${e}`, `voice${e}`]),
-      drums:   EXTS.flatMap(e => [`drums${e}`, `drum${e}`]),
-      drums_1: EXTS.map(e => `drums_1${e}`),
-      drums_2: EXTS.map(e => `drums_2${e}`),
-      drums_3: EXTS.map(e => `drums_3${e}`),
-      crowd:   EXTS.map(e => `crowd${e}`),
-      keys:    EXTS.flatMap(e => [`keys${e}`, `keyboard${e}`, `piano${e}`]),
       preview: EXTS.map(e => `preview${e}`),
     }
 
     for (const [key, filenames] of Object.entries(audioFiles)) {
       for (const filename of filenames) {
         if (fs.existsSync(path.join(songDir, filename))) {
-          urls[key] = `/api/songs/file?path=${encodeURIComponent(trackId)}/${filename}`
+          urls[key] = `/songs/${trackId}/${filename}`
           break
         }
       }
@@ -257,11 +243,11 @@ export function getSongAudioUrls(trackId: string): Record<string, string> {
         const lower = f.toLowerCase()
         const validExt = EXTS.some(e => lower.endsWith(e))
         if (!validExt) continue
-        if (lower.includes("preview"))                                        { if (!urls.preview) urls.preview = `/api/songs/file?path=${encodeURIComponent(trackId)}/Content/Music/${f}` }
-        else if (lower.includes("guitar") || lower.includes("_1."))           { if (!urls.guitar)  urls.guitar  = `/api/songs/file?path=${encodeURIComponent(trackId)}/Content/Music/${f}` }
-        else if (lower.includes("rhythm") || lower.includes("bass") || lower.includes("_2.")) { if (!urls.rhythm) urls.rhythm = `/api/songs/file?path=${encodeURIComponent(trackId)}/Content/Music/${f}` }
-        else if (lower.includes("backing") || lower.includes("_3."))          { if (!urls.backing) urls.backing = `/api/songs/file?path=${encodeURIComponent(trackId)}/Content/Music/${f}` }
-        else                                                                   { if (!urls.song)    urls.song    = `/api/songs/file?path=${encodeURIComponent(trackId)}/Content/Music/${f}` }
+        if (lower.includes("preview"))                                        { if (!urls.preview) urls.preview = `/songs/${trackId}/Content/Music/${f}` }
+        else if (lower.includes("guitar") || lower.includes("_1."))           { if (!urls.guitar)  urls.guitar  = `/songs/${trackId}/Content/Music/${f}` }
+        else if (lower.includes("rhythm") || lower.includes("bass") || lower.includes("_2.")) { if (!urls.rhythm) urls.rhythm = `/songs/${trackId}/Content/Music/${f}` }
+        else if (lower.includes("backing") || lower.includes("_3."))          { if (!urls.backing) urls.backing = `/songs/${trackId}/Content/Music/${f}` }
+        else                                                                   { if (!urls.song)    urls.song    = `/songs/${trackId}/Content/Music/${f}` }
       }
     }
   } catch {}
@@ -277,28 +263,12 @@ export function getSongBackgroundUrl(trackId: string): string | null {
     const path = require("path") as typeof import("path")
     const SONGS_DIR = path.join(process.cwd(), "public", "songs")
     const songDir   = path.join(SONGS_DIR, trackId)
-    // Suporta: video.mp4/webm e background.jpg/jpeg/png/webp (imagem)
+    // Suporta: background.jpg/jpeg/png/webp (imagem) e background.mp4/webm (vídeo)
     for (const n of [
-      "video.mp4", "video.webm",
-      "background.mp4", "background.webm",
       "background.jpg", "background.jpeg", "background.png", "background.webp",
+      "background.mp4", "background.webm",
     ]) {
-      if (fs.existsSync(path.join(songDir, n))) return `/api/songs/file?path=${encodeURIComponent(trackId)}/${n}`
-    }
-  } catch {}
-  return null
-}
-
-// ─── getSongAlbumArt ──────────────────────────────────────────────────────────
-export function getSongAlbumArt(trackId: string): string | null {
-  if (!hasFs()) return null
-  try {
-    const fs   = require("fs")   as typeof import("fs")
-    const path = require("path") as typeof import("path")
-    const SONGS_DIR = path.join(process.cwd(), "public", "songs")
-    const songDir   = path.join(SONGS_DIR, trackId)
-    for (const n of ["album.jpg", "album.jpeg", "album.png", "album.webp", "background.jpg", "background.jpeg", "background.png"]) {
-      if (fs.existsSync(path.join(songDir, n))) return `/api/songs/file?path=${encodeURIComponent(trackId)}/${n}`
+      if (fs.existsSync(path.join(songDir, n))) return `/songs/${trackId}/${n}`
     }
   } catch {}
   return null

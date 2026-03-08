@@ -18,32 +18,43 @@ const STAR_POWER_COMBO  = 30
 // ── Cores do tema — extraídas do guitar.ini fornecido ───────────────────────
 // [guitar] note_green/red/yellow/blue/orange
 const NOTE_COLORS = [
-  "#FF0000",  // Green
-  "#FF7800",  // Red
-  "#FFFF00",  // Yellow
-  "#0089FF",  // Blue
-  "#5AFF00",  // Orange
-  "#CC44FF",  // Purple (lane 6)
+  "#FF0000",  // Green  — note_green
+  "#FF7800",  // Red    — note_red
+  "#FFFF00",  // Yellow — note_yellow
+  "#0089FF",  // Blue   — note_blue
+  "#5AFF00",  // Orange — note_orange
 ]
 // [guitar] note_anim_green/red/yellow/blue/orange (glow das notas)
 const NOTE_ANIM_COLORS = [
-  "#FF0000",  "#FFC28B",  "#FFFF57",  "#77D1FF",  "#74FF28",
-  "#E080FF",  // Purple anim
+  "#FF0000",  // Green  — note_anim_green
+  "#FFC28B",  // Red    — note_anim_red
+  "#FFFF57",  // Yellow — note_anim_yellow
+  "#77D1FF",  // Blue   — note_anim_blue
+  "#74FF28",  // Orange — note_anim_orange
 ]
 // [guitar] striker_cover (aro externo do hit target)
 const STRIKER_COVER = [
-  "#B40000",  "#B45500",  "#B4B200",  "#0061B4",  "#40B400",
-  "#8800CC",  // Purple
+  "#B40000",  // Green  — striker_cover_green
+  "#B45500",  // Red    — striker_cover_red
+  "#B4B200",  // Yellow — striker_cover_yellow
+  "#0061B4",  // Blue   — striker_cover_blue
+  "#40B400",  // Orange — striker_cover_orange
 ]
 // [guitar] striker_head_cover (head cover interno)
 const STRIKER_HEAD_COVER = [
-  "#B40000",  "#B45500",  "#B4B200",  "#0061B4",  "#40B400",
-  "#8800CC",
+  "#B40000",  // Green  — striker_head_cover_green
+  "#B45500",  // Red    — striker_head_cover_red
+  "#B4B200",  // Yellow — striker_head_cover_yellow
+  "#0061B4",  // Blue   — striker_head_cover_blue
+  "#40B400",  // Orange — striker_head_cover_orange
 ]
 // [guitar] striker_head_light (luz interna do hit target pressionado)
 const STRIKER_HEAD_LIGHT = [
-  "#FF0000",  "#FF7800",  "#FFFF00",  "#0089FF",  "#5AFF00",
-  "#CC44FF",
+  "#FF0000",  // Green  — striker_head_light_green
+  "#FF7800",  // Red    — striker_head_light_red
+  "#FFFF00",  // Yellow — striker_head_light_yellow
+  "#0089FF",  // Blue   — striker_head_light_blue
+  "#5AFF00",  // Orange — striker_head_light_orange
 ]
 // [other] striker_hit_flame / striker_hit_particles
 const HIT_FLAME_COLOR    = "#EE63F7"  // striker_hit_flame
@@ -55,11 +66,14 @@ const SP_NOTE_COLOR      = "#EF6DF7"  // note_sp_active
 const SP_SUSTAIN_COLOR   = "#EF6DF7"  // sustain_sp_active
 // [guitar] sustain colors
 const SUSTAIN_COLORS = [
-  "#FF0000",  "#FF7800",  "#FFFF00",  "#00C5FF",  "#80FF3B",
-  "#CC44FF",  // Purple
+  "#FF0000",  // Green  — sustain_green
+  "#FF7800",  // Red    — sustain_red
+  "#FFFF00",  // Yellow — sustain_yellow
+  "#00C5FF",  // Blue   — sustain_blue
+  "#80FF3B",  // Orange — sustain_orange
 ]
 // [other] combo glow
-const COMBO_GLOW = ["#FFDD00","#D55800","#00FF00","#4E7F9E","#B2E1FF","#CC44FF"]
+const COMBO_GLOW = ["#FFDD00","#D55800","#00FF00","#4E7F9E","#B2E1FF"]
 
 // ── Cache ──────────────────────────────────────────────────────────────────
 // Cache: [diffKey][starPower] -> OffscreenCanvas
@@ -114,10 +128,13 @@ interface RenderState {
   showGuide: boolean
   keyLabels?: string[]
   difficulty?: number
+  instrumentVol?: number
   laneCount?: number
   noteShape?: "circle" | "square" | "diamond"
   highwayTheme?: "default" | "neon" | "fire" | "space" | "wood"
   cameraShake?: boolean
+  practice?: { enabled: boolean; loopStart: number; loopEnd: number; speed: number }
+  whammyActive?: boolean
 }
 
 export function getHitLineY(h: number) { return h * HIT_LINE_Y_RATIO }
@@ -140,11 +157,11 @@ function laneWidthAt(w: number, progress: number, lc = LANE_COUNT) {
   return (w * TRACK_WIDTH_RATIO + (w * TRACK_WIDTH_TOP - w * TRACK_WIDTH_RATIO) * progress) / lc
 }
 
-export function getLaneX(lane: number, cw: number, lc = LANE_COUNT) {
+export function getLaneX(lane: number, cw: number) {
   const tw = cw * TRACK_WIDTH_RATIO
-  return (cw - tw) / 2 + lane * (tw / lc) + (tw / lc) / 2
+  return (cw - tw) / 2 + lane * (tw / LANE_COUNT) + (tw / LANE_COUNT) / 2
 }
-export function getLaneWidth(cw: number, lc = LANE_COUNT) { return (cw * TRACK_WIDTH_RATIO) / lc }
+export function getLaneWidth(cw: number) { return (cw * TRACK_WIDTH_RATIO) / LANE_COUNT }
 
 function shade(hex: string, amt: number) {
   const n = parseInt(hex.replace("#",""), 16)
@@ -305,7 +322,7 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
   const borderColor = starPower ? "rgba(0,240,255,0.85)" : "rgba(0,210,255,0.70)"
   for (let i = 0; i <= lc; i++) {
     const bx = tLB+(trackBot/lc)*i, tx = tLT+(trackTop/lc)*i
-    const border = i===0||i===lc
+    const border = i===0||i===LANE_COUNT
     ctx.beginPath(); ctx.moveTo(bx,hitY); ctx.lineTo(tx,vanishY)
     ctx.strokeStyle = border ? borderColor : divColor
     ctx.lineWidth = border?2:1; ctx.stroke()
@@ -334,7 +351,7 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
 
 function getFretboard(w: number, h: number, starPower: boolean, diff: number, lc = LANE_COUNT): OffscreenCanvas {
   loadHighwayImages()
-  const key = `${w}x${h}:${diffToHwKey(diff)}:${starPower?1:0}:lc${lc}`
+  const key = `${w}x${h}:${diffToHwKey(diff)}:${starPower?1:0}:${lc}`
   if (_fretW !== w || _fretH !== h) {
     _fretCache.clear()
     _fretW = w; _fretH = h
@@ -456,36 +473,35 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
   ctx.restore()
 }
 
-// ── Nota estilo GH:WoR — disco flat prata/cinza, aro cyan luminoso ──────────
-
-// Traça o path do shape da nota (usado para clip e fill)
+// Traça o path do shape da nota (circle, square, diamond)
+// rx/ry = raio base; shape determina o contorno
 function noteShapePath(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, shape: string) {
   ctx.beginPath()
   if (shape === "square") {
-    const s = rx * 1.55
-    const r = s * 0.22
-    ctx.moveTo(x - s + r, y - s)
-    ctx.lineTo(x + s - r, y - s)
-    ctx.quadraticCurveTo(x + s, y - s, x + s, y - s + r)
-    ctx.lineTo(x + s, y + s - r)
-    ctx.quadraticCurveTo(x + s, y + s, x + s - r, y + s)
-    ctx.lineTo(x - s + r, y + s)
-    ctx.quadraticCurveTo(x - s, y + s, x - s, y + s - r)
-    ctx.lineTo(x - s, y - s + r)
-    ctx.quadraticCurveTo(x - s, y - s, x - s + r, y - s)
+    // Quadrado com cantos arredondados — proporção levemente retangular (mais largo que alto, como GHL)
+    const sw = rx * 1.70, sh = rx * 1.60, r = sw * 0.18
+    ctx.moveTo(x - sw + r, y - sh)
+    ctx.lineTo(x + sw - r, y - sh); ctx.quadraticCurveTo(x + sw, y - sh, x + sw, y - sh + r)
+    ctx.lineTo(x + sw, y + sh - r); ctx.quadraticCurveTo(x + sw, y + sh, x + sw - r, y + sh)
+    ctx.lineTo(x - sw + r, y + sh); ctx.quadraticCurveTo(x - sw, y + sh, x - sw, y + sh - r)
+    ctx.lineTo(x - sw, y - sh + r); ctx.quadraticCurveTo(x - sw, y - sh, x - sw + r, y - sh)
     ctx.closePath()
   } else if (shape === "diamond") {
-    const s = rx * 1.6
-    ctx.moveTo(x,     y - s)
-    ctx.lineTo(x + s, y)
-    ctx.lineTo(x,     y + s)
-    ctx.lineTo(x - s, y)
+    // Diamante — eixo vertical ligeiramente maior para ficar proporcional em perspectiva
+    const sdx = rx * 1.55, sdy = rx * 1.80
+    ctx.moveTo(x,       y - sdy)
+    ctx.lineTo(x + sdx, y)
+    ctx.lineTo(x,       y + sdy)
+    ctx.lineTo(x - sdx, y)
     ctx.closePath()
   } else {
+    // Círculo (elipse achatada como GH:WT)
     ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2)
   }
 }
 
+
+// ── Nota estilo GH:WoR — disco flat prata/cinza, aro cyan luminoso ──────────
 function drawNoteGH(
   ctx: CanvasRenderingContext2D,
   x: number, y: number,
@@ -495,84 +511,93 @@ function drawNoteGH(
   now: number,
   shape: "circle" | "square" | "diamond" = "circle"
 ) {
-  const sp   = starPower
-  const t    = now * 0.003
-  // Nota usa a cor da lane — aro brilhante com a cor do botão
+  const sp  = starPower
+  const t   = now * 0.003
   const laneCol  = NOTE_COLORS[laneIdx]  ?? "#00e5ff"
   const laneAnim = NOTE_ANIM_COLORS[laneIdx] ?? laneCol
   const rimCol   = sp ? "#00ffff" : laneCol
   const rimAnim  = sp ? "#00ffff" : laneAnim
   const rimRgb   = hexToRgb(rimCol)
   const rimAnimRgb = hexToRgb(rimAnim)
-  const glowInt  = sp ? 28 : 20
+  const glowInt  = sp ? 32 : 22
+  const isSquare = shape === "square"
+  const isDiamond = shape === "diamond"
+  // Circle: usa rx/ry completo (elipse achatada GH)
+  // Square/Diamond: o noteShapePath já escala internamente (sw=rx*1.70 etc.), então
+  // passamos rx menor para que o tamanho final seja proporcional ao círculo
+  const sRx = isSquare ? rx * 0.62 : isDiamond ? rx * 0.58 : rx
+  const sRy = isSquare ? ry * 0.62 : isDiamond ? ry * 0.58 : ry
 
   ctx.save()
 
-  // ── Glow externo sutil ───────────────────────────────────────────────
-  const haloG = ctx.createRadialGradient(x, y, rx*0.5, x, y, rx*3.2)
-  haloG.addColorStop(0,   `rgba(${rimAnimRgb},${sp?0.30:0.18})`)
+  // ── Outer glow halo ────────────────────────────────────────────────────
+  const haloG = ctx.createRadialGradient(x, y, sRx*0.4, x, y, sRx*3.5)
+  haloG.addColorStop(0,   `rgba(${rimAnimRgb},${sp?0.35:0.20})`)
+  haloG.addColorStop(0.5, `rgba(${rimAnimRgb},0.06)`)
   haloG.addColorStop(1,   "transparent")
   ctx.fillStyle = haloG
-  noteShapePath(ctx, x, y, rx*3.2, ry*3.2, shape); ctx.fill()
+  ctx.beginPath(); ctx.ellipse(x, y, sRx*3.5, sRy*3.5, 0, 0, Math.PI*2); ctx.fill()
 
-  // ── Shadow drop ───────────────────────────────────────────────────────
-  ctx.save(); ctx.globalAlpha = 0.35
-  ctx.beginPath(); ctx.ellipse(x, y + ry*1.0, rx*0.82, ry*0.20, 0, 0, Math.PI*2)
+  // ── Drop shadow ────────────────────────────────────────────────────────
+  ctx.save(); ctx.globalAlpha = 0.30
+  ctx.beginPath(); ctx.ellipse(x, y + sRy*1.1, sRx*0.75, sRy*0.18, 0, 0, Math.PI*2)
   ctx.fillStyle = "rgba(0,0,0,1)"; ctx.fill(); ctx.restore()
 
-  // ── Glow edge ─────────────────────────────────────────────────────────
+  // ── Glow shadow ────────────────────────────────────────────────────────
   ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt
 
-  // ── Base — gradiente escuro metálico ─────────────────────────────────
-  const baseG = ctx.createRadialGradient(x - rx*0.20, y - ry*0.35, 0, x, y, rx*1.05)
-  baseG.addColorStop(0,    "#3a3a3a")
-  baseG.addColorStop(0.30, "#1e1e1e")
-  baseG.addColorStop(0.70, "#111111")
-  baseG.addColorStop(1,    "#080808")
-  noteShapePath(ctx, x, y, rx, ry, shape)
+  // ── Base (metallic dark gradient) ─────────────────────────────────────
+  const baseG = ctx.createRadialGradient(x - sRx*0.22, y - sRy*0.38, 0, x, y, sRx*1.1)
+  baseG.addColorStop(0,    "#3e3e3e")
+  baseG.addColorStop(0.25, "#202020")
+  baseG.addColorStop(0.65, "#111111")
+  baseG.addColorStop(1,    "#060606")
+  noteShapePath(ctx, x, y, sRx, sRy, shape)
   ctx.fillStyle = baseG; ctx.fill()
   ctx.shadowBlur = 0
 
-  // ── Aro externo brilhante ─────────────────────────────────────────────
-  noteShapePath(ctx, x, y, rx, ry, shape)
+  // ── Outer rim (colored glow border) ───────────────────────────────────
+  noteShapePath(ctx, x, y, sRx, sRy, shape)
   ctx.strokeStyle = rimCol
-  ctx.lineWidth = Math.max(1.8, rx * 0.12)
-  ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt * 1.2
+  ctx.lineWidth = Math.max(2.0, sRx * (isSquare || isDiamond ? 0.10 : 0.13))
+  ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt * 1.3
   ctx.stroke(); ctx.shadowBlur = 0
 
-  // ── Anel interno médio (detalhe metálico) ─────────────────────────────
-  ctx.beginPath(); ctx.ellipse(x, y, rx*0.68, ry*0.68, 0, 0, Math.PI*2)
-  ctx.strokeStyle = `rgba(${rimRgb},${sp?0.70:0.45})`
-  ctx.lineWidth = 1.0; ctx.stroke()
+  // ── Inner ring/detail (always circle — acts as lens/eye) ──────────────
+  const innerR = sRx * (isSquare || isDiamond ? 0.55 : 0.62)
+  const innerRy = sRy * (isSquare || isDiamond ? 0.55 : 0.62)
+  ctx.beginPath(); ctx.ellipse(x, y, innerR, innerRy, 0, 0, Math.PI*2)
+  ctx.strokeStyle = `rgba(${rimRgb},${sp?0.65:0.38})`
+  ctx.lineWidth = 0.9; ctx.stroke()
 
-  // ── Centro escuro + pequeno reflexo ──────────────────────────────────
-  ctx.beginPath(); ctx.ellipse(x, y, rx*0.46, ry*0.46, 0, 0, Math.PI*2)
-  ctx.fillStyle = "#0a0a0a"; ctx.fill()
+  // ── Dark center ────────────────────────────────────────────────────────
+  ctx.beginPath(); ctx.ellipse(x, y, sRx*0.42, sRy*0.42, 0, 0, Math.PI*2)
+  ctx.fillStyle = "#080808"; ctx.fill()
 
-  // Dot reflexo no centro
-  const dotG = ctx.createRadialGradient(x - rx*0.08, y - ry*0.15, 0, x, y, rx*0.32)
-  dotG.addColorStop(0,    `rgba(${rimRgb},${sp?0.85:0.60})`)
-  dotG.addColorStop(0.5,  `rgba(${rimRgb},0.12)`)
-  dotG.addColorStop(1,    "transparent")
+  // ── Center glow dot ────────────────────────────────────────────────────
+  const dotG = ctx.createRadialGradient(x - sRx*0.07, y - sRy*0.12, 0, x, y, sRx*0.30)
+  dotG.addColorStop(0,   `rgba(${rimRgb},${sp?0.90:0.65})`)
+  dotG.addColorStop(0.6, `rgba(${rimRgb},0.10)`)
+  dotG.addColorStop(1,   "transparent")
   ctx.fillStyle = dotG; ctx.fill()
 
-  // ── Shine especular no topo esquerdo ─────────────────────────────────
+  // ── Specular shine (top-left highlight) ───────────────────────────────
   ctx.save()
-  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2); ctx.clip()
-  const shG = ctx.createRadialGradient(x - rx*0.28, y - ry*0.48, 0, x, y - ry*0.1, rx*0.58)
-  shG.addColorStop(0,    "rgba(255,255,255,0.75)")
-  shG.addColorStop(0.18, "rgba(255,255,255,0.18)")
+  noteShapePath(ctx, x, y, sRx, sRy, shape); ctx.clip()
+  const shG = ctx.createRadialGradient(x - sRx*0.30, y - sRy*0.50, 0, x, y, sRx*0.60)
+  shG.addColorStop(0,    "rgba(255,255,255,0.80)")
+  shG.addColorStop(0.20, "rgba(255,255,255,0.20)")
   shG.addColorStop(1,    "transparent")
   ctx.fillStyle = shG; ctx.fill(); ctx.restore()
 
-  // ── Glow pulsante embaixo (corona cyan sutil) ─────────────────────────
-  const flicker = 0.82 + Math.sin(t*2.4 + x*0.03)*0.18
-  const coronaG = ctx.createRadialGradient(x, y + ry*0.3, 0, x, y + ry*0.3, rx*0.85*flicker)
-  coronaG.addColorStop(0,    `rgba(${rimAnimRgb},${sp?0.55:0.35})`)
-  coronaG.addColorStop(0.55, `rgba(${rimAnimRgb},0.06)`)
+  // ── Bottom corona pulse ────────────────────────────────────────────────
+  const flicker = 0.80 + Math.sin(t*2.5 + x*0.03)*0.20
+  const coronaG = ctx.createRadialGradient(x, y + sRy*0.28, 0, x, y + sRy*0.28, sRx*0.90*flicker)
+  coronaG.addColorStop(0,    `rgba(${rimAnimRgb},${sp?0.60:0.38})`)
+  coronaG.addColorStop(0.55, `rgba(${rimAnimRgb},0.05)`)
   coronaG.addColorStop(1,    "transparent")
   ctx.fillStyle = coronaG
-  ctx.beginPath(); ctx.ellipse(x, y + ry*0.3, rx*0.50*flicker, ry*1.8*flicker, 0, 0, Math.PI*2); ctx.fill()
+  ctx.beginPath(); ctx.ellipse(x, y + sRy*0.28, sRx*0.52*flicker, sRy*1.9*flicker, 0, 0, Math.PI*2); ctx.fill()
 
   ctx.restore()
 }
@@ -1004,7 +1029,10 @@ function drawDiffLabel(ctx: CanvasRenderingContext2D, x: number, y: number, diff
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────────────────────
 export function renderFrame(state: RenderState): void {
-  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true } = state
+  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels,
+          difficulty = 2, instrumentVol = 1, laneCount: LC = LANE_COUNT,
+          noteShape = "circle", highwayTheme = "default", cameraShake = true,
+          practice, whammyActive = false } = state
   const w=canvas.width, h=canvas.height
   const ns=NOTE_SPEED_BASE*speed
   const hitY=h*HIT_LINE_Y_RATIO, vanishY=h*VANISHING_Y_RATIO
@@ -1012,36 +1040,41 @@ export function renderFrame(state: RenderState): void {
   const tLB=(w-trackBot)/2, tRB=tLB+trackBot
   const now=performance.now()
   const starPower=stats.combo>=STAR_POWER_COMBO
-  // Limpa o canvas (bordas ficam transparentes — mostra o background da música)
+  // Limpa o canvas
   ctx.clearRect(0, 0, w, h)
 
-  // ── Câmera shake (star power ativo) ────────────────────────────────────
-  let shakeX = 0, shakeY = 0
+  const dangerMode = stats.rockMeter < 20   // Rock meter crítico → vinheta vermelha
+  const failWarning = stats.rockMeter < 10  // Iminente falha → pisca
+
+  // ── Star Power B&W overlay (aplicado ANTES do fretboard para afetar tudo) ──
+  // Implementado como filtro CSS via canvas filter — não afeta canvas diretamente,
+  // mas adicionamos a saturação como overlay após renderizar tudo
+  // Guardamos flag para usar depois
+  const spBW = starPower   // usaremos no fim
+
+  // ── Câmera shake no Star Power ────────────────────────────────────────
   if (cameraShake && starPower) {
-    const t = performance.now()
-    shakeX = (Math.sin(t * 0.041) * 2 + Math.sin(t * 0.073) * 1.5) * 0.8
-    shakeY = (Math.cos(t * 0.031) * 1.5 + Math.cos(t * 0.059) * 1)  * 0.6
-    ctx.save()
-    ctx.translate(shakeX, shakeY)
+    const t = now
+    const shakeX = (Math.sin(t*0.041)*2 + Math.sin(t*0.073)*1.5) * 0.8
+    const shakeY = (Math.cos(t*0.031)*1.5 + Math.cos(t*0.059)*1) * 0.6
+    ctx.save(); ctx.translate(shakeX, shakeY)
   }
 
-  // ── Overlay de tema da highway ──────────────────────────────────────────
+  // ── Overlay de tema da highway ─────────────────────────────────────────
   if (highwayTheme !== "default") {
     const themeOverlays: Record<string, [string, number][]> = {
-      neon:  [["rgba(0,255,200,0.04)", 0], ["rgba(255,0,200,0.03)", 1]],
-      fire:  [["rgba(255,80,0,0.06)",  0], ["rgba(255,200,0,0.04)", 1]],
-      space: [["rgba(100,0,255,0.07)", 0], ["rgba(0,100,255,0.04)", 1]],
-      wood:  [["rgba(120,60,0,0.08)",  0], ["rgba(80,40,0,0.05)",   1]],
+      neon:  [["rgba(0,255,200,0.04)",0], ["rgba(255,0,200,0.03)",1]],
+      fire:  [["rgba(255,80,0,0.06)", 0], ["rgba(255,200,0,0.04)",1]],
+      space: [["rgba(100,0,255,0.07)",0], ["rgba(0,100,255,0.04)",1]],
+      wood:  [["rgba(120,60,0,0.08)", 0], ["rgba(80,40,0,0.05)",  1]],
     }
     const stops = themeOverlays[highwayTheme]
     if (stops) {
-      const grad = ctx.createLinearGradient(0, 0, 0, h)
-      stops.forEach(([c, p]) => grad.addColorStop(p, c))
-      ctx.fillStyle = grad
-      ctx.fillRect(0, 0, w, h)
+      const grad = ctx.createLinearGradient(0,0,0,h)
+      stops.forEach(([c,p]) => grad.addColorStop(p,c))
+      ctx.fillStyle = grad; ctx.fillRect(0,0,w,h)
     }
   }
-
   // 1 – Fretboard (muda visual conforme star power)
   ctx.drawImage(getFretboard(w,h,starPower,difficulty,LC),0,0)
 
@@ -1050,7 +1083,7 @@ export function renderFrame(state: RenderState): void {
   ctx.save()
   for (let ms=500; ms<visMs; ms+=500) {
     const p0=project(0,ms,canvas,ns,LC), p4=project(LC-1,ms,canvas,ns,LC)
-    const hw0=laneWidthAt(w,1-p0.scale)*0.5, hw4=laneWidthAt(w,1-p4.scale)*0.5
+    const hw0=laneWidthAt(w,1-p0.scale,LC)*0.5, hw4=laneWidthAt(w,1-p4.scale,LC)*0.5
     const al=(1-ms/visMs)*(starPower?0.32:0.18)
     ctx.beginPath(); ctx.moveTo(p0.x-hw0,p0.y); ctx.lineTo(p4.x+hw4,p4.y)
     ctx.strokeStyle=`rgba(0,200,255,${al})`
@@ -1063,7 +1096,7 @@ export function renderFrame(state: RenderState): void {
 
   // 4 – Sustain tails
   for (const note of notes) {
-    if (note.missed||note.type!=="sustain"||note.duration<=0||note.lane>=LC) continue
+    if (note.missed||note.type!=="sustain"||note.duration<=0||note.lane>=LANE_COUNT) continue
     const nA=note.time-currentTime, tE=note.time+note.duration-currentTime
     if (tE<-TIMING_MISS) continue
     const ca=Math.max(nA,0), cb=Math.max(tE,0)
@@ -1071,38 +1104,16 @@ export function renderFrame(state: RenderState): void {
     for (let s=0; s<14; s++) {
       const a0=ca+(cb-ca)*(s/14), a1=ca+(cb-ca)*((s+1)/14)
       const pp0=project(note.lane,a0,canvas,ns,LC), pp1=project(note.lane,a1,canvas,ns,LC)
-      // Tremida durante star power: deslocamento lateral senoidal por segmento
-      let ox0=0, ox1=0
-      if (starPower) {
-        const freq = 18, amp = pp0.scale * 3.5
-        ox0 = Math.sin(now * 0.012 * freq + s * 1.1) * amp
-        ox1 = Math.sin(now * 0.012 * freq + (s+1) * 1.1) * amp
-      }
       const hw0=SUSTAIN_WIDTH*pp0.scale*0.5, hw1=SUSTAIN_WIDTH*pp1.scale*0.5
       ctx.beginPath()
-      ctx.moveTo(pp0.x-hw0+ox0,pp0.y); ctx.lineTo(pp0.x+hw0+ox0,pp0.y)
-      ctx.lineTo(pp1.x+hw1+ox1,pp1.y); ctx.lineTo(pp1.x-hw1+ox1,pp1.y); ctx.closePath()
+      ctx.moveTo(pp0.x-hw0,pp0.y); ctx.lineTo(pp0.x+hw0,pp0.y)
+      ctx.lineTo(pp1.x+hw1,pp1.y); ctx.lineTo(pp1.x-hw1,pp1.y); ctx.closePath()
       ctx.fillStyle=color+(note.hit?"40":"88"); ctx.fill()
     }
-    // Linha central também treme
     const ps=project(note.lane,ca,canvas,ns,LC), pe=project(note.lane,cb,canvas,ns,LC)
-    if (starPower) {
-      // Linha ondulada com múltiplos pontos
-      ctx.beginPath()
-      const steps = 20
-      ctx.shadowColor="#00ffff"; ctx.shadowBlur=10
-      ctx.strokeStyle=color+"cc"; ctx.lineWidth=2.5*ps.scale
-      for (let i=0; i<=steps; i++) {
-        const t2=i/steps
-        const pp=project(note.lane,ca+(cb-ca)*t2,canvas,ns,LC)
-        const wave=Math.sin(now*0.015*16 + t2*Math.PI*6) * pp.scale * 4
-        if(i===0) ctx.moveTo(pp.x+wave,pp.y); else ctx.lineTo(pp.x+wave,pp.y)
-      }
-      ctx.stroke(); ctx.shadowBlur=0
-    } else {
-      ctx.beginPath(); ctx.moveTo(ps.x,ps.y); ctx.lineTo(pe.x,pe.y)
-      ctx.strokeStyle=color+"99"; ctx.lineWidth=2.2*ps.scale; ctx.stroke()
-    }
+    ctx.beginPath(); ctx.moveTo(ps.x,ps.y); ctx.lineTo(pe.x,pe.y)
+    if (starPower){ctx.shadowColor="#00ffff";ctx.shadowBlur=8}
+    ctx.strokeStyle=color+"99"; ctx.lineWidth=2.2*ps.scale; ctx.stroke(); ctx.shadowBlur=0
   }
 
   // 5 – Hit line glow
@@ -1258,9 +1269,6 @@ export function renderFrame(state: RenderState): void {
     ctx.restore()
   }
 
-  // ── Restaurar translate do camera shake ──────────────────────────────
-  if (cameraShake && starPower) { ctx.restore() }
-
   // ── Multiplicador: badge flutuando à direita da highway ───────────────
   if (stats.multiplier > 1) {
     ctx.save()
@@ -1295,49 +1303,166 @@ export function renderFrame(state: RenderState): void {
     ctx.restore()
   }
 
-  // ── Rock meter: centralizado na parte inferior ────────────────────────
+  // ── Whammy bar indicator ─────────────────────────────────────────────
+  if (whammyActive) {
+    ctx.save()
+    const wpulse = 0.7 + Math.abs(Math.sin(now * 0.012)) * 0.3
+    // Faixa lateral direita luminosa
+    const wGrad = ctx.createLinearGradient(w - 8, 0, w, 0)
+    wGrad.addColorStop(0, "transparent")
+    wGrad.addColorStop(1, `rgba(255,180,0,${wpulse * 0.6})`)
+    ctx.fillStyle = wGrad
+    ctx.fillRect(w - 8, h * 0.2, 8, h * 0.6)
+    // Texto
+    ctx.fillStyle = `rgba(255,180,0,${wpulse})`
+    ctx.font = "bold 7px monospace"
+    ctx.textAlign = "right"; ctx.textBaseline = "middle"
+    ctx.shadowColor = "#ffb400"; ctx.shadowBlur = 8
+    ctx.fillText("WHAMMY!", w - 4, h * 0.5)
+    ctx.shadowBlur = 0
+    ctx.restore()
+  }
+
+  // ── Modo prática: marcadores de loop e indicador de velocidade ────────
+  if (practice?.enabled) {
+    ctx.save()
+    // Badge de velocidade
+    ctx.fillStyle = "rgba(0,0,0,0.65)"
+    ctx.beginPath(); ctx.roundRect(w/2 - 30, 6, 60, 18, 4); ctx.fill()
+    ctx.fillStyle = "#f97316"; ctx.font = "bold 9px monospace"
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"
+    ctx.shadowColor = "#f97316"; ctx.shadowBlur = 6
+    ctx.fillText(`PRÁTICA ${practice.speed}x`, w/2, 15)
+    ctx.shadowBlur = 0
+    ctx.restore()
+  }
+
+  // ── Rock meter: centralizado na parte inferior, versão melhorada ────────
   {
     ctx.save()
-    const mw = 220, mh = 12
+    const mw = 240, mh = 14
     const mx = (w - mw) / 2
-    const my = h - 28
+    const my = h - 30
     const fill = stats.rockMeter / 100
     const mColor = stats.rockMeter > 60 ? "#22c55e" : stats.rockMeter > 30 ? "#f59e0b" : "#ef4444"
+    const isDanger = stats.rockMeter < 20
+    const isFail   = stats.rockMeter < 10
+    const dangerPulse = isFail
+      ? 0.7 + Math.abs(Math.sin(now*0.010))*0.3
+      : isDanger
+        ? 0.6 + Math.abs(Math.sin(now*0.005))*0.2
+        : 1.0
 
-    // Skull (baixo) à esquerda, nota à direita — apenas ícones simples
-    ctx.fillStyle = stats.rockMeter <= 20 ? "#ef4444" : "rgba(255,255,255,0.25)"
-    ctx.font = "bold 12px monospace"; ctx.textAlign = "right"; ctx.textBaseline = "middle"
-    ctx.fillText("💀", mx - 6, my + mh/2)
-    ctx.fillStyle = stats.rockMeter >= 80 ? "#22c55e" : "rgba(255,255,255,0.25)"
+    // Skull (baixo) à esquerda
+    ctx.fillStyle = isDanger ? `rgba(239,68,68,${dangerPulse})` : "rgba(255,255,255,0.22)"
+    ctx.font = `bold ${isDanger ? 15 : 13}px monospace`
+    ctx.textAlign = "right"; ctx.textBaseline = "middle"
+    if (isDanger) { ctx.shadowColor = "#ef4444"; ctx.shadowBlur = 12 }
+    ctx.fillText("💀", mx - 8, my + mh/2)
+    ctx.shadowBlur = 0
+
+    // Guitarra à direita
+    const isRocking = stats.rockMeter >= 70
+    ctx.fillStyle = isRocking ? `rgba(34,197,94,1)` : "rgba(255,255,255,0.22)"
+    ctx.font = `bold ${isRocking ? 15 : 13}px monospace`
     ctx.textAlign = "left"
-    ctx.fillText("🎸", mx + mw + 6, my + mh/2)
+    if (isRocking) { ctx.shadowColor = "#22c55e"; ctx.shadowBlur = 10 }
+    ctx.fillText("🎸", mx + mw + 8, my + mh/2)
+    ctx.shadowBlur = 0
 
+    // Trilho externo (sombra)
+    ctx.fillStyle = "rgba(0,0,0,0.65)"
+    ctx.beginPath(); ctx.roundRect(mx - 1, my - 1, mw + 2, mh + 2, 8); ctx.fill()
     // Trilho
-    ctx.fillStyle = "rgba(0,0,0,0.55)"
-    ctx.beginPath(); ctx.roundRect(mx, my, mw, mh, 6); ctx.fill()
-    ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1; ctx.stroke()
+    ctx.fillStyle = "rgba(20,20,20,0.85)"
+    ctx.beginPath(); ctx.roundRect(mx, my, mw, mh, 7); ctx.fill()
+    ctx.strokeStyle = isDanger ? `rgba(239,68,68,${dangerPulse*0.4})` : "rgba(255,255,255,0.07)"
+    ctx.lineWidth = 1; ctx.stroke()
 
     // Preenchimento com gradiente vermelho→amarelo→verde
     if (fill > 0) {
       const fg = ctx.createLinearGradient(mx, 0, mx + mw, 0)
       fg.addColorStop(0,    "#ef4444")
-      fg.addColorStop(0.30, "#f59e0b")
-      fg.addColorStop(0.60, "#22c55e")
+      fg.addColorStop(0.28, "#f59e0b")
+      fg.addColorStop(0.55, "#22c55e")
       fg.addColorStop(1,    "#4ade80")
       ctx.fillStyle = fg
-      ctx.shadowColor = mColor; ctx.shadowBlur = 8
-      ctx.beginPath(); ctx.roundRect(mx, my, mw * fill, mh, 6); ctx.fill()
+      if (isDanger) { ctx.shadowColor = "#ef4444"; ctx.shadowBlur = 10 * dangerPulse }
+      ctx.beginPath(); ctx.roundRect(mx, my, mw * fill, mh, 7); ctx.fill()
       ctx.shadowBlur = 0
     }
 
-    // Marcador central (linha divisória do rock meter — GH style)
+    // Brilho no topo da barra (reflexo)
+    ctx.save()
+    ctx.beginPath(); ctx.roundRect(mx, my, mw * fill, mh * 0.4, [7,7,0,0])
+    ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.fill()
+    ctx.restore()
+
+    // Marcador central — GH style divider
     const midX = mx + mw / 2
-    ctx.beginPath(); ctx.moveTo(midX, my - 3); ctx.lineTo(midX, my + mh + 3)
-    ctx.strokeStyle = "rgba(255,255,255,0.50)"; ctx.lineWidth = 1.5; ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(midX, my - 4); ctx.lineTo(midX, my + mh + 4)
+    ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 2; ctx.stroke()
+    // Losango no centro
+    ctx.save()
+    ctx.translate(midX, my - 6)
+    ctx.beginPath(); ctx.moveTo(0,-4); ctx.lineTo(4,0); ctx.lineTo(0,4); ctx.lineTo(-4,0); ctx.closePath()
+    ctx.fillStyle = "rgba(255,255,255,0.70)"; ctx.fill()
+    ctx.restore()
 
     ctx.restore()
   }
 
+  // ── Instrumento: canto inferior direito, minimalista ─────────────────
+  {
+    ctx.save()
+    const barW = 68, barH = 4, bx = w - barW - 12, by = h - 14
+    const vc = instrumentVol > 0.65 ? "#22c55e" : instrumentVol > 0.30 ? "#f59e0b" : "#ef4444"
+    ctx.fillStyle = "rgba(255,255,255,0.10)"; ctx.font = "600 6px monospace"
+    ctx.textAlign = "right"; ctx.textBaseline = "bottom"
+    ctx.fillText("INSTR", bx + barW, by - 2)
+    ctx.fillStyle = "rgba(255,255,255,0.06)"
+    ctx.beginPath(); ctx.roundRect(bx, by, barW, barH, 2); ctx.fill()
+    if (instrumentVol > 0.01) {
+      const fg = ctx.createLinearGradient(bx, 0, bx + barW*instrumentVol, 0)
+      fg.addColorStop(0, vc+"99"); fg.addColorStop(1, vc)
+      ctx.fillStyle = fg
+      ctx.beginPath(); ctx.roundRect(bx, by, barW*instrumentVol, barH, 2); ctx.fill()
+    }
+    ctx.restore()
+  }
+  // ── Encerra câmera shake ──────────────────────────────────────────────
+  if (cameraShake && starPower) { ctx.restore() }
+
+  // ── Star Power: B&W desaturação overlay (notas preservam cor) ─────────
+  if (spBW) {
+    ctx.save()
+    ctx.globalCompositeOperation = "saturation"
+    ctx.globalAlpha = 0.82
+    ctx.fillStyle = "#888"
+    ctx.fillRect(0, 0, w, h)
+    ctx.restore()
+    // Brilho das bordas ciano intensificado
+    ctx.save()
+    ctx.globalCompositeOperation = "screen"
+    ctx.globalAlpha = 0.06
+    ctx.fillStyle = "#00ffff"
+    ctx.fillRect(0, 0, w, h)
+    ctx.restore()
+  }
+
+  // ── Rock meter crítico: vinheta vermelha pulsante ─────────────────────
+  if (dangerMode) {
+    const pulse = failWarning
+      ? 0.45 + Math.abs(Math.sin(now * 0.008)) * 0.35
+      : 0.18 + Math.abs(Math.sin(now * 0.004)) * 0.12
+    const vig = ctx.createRadialGradient(w/2, h/2, h*0.25, w/2, h/2, h*0.80)
+    vig.addColorStop(0, "transparent")
+    vig.addColorStop(1, `rgba(200,0,0,${pulse})`)
+    ctx.save()
+    ctx.fillStyle = vig
+    ctx.fillRect(0, 0, w, h)
+    ctx.restore()
+  }
 
   // Guitarra decorativa (muda com dificuldade)
   {

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { loadProfile, xpForLevel, xpInCurrentLevel, type PlayerProfile } from "@/lib/progression"
 import { useRouter } from "next/navigation"
 import { playClickSound, playHoverSound } from "@/lib/game/sounds"
 import { loadSettings, DEFAULT_KEY_BINDINGS } from "@/lib/settings"
@@ -13,6 +14,8 @@ const LANE_COLORS = ["#22c55e","#ef4444","#eab308","#3b82f6","#f97316"]
 
 export function MainMenu() {
   const router = useRouter()
+  const [profile, setProfile] = useState<PlayerProfile | null>(null)
+  useEffect(() => { try { setProfile(loadProfile()) } catch {} }, [])
   const [keyBindings, setKeyBindings] = useState<string[]>([...DEFAULT_KEY_BINDINGS])
   const [hovered, setHovered] = useState<number | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -178,6 +181,7 @@ export function MainMenu() {
     { label: "Jogar Solo",       sub: "Modo carreira",     icon: "🎸", path: "/songs",    primary: true },
     { label: "Multiplayer",      sub: "Até 4 jogadores",   icon: "⚔️",  path: "/lobby",   primary: false },
     { label: "Ranking",          sub: "Melhores placares", icon: "🏆", path: "/ranking",  primary: false },
+    { label: "Perfil",           sub: "XP e conquistas",   icon: "👤", path: "/profile",  primary: false },
     { label: "Histórico",        sub: "Últimas partidas",  icon: "📋", path: "/history",  primary: false },
     { label: "Opções",           sub: "Configurações",     icon: "⚙️",  path: "/settings", primary: false },
   ]
@@ -292,6 +296,40 @@ export function MainMenu() {
           </div>
         </div>
 
+        {/* ── Mini perfil no topo do menu ── */}
+        {profile && (
+          <div onClick={() => router.push("/profile")} style={{
+            display: "flex", alignItems: "center", gap: "10px",
+            background: "rgba(0,0,0,0.45)", backdropFilter: "blur(6px)",
+            border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px",
+            padding: "8px 14px", cursor: "pointer", marginBottom: "8px",
+            maxWidth: "280px", width: "100%",
+            transition: "border-color 0.2s",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(251,191,36,0.35)")}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)")}
+          >
+            <span style={{ fontSize: "1.4rem" }}>🎸</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#fff", 
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {profile.name}
+                </span>
+                <span style={{ fontSize: "0.6rem", color: "#fbbf2480", fontWeight: 700, flexShrink: 0, marginLeft: "8px" }}>
+                  Nv.{profile.level}
+                </span>
+              </div>
+              <div style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 2, marginTop: 3, overflow: "hidden" }}>
+                <div style={{
+                  height: "100%", borderRadius: 2,
+                  background: "linear-gradient(90deg,#fbbf24,#f97316)",
+                  width: `${Math.min((xpInCurrentLevel(profile.xp) / xpForLevel(profile.level)) * 100, 100)}%`,
+                }} />
+              </div>
+            </div>
+          </div>
+        )}
         {/* ── BOTÕES MENU — estilo placas de pedal GH ── */}
         <div className="flex flex-col items-center gap-2 pb-4 px-6"
           style={{ animation: "gh-drop 0.8s cubic-bezier(0.34,1.56,0.64,1) 0.15s both" }}>
