@@ -8,8 +8,8 @@ import { listAudioOutputs, type AudioOutputDevice } from "@/hooks/use-audio-outp
 import { loadGamepadBindings, saveGamepadBindings, DEFAULT_GAMEPAD_BINDINGS, GAMEPAD_PROFILES, detectProfile, type GamepadProfile } from "@/hooks/use-gamepad"
 import { playClickSound, playHoverSound, playHitSound, setAudioOutputDevice } from "@/lib/game/sounds"
 
-const LANE_COLORS = ["#22c55e", "#ef4444", "#eab308", "#3b82f6", "#f97316", "#a855f7"]
-const LANE_NAMES  = ["Verde", "Vermelho", "Amarelo", "Azul", "Laranja", "Roxo"]
+const LANE_COLORS = ["#FF0000", "#FF7800", "#FFFF00", "#0089FF", "#5AFF00", "#CC44FF"]
+const LANE_NAMES  = ["Vermelho", "Laranja", "Amarelo", "Azul", "Verde", "Roxo"]
 
 const LANE_MODE_OPTS = [
   { count: 4 as const, label: "Fácil",   desc: "4 lanes",  color: "#3b82f6", keys: DEFAULT_KEY_BINDINGS4, bindKey: "keyBindings4" as const },

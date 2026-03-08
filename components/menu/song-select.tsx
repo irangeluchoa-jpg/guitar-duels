@@ -87,6 +87,8 @@ export function SongSelect() {
   const [loading, setLoading]         = useState(true)
   const [isPlaying, setIsPlaying]     = useState(false)
   const [previewAudio]                = useState(() => typeof Audio !== "undefined" ? new Audio() : null)
+  const [resolvedDurations, setResolvedDurations] = useState<Record<string, number>>({})
+  const durationProbeRef = useRef<HTMLAudioElement | null>(null)
   const [laneCount, setLaneCount]      = useState<4|5|6>(5)
   const prevTimeout                   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const listRef                       = useRef<HTMLDivElement>(null)
@@ -96,6 +98,34 @@ export function SongSelect() {
   useEffect(() => {
     fetch("/api/songs").then(r => r.json()).then(d => { setSongs(d); setLoading(false) }).catch(() => setLoading(false))
   }, [])
+
+  // Probe: quando uma música sem songLength é selecionada, carrega seu audio para pegar duração
+  useEffect(() => {
+    const song = filteredSongs[sel] ?? songs[sel]
+    if (!song) return
+    if (song.songLength && song.songLength > 0) return
+    if (resolvedDurations[song.id] !== undefined) return
+
+    const src = song.previewUrl || song.songUrl
+    if (!src) return
+
+    const audio = new Audio()
+    durationProbeRef.current = audio
+    audio.preload = "metadata"
+    audio.src = src
+
+    const onMeta = () => {
+      if (isFinite(audio.duration) && audio.duration > 0) {
+        setResolvedDurations((prev: Record<string, number>) => ({ ...prev, [song.id]: Math.round(audio.duration * 1000) }))
+      }
+    }
+    audio.addEventListener("loadedmetadata", onMeta)
+    return () => {
+      audio.removeEventListener("loadedmetadata", onMeta)
+      audio.src = ""
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel, songs.length])
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${sel}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" })
@@ -409,9 +439,9 @@ export function SongSelect() {
                               {diffLabel.toUpperCase()}
                             </span>
                           </div>
-                          {selected.songLength > 0 && (
+                          {(selected.songLength > 0 || resolvedDurations[selected.id]) && (
                             <span className="flex items-center gap-1 text-sm font-bold" style={{ color: "rgba(255,255,255,.4)" }}>
-                              <Clock className="w-3.5 h-3.5" />{formatDuration(selected.songLength)}
+                              <Clock className="w-3.5 h-3.5" />{formatDuration(selected.songLength > 0 ? selected.songLength : (resolvedDurations[selected.id] ?? 0))}
                             </span>
                           )}
                           {suggestedSpeed && (

@@ -2,7 +2,7 @@ import type { ChartData as Chart, ChartNote } from "@/lib/songs/types"
 
 // ── Lanes por modo ───────────────────────────────────────────────────────────
 export const LANE_COUNT = 5
-export const LANE_COLORS = ["#22c55e", "#ef4444", "#eab308", "#3b82f6", "#f97316", "#a855f7"]
+export const LANE_COLORS = ["#FF0000", "#FF7800", "#FFFF00", "#0089FF", "#5AFF00", "#CC44FF"]
 export const LANE_KEYS   = ["a", "s", "d", "j", "k"]
 export const ALL_LANE_KEYS = ["a", "s", "d", "j", "k", "l"]
 export const LANE_LABELS = ["A", "S", "D", "J", "K", "L"]

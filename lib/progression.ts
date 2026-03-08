@@ -1,257 +1,439 @@
-// ── Sistema de Progressão: XP, Níveis, Conquistas ────────────────────────────
+/**
+ * progression.ts — Sistema de XP, Níveis e Conquistas
+ */
+
+// ── Tipos ──────────────────────────────────────────────────────────────────
 
 export interface PlayerProfile {
-  name: string
-  xp: number
+  displayName: string
+  totalXP: number
   level: number
-  totalSongsPlayed: number
-  totalFCs: number
+  songsPlayed: number
+  totalScore: number
+  bestScore: number
   totalPerfects: number
+  totalGreats: number
+  totalGoods: number
+  totalMisses: number
+  totalCombo: number   // soma de maxCombos
   bestCombo: number
-  avgAccuracy: number
-  title: string
-  frame: string       // borda do avatar
+  fcCount: number      // full combos
+  sRankCount: number
+  songsPerDifficulty: { 4: number; 5: number; 6: number }
+  totalPlaytimeMs: number
+  unlockedAchievements: string[]  // IDs
   createdAt: number
+  lastPlayedAt: number
 }
 
-// XP para passar de nível (nivel * 500 + 500)
-export function xpForLevel(level: number): number {
-  return level * 500 + 500
-}
-
-export function totalXpForLevel(level: number): number {
-  let total = 0
-  for (let i = 1; i < level; i++) total += xpForLevel(i)
-  return total
-}
-
-export function levelFromXp(xp: number): number {
-  let level = 1
-  let accumulated = 0
-  while (accumulated + xpForLevel(level) <= xp) {
-    accumulated += xpForLevel(level)
-    level++
-  }
-  return level
-}
-
-export function xpInCurrentLevel(xp: number): number {
-  return xp - totalXpForLevel(levelFromXp(xp))
-}
-
-// XP ganho por partida
-export function calcXpGain(opts: {
-  accuracy: number
-  maxCombo: number
-  miss: number
-  difficulty: number
-  failed: boolean
-}): number {
-  if (opts.failed) return Math.floor(10 + opts.accuracy * 0.3)
-  let base = 50
-  base += Math.floor(opts.accuracy * 0.8)
-  base += Math.floor(opts.maxCombo * 0.4)
-  base -= Math.min(opts.miss * 2, 30)
-  base *= (1 + opts.difficulty * 0.15)
-  return Math.max(15, Math.floor(base))
-}
-
-export const TITLES: Record<number, string> = {
-  1: "Iniciante",
-  3: "Guitarrista",
-  5: "Músico",
-  8: "Virtuoso",
-  10: "Lendário",
-  15: "Mestre",
-  20: "Deus das Cordas",
-}
-
-export function titleForLevel(level: number): string {
-  const levels = Object.keys(TITLES).map(Number).sort((a,b) => b - a)
-  for (const l of levels) {
-    if (level >= l) return TITLES[l]
-  }
-  return "Iniciante"
-}
-
-export const FRAMES: Record<number, string> = {
-  1: "default",
-  5: "bronze",
-  10: "silver",
-  15: "gold",
-  20: "diamond",
-}
-
-export function frameForLevel(level: number): string {
-  const levels = Object.keys(FRAMES).map(Number).sort((a,b) => b - a)
-  for (const l of levels) {
-    if (level >= l) return FRAMES[l]
-  }
-  return "default"
-}
-
-// ── Conquistas ────────────────────────────────────────────────────────────────
 export interface Achievement {
   id: string
-  name: string
-  desc: string
+  title: string
+  description: string
   icon: string
-  unlockedAt?: number
+  xpReward: number
+  rarity: "common" | "rare" | "epic" | "legendary"
+  check: (profile: PlayerProfile, lastRecord?: GameSnapshot) => boolean
 }
 
-const ALL_ACHIEVEMENTS: Achievement[] = [
-  { id: "first_song",    name: "Primeira Nota",    desc: "Complete sua primeira música",           icon: "🎸" },
-  { id: "fc_easy",       name: "Sem Errar",         desc: "Full Combo em qualquer dificuldade",     icon: "✨" },
-  { id: "fc_expert",     name: "Mestre do FC",      desc: "Full Combo no Expert",                   icon: "🏆" },
-  { id: "combo_50",      name: "Combo 50",           desc: "Alcance 50 notas em sequência",          icon: "🔥" },
-  { id: "combo_100",     name: "Combo 100",          desc: "Alcance 100 notas em sequência",         icon: "💯" },
-  { id: "combo_200",     name: "Combo 200",          desc: "Alcance 200 notas em sequência",         icon: "⚡" },
-  { id: "songs_10",      name: "Músico Dedicado",    desc: "Jogue 10 músicas",                       icon: "🎵" },
-  { id: "songs_50",      name: "Veterano",           desc: "Jogue 50 músicas",                       icon: "🎤" },
-  { id: "accuracy_95",   name: "Precisão Cirúrgica", desc: "Termine uma música com 95%+ precisão", icon: "🎯" },
-  { id: "level_5",       name: "Guitarrista",        desc: "Alcance o nível 5",                     icon: "⭐" },
-  { id: "level_10",      name: "Virtuoso",           desc: "Alcance o nível 10",                    icon: "🌟" },
-  { id: "whammy",        name: "Whammy!",            desc: "Use o whammy bar em uma música",        icon: "〰️" },
-  { id: "practice",      name: "Estudioso",          desc: "Use o modo prática",                    icon: "📚" },
-  { id: "daily_done",    name: "Desafio do Dia",     desc: "Complete o desafio diário",             icon: "📅" },
+export interface GameSnapshot {
+  score: number
+  accuracy: number
+  combo: number
+  grade: string
+  laneCount: 4 | 5 | 6
+  noteSpeed: number
+  perfect: number
+  great: number
+  good: number
+  miss: number
+  songId: string
+  songName: string
+}
+
+export interface XPGain {
+  base: number
+  bonuses: { label: string; amount: number }[]
+  total: number
+}
+
+export interface LevelUpInfo {
+  oldLevel: number
+  newLevel: number
+  levelsGained: number
+}
+
+export interface SessionResult {
+  xpGain: XPGain
+  levelUp: LevelUpInfo | null
+  newAchievements: Achievement[]
+  profile: PlayerProfile
+}
+
+// ── XP & Níveis ────────────────────────────────────────────────────────────
+
+export const LEVEL_NAMES = [
+  "Iniciante", "Aprendiz", "Guitarrista", "Músico", "Veterano",
+  "Profissional", "Virtuoso", "Lenda", "Ícone", "Deus do Rock",
 ]
 
-export function getAllAchievements(): Achievement[] {
-  return ALL_ACHIEVEMENTS
+/** XP total necessário para atingir um nível (curva suave) */
+export function xpForLevel(level: number): number {
+  if (level <= 1) return 0
+  return Math.round(100 * Math.pow(level - 1, 1.6))
 }
 
-export function getUnlockedAchievements(): Achievement[] {
-  try {
-    const stored = localStorage.getItem("guitar-duels-achievements")
-    if (!stored) return []
-    const unlocked: string[] = JSON.parse(stored)
-    return ALL_ACHIEVEMENTS
-      .filter(a => unlocked.includes(a.id))
-      .map(a => ({ ...a, unlockedAt: 0 }))
-  } catch { return [] }
+/** XP total acumulado para começar o nível N */
+export function totalXPForLevel(level: number): number {
+  let total = 0
+  for (let l = 1; l < level; l++) total += xpForLevel(l + 1) - xpForLevel(l)
+  // Simpler: cumulative
+  if (level <= 1) return 0
+  return xpForLevel(level)
 }
 
-export function checkAndUnlockAchievements(opts: {
-  accuracy: number
-  maxCombo: number
-  miss: number
-  difficulty: number
-  failed: boolean
-  totalSongs: number
-  level: number
-  usedWhammy?: boolean
-  usedPractice?: boolean
-  isDailyCompleted?: boolean
-}): Achievement[] {
-  try {
-    const stored = localStorage.getItem("guitar-duels-achievements")
-    const unlocked: string[] = stored ? JSON.parse(stored) : []
-    const newlyUnlocked: Achievement[] = []
-
-    function tryUnlock(id: string) {
-      if (!unlocked.includes(id)) {
-        unlocked.push(id)
-        const ach = ALL_ACHIEVEMENTS.find(a => a.id === id)
-        if (ach) newlyUnlocked.push({ ...ach, unlockedAt: Date.now() })
-      }
-    }
-
-    if (!opts.failed && opts.totalSongs >= 1)     tryUnlock("first_song")
-    if (!opts.failed && opts.miss === 0)           tryUnlock("fc_easy")
-    if (!opts.failed && opts.miss === 0 && opts.difficulty >= 5) tryUnlock("fc_expert")
-    if (opts.maxCombo >= 50)                       tryUnlock("combo_50")
-    if (opts.maxCombo >= 100)                      tryUnlock("combo_100")
-    if (opts.maxCombo >= 200)                      tryUnlock("combo_200")
-    if (opts.totalSongs >= 10)                     tryUnlock("songs_10")
-    if (opts.totalSongs >= 50)                     tryUnlock("songs_50")
-    if (!opts.failed && opts.accuracy >= 95)       tryUnlock("accuracy_95")
-    if (opts.level >= 5)                           tryUnlock("level_5")
-    if (opts.level >= 10)                          tryUnlock("level_10")
-    if (opts.usedWhammy)                           tryUnlock("whammy")
-    if (opts.usedPractice)                         tryUnlock("practice")
-    if (opts.isDailyCompleted)                     tryUnlock("daily_done")
-
-    localStorage.setItem("guitar-duels-achievements", JSON.stringify(unlocked))
-    return newlyUnlocked
-  } catch { return [] }
+/** Nível dado o XP total (busca binária simples) */
+export function levelFromXP(xp: number): number {
+  let level = 1
+  while (xpForLevel(level + 1) <= xp) level++
+  return Math.min(level, 99)
 }
 
-// ── Perfil ────────────────────────────────────────────────────────────────────
+/** Progresso dentro do nível atual (0–1) */
+export function levelProgress(xp: number): number {
+  const level = levelFromXP(xp)
+  const start = xpForLevel(level)
+  const end   = xpForLevel(level + 1)
+  if (end <= start) return 1
+  return Math.max(0, Math.min(1, (xp - start) / (end - start)))
+}
+
+/** XP faltando para o próximo nível */
+export function xpToNextLevel(xp: number): number {
+  const level = levelFromXP(xp)
+  return Math.max(0, xpForLevel(level + 1) - xp)
+}
+
+/** Nome do nível */
+export function levelTitle(level: number): string {
+  const idx = Math.min(Math.floor((level - 1) / 10), LEVEL_NAMES.length - 1)
+  return LEVEL_NAMES[idx]
+}
+
+/** Calcular XP ganho em uma partida */
+export function calculateXP(snap: GameSnapshot): XPGain {
+  const bonuses: { label: string; amount: number }[] = []
+
+  // Base: pontuação / 1000
+  const base = Math.round(snap.score / 800)
+
+  // Bônus de precisão
+  if (snap.accuracy >= 100) bonuses.push({ label: "Precisão Perfeita 💯", amount: 80 })
+  else if (snap.accuracy >= 95) bonuses.push({ label: "Precisão S+ 🌟", amount: 50 })
+  else if (snap.accuracy >= 90) bonuses.push({ label: "Precisão Alta ✨", amount: 25 })
+
+  // Bônus de grade
+  if (snap.grade === "S+" || snap.grade === "S") bonuses.push({ label: `Rank ${snap.grade} 🏆`, amount: 60 })
+  else if (snap.grade === "A") bonuses.push({ label: "Rank A 🥇", amount: 30 })
+
+  // Full Combo
+  if (snap.miss === 0) bonuses.push({ label: "Full Combo 🎯", amount: 100 })
+
+  // Dificuldade
+  const diffBonus = { 4: 0, 5: 20, 6: 50 }[snap.laneCount] ?? 0
+  if (diffBonus > 0) bonuses.push({ label: snap.laneCount === 6 ? "Difícil 🔥" : "Normal ⚡", amount: diffBonus })
+
+  // Velocidade alta
+  if (snap.noteSpeed >= 1.5) bonuses.push({ label: `Velocidade ${snap.noteSpeed}x 💨`, amount: Math.round((snap.noteSpeed - 1) * 40) })
+
+  // Combo alto
+  if (snap.combo >= 200) bonuses.push({ label: `Combo ${snap.combo}x 🔗`, amount: 40 })
+  else if (snap.combo >= 100) bonuses.push({ label: `Combo ${snap.combo}x 🔗`, amount: 20 })
+
+  const total = Math.max(5, base + bonuses.reduce((s, b) => s + b.amount, 0))
+  return { base, bonuses, total }
+}
+
+// ── Conquistas ─────────────────────────────────────────────────────────────
+
+export const ACHIEVEMENTS: Achievement[] = [
+  // Primeiros passos
+  {
+    id: "first_song", title: "Primeiros Acordes", icon: "🎸",
+    description: "Conclua sua primeira música",
+    xpReward: 50, rarity: "common",
+    check: (p) => p.songsPlayed >= 1,
+  },
+  {
+    id: "songs_10", title: "Em Ritmo", icon: "🎵",
+    description: "Jogue 10 músicas",
+    xpReward: 100, rarity: "common",
+    check: (p) => p.songsPlayed >= 10,
+  },
+  {
+    id: "songs_50", title: "Maratonista", icon: "🏃",
+    description: "Jogue 50 músicas",
+    xpReward: 300, rarity: "rare",
+    check: (p) => p.songsPlayed >= 50,
+  },
+  {
+    id: "songs_100", title: "Veterano do Palco", icon: "🎭",
+    description: "Jogue 100 músicas",
+    xpReward: 600, rarity: "epic",
+    check: (p) => p.songsPlayed >= 100,
+  },
+  // Full Combo
+  {
+    id: "first_fc", title: "Sem Erros", icon: "🎯",
+    description: "Faça seu primeiro Full Combo",
+    xpReward: 150, rarity: "common",
+    check: (p) => p.fcCount >= 1,
+  },
+  {
+    id: "fc_5", title: "Mão de Ferro", icon: "✊",
+    description: "Faça 5 Full Combos",
+    xpReward: 300, rarity: "rare",
+    check: (p) => p.fcCount >= 5,
+  },
+  {
+    id: "fc_20", title: "Intocável", icon: "🛡️",
+    description: "Faça 20 Full Combos",
+    xpReward: 800, rarity: "epic",
+    check: (p) => p.fcCount >= 20,
+  },
+  // Rank S
+  {
+    id: "first_s", title: "Excelência", icon: "⭐",
+    description: "Alcance Rank S em qualquer música",
+    xpReward: 100, rarity: "common",
+    check: (p) => p.sRankCount >= 1,
+  },
+  {
+    id: "s_10", title: "Perfeccionista", icon: "💎",
+    description: "Alcance Rank S em 10 músicas",
+    xpReward: 500, rarity: "rare",
+    check: (p) => p.sRankCount >= 10,
+  },
+  // Combo
+  {
+    id: "combo_50", title: "Em Chamas", icon: "🔥",
+    description: "Alcance 50 de combo em uma partida",
+    xpReward: 75, rarity: "common",
+    check: (p) => p.bestCombo >= 50,
+  },
+  {
+    id: "combo_100", title: "Centenário", icon: "💯",
+    description: "Alcance 100 de combo em uma partida",
+    xpReward: 200, rarity: "rare",
+    check: (p) => p.bestCombo >= 100,
+  },
+  {
+    id: "combo_300", title: "Imparável", icon: "⚡",
+    description: "Alcance 300 de combo em uma partida",
+    xpReward: 500, rarity: "epic",
+    check: (p) => p.bestCombo >= 300,
+  },
+  // Dificuldade
+  {
+    id: "play_hard", title: "Desafiador", icon: "💪",
+    description: "Jogue no modo Difícil (6 lanes)",
+    xpReward: 80, rarity: "common",
+    check: (p) => p.songsPerDifficulty[6] >= 1,
+  },
+  {
+    id: "hard_10", title: "Corajoso", icon: "🦁",
+    description: "Jogue 10 músicas no Difícil",
+    xpReward: 250, rarity: "rare",
+    check: (p) => p.songsPerDifficulty[6] >= 10,
+  },
+  {
+    id: "fc_hard", title: "Lenda do Rock", icon: "👑",
+    description: "FC no modo Difícil com Rank S",
+    xpReward: 1000, rarity: "legendary",
+    check: (p, snap) => !!(snap && snap.miss === 0 && snap.grade.startsWith("S") && snap.laneCount === 6),
+  },
+  // Score
+  {
+    id: "score_100k", title: "Pontuador", icon: "📈",
+    description: "Alcance 100.000 pontos em uma partida",
+    xpReward: 100, rarity: "common",
+    check: (p, snap) => !!(snap && snap.score >= 100000),
+  },
+  {
+    id: "score_500k", title: "Pontuação Épica", icon: "🚀",
+    description: "Alcance 500.000 pontos em uma partida",
+    xpReward: 400, rarity: "rare",
+    check: (p, snap) => !!(snap && snap.score >= 500000),
+  },
+  {
+    id: "score_1m", title: "Milionário", icon: "💰",
+    description: "Alcance 1.000.000 de pontos em uma partida",
+    xpReward: 1000, rarity: "legendary",
+    check: (p, snap) => !!(snap && snap.score >= 1000000),
+  },
+  // Velocidade
+  {
+    id: "speed_15", title: "Acelerado", icon: "💨",
+    description: "Jogue em velocidade 1.5x",
+    xpReward: 75, rarity: "common",
+    check: (p, snap) => !!(snap && snap.noteSpeed >= 1.5),
+  },
+  {
+    id: "speed_2", title: "Velocidade Máxima", icon: "🏎️",
+    description: "Jogue e complete uma música em 2x",
+    xpReward: 200, rarity: "rare",
+    check: (p, snap) => !!(snap && snap.noteSpeed >= 2),
+  },
+  // Nível
+  {
+    id: "level_5", title: "Subindo de Nível", icon: "📊",
+    description: "Alcance o nível 5",
+    xpReward: 0, rarity: "common",
+    check: (p) => p.level >= 5,
+  },
+  {
+    id: "level_20", title: "Dedicado", icon: "🎖️",
+    description: "Alcance o nível 20",
+    xpReward: 0, rarity: "rare",
+    check: (p) => p.level >= 20,
+  },
+  {
+    id: "level_50", title: "Mestre", icon: "🧙",
+    description: "Alcance o nível 50",
+    xpReward: 0, rarity: "epic",
+    check: (p) => p.level >= 50,
+  },
+  // Precisão
+  {
+    id: "perfect_accuracy", title: "Perfeição Absoluta", icon: "✨",
+    description: "100% de precisão em uma música",
+    xpReward: 300, rarity: "epic",
+    check: (p, snap) => !!(snap && snap.accuracy >= 100),
+  },
+  {
+    id: "perfects_1000", title: "Mãos de Seda", icon: "🙌",
+    description: "Acumule 1000 notas perfeitas",
+    xpReward: 200, rarity: "rare",
+    check: (p) => p.totalPerfects >= 1000,
+  },
+  // Tempo
+  {
+    id: "playtime_1h", title: "Hora do Rock", icon: "⏱️",
+    description: "Jogue por 1 hora no total",
+    xpReward: 150, rarity: "common",
+    check: (p) => p.totalPlaytimeMs >= 3_600_000,
+  },
+  {
+    id: "playtime_10h", title: "Viciado", icon: "🎮",
+    description: "Jogue por 10 horas no total",
+    xpReward: 500, rarity: "epic",
+    check: (p) => p.totalPlaytimeMs >= 36_000_000,
+  },
+]
+
+// ── Storage ─────────────────────────────────────────────────────────────────
+
 const PROFILE_KEY = "guitar-duels-profile"
 
 export function loadProfile(): PlayerProfile {
+  if (typeof window === "undefined") return createProfile()
   try {
-    const stored = localStorage.getItem(PROFILE_KEY)
-    if (stored) return JSON.parse(stored)
+    const raw = localStorage.getItem(PROFILE_KEY)
+    if (raw) return { ...createProfile(), ...JSON.parse(raw) }
   } catch {}
-  return {
-    name: "Jogador", xp: 0, level: 1, totalSongsPlayed: 0, totalFCs: 0,
-    totalPerfects: 0, bestCombo: 0, avgAccuracy: 0,
-    title: "Iniciante", frame: "default", createdAt: Date.now(),
-  }
+  return createProfile()
 }
 
 export function saveProfile(p: PlayerProfile): void {
+  if (typeof window === "undefined") return
   try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)) } catch {}
 }
 
-export function updateProfileAfterGame(opts: {
-  accuracy: number
-  maxCombo: number
-  miss: number
-  difficulty: number
-  failed: boolean
-  perfect: number
-}): { profile: PlayerProfile; xpGained: number; leveledUp: boolean; newLevel?: number } {
-  const profile = loadProfile()
-  const xpGained = calcXpGain({
-    accuracy: opts.accuracy, maxCombo: opts.maxCombo,
-    miss: opts.miss, difficulty: opts.difficulty, failed: opts.failed,
-  })
-  const oldLevel = profile.level
-  const newXp = profile.xp + xpGained
-  const newLevel = levelFromXp(newXp)
+function createProfile(): PlayerProfile {
+  return {
+    displayName: "Guitarrista",
+    totalXP: 0, level: 1,
+    songsPlayed: 0, totalScore: 0, bestScore: 0,
+    totalPerfects: 0, totalGreats: 0, totalGoods: 0, totalMisses: 0,
+    totalCombo: 0, bestCombo: 0, fcCount: 0, sRankCount: 0,
+    songsPerDifficulty: { 4: 0, 5: 0, 6: 0 },
+    totalPlaytimeMs: 0,
+    unlockedAchievements: [],
+    createdAt: Date.now(),
+    lastPlayedAt: Date.now(),
+  }
+}
 
-  profile.xp = newXp
-  profile.level = newLevel
-  profile.title = titleForLevel(newLevel)
-  profile.frame = frameForLevel(newLevel)
-  profile.totalSongsPlayed += 1
-  if (!opts.failed && opts.miss === 0) profile.totalFCs += 1
-  profile.totalPerfects += opts.perfect
-  if (opts.maxCombo > profile.bestCombo) profile.bestCombo = opts.maxCombo
-  // Running average
-  const total = profile.totalSongsPlayed
-  profile.avgAccuracy = Math.round((profile.avgAccuracy * (total - 1) + opts.accuracy) / total)
+// ── Processar partida ────────────────────────────────────────────────────────
+
+export function processGameSession(snap: GameSnapshot, songDurationMs = 0): SessionResult {
+  const profile = loadProfile()
+  const oldLevel = profile.level
+
+  // Atualizar estatísticas
+  profile.songsPlayed       += 1
+  profile.totalScore        += snap.score
+  profile.bestScore          = Math.max(profile.bestScore, snap.score)
+  profile.totalPerfects     += snap.perfect
+  profile.totalGreats       += snap.great
+  profile.totalGoods        += snap.good
+  profile.totalMisses       += snap.miss
+  profile.totalCombo        += snap.combo
+  profile.bestCombo          = Math.max(profile.bestCombo, snap.combo)
+  profile.totalPlaytimeMs   += songDurationMs
+  profile.lastPlayedAt       = Date.now()
+  if (snap.miss === 0) profile.fcCount += 1
+  if (snap.grade.startsWith("S")) profile.sRankCount += 1
+  profile.songsPerDifficulty[snap.laneCount] = (profile.songsPerDifficulty[snap.laneCount] ?? 0) + 1
+
+  // Calcular XP
+  const xpGain = calculateXP(snap)
+  profile.totalXP += xpGain.total
+
+  // Verificar conquistas novas
+  const newAchievements: Achievement[] = []
+  for (const ach of ACHIEVEMENTS) {
+    if (profile.unlockedAchievements.includes(ach.id)) continue
+    if (ach.check(profile, snap)) {
+      profile.unlockedAchievements.push(ach.id)
+      profile.totalXP += ach.xpReward
+      newAchievements.push(ach)
+    }
+  }
+
+  // Atualizar nível
+  profile.level = levelFromXP(profile.totalXP)
+  const newLevel = profile.level
+  const levelUp = newLevel > oldLevel
+    ? { oldLevel, newLevel, levelsGained: newLevel - oldLevel }
+    : null
 
   saveProfile(profile)
-  return { profile, xpGained, leveledUp: newLevel > oldLevel, newLevel: newLevel > oldLevel ? newLevel : undefined }
+  return { xpGain, levelUp, newAchievements, profile }
 }
 
-// ── Desafio Diário ────────────────────────────────────────────────────────────
-export interface DailyChallenge {
-  date: string        // YYYY-MM-DD
-  trackId: string
-  songName: string
-  artist: string
-  targetScore: number
-  completed: boolean
-  score?: number
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+export const RARITY_COLORS: Record<string, string> = {
+  common:    "#9ca3af",
+  rare:      "#3b82f6",
+  epic:      "#a855f7",
+  legendary: "#f59e0b",
 }
 
-export function getTodayKey(): string {
-  return new Date().toISOString().slice(0, 10)
+export const RARITY_LABELS: Record<string, string> = {
+  common: "Comum", rare: "Raro", epic: "Épico", legendary: "Lendário",
 }
 
-export function getDailyChallenge(): DailyChallenge | null {
-  try {
-    const stored = localStorage.getItem("guitar-duels-daily")
-    if (!stored) return null
-    const d: DailyChallenge = JSON.parse(stored)
-    return d.date === getTodayKey() ? d : null
-  } catch { return null }
+export function formatXP(xp: number): string {
+  if (xp >= 1_000_000) return `${(xp / 1_000_000).toFixed(1)}M`
+  if (xp >= 1_000) return `${(xp / 1_000).toFixed(1)}k`
+  return String(xp)
 }
 
-export function saveDailyChallenge(c: DailyChallenge): void {
-  try { localStorage.setItem("guitar-duels-daily", JSON.stringify(c)) } catch {}
+export function formatTime(ms: number): string {
+  const h = Math.floor(ms / 3_600_000)
+  const m = Math.floor((ms % 3_600_000) / 60_000)
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
 }

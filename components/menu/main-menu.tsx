@@ -11,10 +11,17 @@ function getVol() {
 
 const LANE_COLORS = ["#22c55e","#ef4444","#eab308","#3b82f6","#f97316"]
 
+import { loadProfile, levelFromXP, levelProgress, levelTitle } from "@/lib/progression"
+
 export function MainMenu() {
   const router = useRouter()
   const [keyBindings, setKeyBindings] = useState<string[]>([...DEFAULT_KEY_BINDINGS])
   const [hovered, setHovered] = useState<number | null>(null)
+  const [profileData, setProfileData] = useState<{ level: number; totalXP: number; displayName: string } | null>(null)
+
+  useEffect(() => {
+    try { const p = loadProfile(); setProfileData(p) } catch {}
+  }, [])
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animRef   = useRef<number>(0)
   const timeRef   = useRef(0)
@@ -31,8 +38,13 @@ export function MainMenu() {
     const ctx = canvas.getContext("2d")!
 
     const resize = () => {
-      canvas.width  = canvas.offsetWidth
-      canvas.height = canvas.offsetHeight
+      const dpr = window.devicePixelRatio || 1
+      const w = canvas.offsetWidth, h = canvas.offsetHeight
+      canvas.width  = Math.round(w * dpr)
+      canvas.height = Math.round(h * dpr)
+      canvas.style.width  = w + "px"
+      canvas.style.height = h + "px"
+      ctx.scale(dpr, dpr)
     }
     resize()
     window.addEventListener("resize", resize)
@@ -178,6 +190,7 @@ export function MainMenu() {
     { label: "Jogar Solo",       sub: "Modo carreira",     icon: "🎸", path: "/songs",    primary: true },
     { label: "Multiplayer",      sub: "Até 4 jogadores",   icon: "⚔️",  path: "/lobby",   primary: false },
     { label: "Ranking",          sub: "Melhores placares", icon: "🏆", path: "/ranking",  primary: false },
+    { label: "Perfil",           sub: "XP e conquistas",   icon: "🏆", path: "/profile",  primary: false },
     { label: "Histórico",        sub: "Últimas partidas",  icon: "📋", path: "/history",  primary: false },
     { label: "Opções",           sub: "Configurações",     icon: "⚙️",  path: "/settings", primary: false },
   ]
@@ -365,11 +378,36 @@ export function MainMenu() {
           ))}
         </div>
 
+        {/* ── MINI PERFIL / XP BAR ── */}
+        {profileData && (
+          <div className="flex justify-center mb-1">
+            <button
+              onClick={() => router.push("/profile")}
+              className="flex items-center gap-3 px-4 py-2 rounded-2xl transition-all hover:scale-105"
+              style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.2)" }}>
+              <div className="flex items-center gap-1.5">
+                <span className="text-base">{typeof window !== "undefined" ? (localStorage.getItem("guitar-duels-avatar") ?? "🎸") : "🎸"}</span>
+                <span className="text-xs font-bold text-white/70">{profileData.displayName}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black"
+                  style={{ background: "rgba(168,85,247,0.25)", color: "#a855f7" }}>
+                  Nv.{profileData.level}
+                </span>
+              </div>
+              <div className="w-24 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+                <div className="h-full rounded-full" style={{
+                  width: `${levelProgress(profileData.totalXP) * 100}%`,
+                  background: "linear-gradient(90deg,#7c3aed,#a855f7)",
+                }}/>
+              </div>
+            </button>
+          </div>
+        )}
+
         {/* ── TECLAS — estilo frets do GH ── */}
         <div className="flex flex-col items-center pb-6 gap-2"
           style={{ animation: "gh-drop 1s cubic-bezier(0.34,1.56,0.64,1) 0.25s both" }}>
           <div className="flex items-center gap-2">
-            {keyBindings.map((key, i) => (
+            {keyBindings.map((key: string, i: number) => (
               <div key={i} className="flex flex-col items-center gap-1">
                 {/* Fret circle — exatamente como GH */}
                 <div className="relative flex items-center justify-center"

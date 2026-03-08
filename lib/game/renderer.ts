@@ -995,7 +995,7 @@ function drawDiffLabel(ctx: CanvasRenderingContext2D, x: number, y: number, diff
   const label = labels[Math.min(diff, 6)]
   const color = colors[Math.min(diff, 6)]
   ctx.save()
-  ctx.fillStyle = color; ctx.font = "bold 8px monospace"
+  ctx.fillStyle = color; ctx.font = "bold 9px 'Arial Black', Arial, sans-serif"
   ctx.textAlign = "center"; ctx.textBaseline = "top"
   ctx.shadowColor = color; ctx.shadowBlur = 6
   ctx.fillText(label, x, y)
@@ -1005,7 +1005,10 @@ function drawDiffLabel(ctx: CanvasRenderingContext2D, x: number, y: number, diff
 // ── RENDER PRINCIPAL ──────────────────────────────────────────────────────────
 export function renderFrame(state: RenderState): void {
   const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true } = state
-  const w=canvas.width, h=canvas.height
+  // Usar dimensões CSS (não físicas) para que as coords batam com o ctx já escalado pelo dpr
+  const dpr = (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1
+  const w = canvas.width / dpr
+  const h = canvas.height / dpr
   const ns=NOTE_SPEED_BASE*speed
   const hitY=h*HIT_LINE_Y_RATIO, vanishY=h*VANISHING_Y_RATIO
   const trackBot=w*TRACK_WIDTH_RATIO
@@ -1014,6 +1017,10 @@ export function renderFrame(state: RenderState): void {
   const starPower=stats.combo>=STAR_POWER_COMBO
   // Limpa o canvas (bordas ficam transparentes — mostra o background da música)
   ctx.clearRect(0, 0, w, h)
+
+  // Qualidade de renderização
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = "high"
 
   // ── Câmera shake (star power ativo) ────────────────────────────────────
   let shakeX = 0, shakeY = 0
@@ -1147,7 +1154,7 @@ export function renderFrame(state: RenderState): void {
     if (showGuide) {
       const label=(keyLabels?.[i]??LANE_LABELS[i]).toUpperCase()
       ctx.fillStyle=pressed?"#fff":"rgba(200,230,210,0.45)"
-      ctx.font=`bold ${Math.round(ry*0.85)}px monospace`
+      ctx.font=`bold ${Math.round(ry*0.85)}px 'Arial Black', Arial, sans-serif`
       ctx.textAlign="center"; ctx.textBaseline="middle"
       ctx.fillText(label,x,hitY+ry+18)
     }
@@ -1194,7 +1201,7 @@ export function renderFrame(state: RenderState): void {
     const ty=hitY-58-prog*48, fs=Math.round(isMiss?11:16+(1-prog)*7)
     ctx.globalAlpha=alpha*(isMiss?0.50:1); ctx.fillStyle=rc
     ctx.shadowColor=rc; ctx.shadowBlur=isMiss?0:10
-    ctx.font=`900 ${fs}px monospace`; ctx.textAlign="center"; ctx.textBaseline="middle"
+    ctx.font=`900 ${fs}px 'Arial Black', Arial, sans-serif`; ctx.textAlign="center"; ctx.textBaseline="middle"
     ctx.fillText(fx.rating.toUpperCase(),x,ty); ctx.shadowBlur=0; ctx.restore()
   }
 
@@ -1289,7 +1296,7 @@ export function renderFrame(state: RenderState): void {
     // Combo abaixo do multiplicador
     if (stats.combo > 1) {
       ctx.fillStyle = "rgba(255,255,255,0.55)"
-      ctx.font = "bold 9px monospace"
+      ctx.font = "bold 9px 'Arial Black', Arial, sans-serif"
       ctx.fillText(`${stats.combo} COMBO`, mulX, mulY + mulR + 10)
     }
     ctx.restore()
@@ -1306,7 +1313,7 @@ export function renderFrame(state: RenderState): void {
 
     // Skull (baixo) à esquerda, nota à direita — apenas ícones simples
     ctx.fillStyle = stats.rockMeter <= 20 ? "#ef4444" : "rgba(255,255,255,0.25)"
-    ctx.font = "bold 12px monospace"; ctx.textAlign = "right"; ctx.textBaseline = "middle"
+    ctx.font = "bold 12px 'Arial Black', Arial, sans-serif"; ctx.textAlign = "right"; ctx.textBaseline = "middle"
     ctx.fillText("💀", mx - 6, my + mh/2)
     ctx.fillStyle = stats.rockMeter >= 80 ? "#22c55e" : "rgba(255,255,255,0.25)"
     ctx.textAlign = "left"

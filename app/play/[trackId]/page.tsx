@@ -9,6 +9,8 @@ import { getGrade, getAccuracy } from "@/lib/game/engine"
 import { playPauseSound, playResumeSound } from "@/lib/game/sounds"
 import { loadSettings } from "@/lib/settings"
 import { saveRecord } from "@/app/history/page"
+import { processGameSession } from "@/lib/progression"
+import { showAchievementToast, showLevelUpToast, showXPToast, ToastContainer } from "@/components/ui/achievement-toast"
 
 function getVol() {
   try { const s = loadSettings(); return (s.masterVolume / 100) * (s.sfxVolume / 100) } catch { return 0.5 }
@@ -361,23 +363,58 @@ function PlayInner() {
     const stats = latestStatsRef.current
     if (stats && meta) {
       const settings = loadSettings()
+      const accuracy = Math.round(getAccuracy(stats))
+      const grade    = getGrade(getAccuracy(stats))
+
       saveRecord({
-        songId:     meta.id ?? "",
-        songName:   meta.name ?? "",
-        artist:     meta.artist ?? "",
-        albumArt:   meta.albumArt,
-        score:      stats.score,
-        accuracy:   Math.round(getAccuracy(stats)),
-        combo:      stats.maxCombo,
-        grade:      getGrade(getAccuracy(stats)),
-        laneCount:  (laneCount as 4|5|6),
-        noteSpeed:  settings.noteSpeed,
-        perfect:    stats.perfect ?? 0,
-        great:      stats.great ?? 0,
-        good:       stats.good ?? 0,
-        miss:       stats.miss ?? 0,
-        timestamp:  Date.now(),
+        songId:    meta.id ?? "",
+        songName:  meta.name ?? "",
+        artist:    meta.artist ?? "",
+        albumArt:  meta.albumArt,
+        score:     stats.score,
+        accuracy,
+        combo:     stats.maxCombo,
+        grade,
+        laneCount: (laneCount as 4|5|6),
+        noteSpeed: settings.noteSpeed,
+        perfect:   stats.perfect ?? 0,
+        great:     stats.great ?? 0,
+        good:      stats.good ?? 0,
+        miss:      stats.miss ?? 0,
+        timestamp: Date.now(),
       })
+
+      // Processar XP e conquistas (pequeno delay para não sobrepor a tela de fim)
+      setTimeout(() => {
+        const snap = {
+          score:     stats.score,
+          accuracy,
+          combo:     stats.maxCombo,
+          grade,
+          laneCount: laneCount as 4|5|6,
+          noteSpeed: settings.noteSpeed,
+          perfect:   stats.perfect ?? 0,
+          great:     stats.great ?? 0,
+          good:      stats.good ?? 0,
+          miss:      stats.miss ?? 0,
+          songId:    meta.id ?? "",
+          songName:  meta.name ?? "",
+        }
+        const result = processGameSession(snap, meta.songLength ?? 0)
+
+        // Mostrar XP ganho
+        showXPToast(result.xpGain.total, `+${result.xpGain.bonuses.length} bônus`)
+
+        // Mostrar level up
+        if (result.levelUp) {
+          setTimeout(() => showLevelUpToast(result.levelUp!), 800)
+        }
+
+        // Mostrar conquistas (com delay escalonado)
+        result.newAchievements.forEach((ach, i) => {
+          setTimeout(() => showAchievementToast(ach), 1200 + i * 900)
+        })
+      }, 1500)
     }
   }, [meta, laneCount])
 

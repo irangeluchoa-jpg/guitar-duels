@@ -172,8 +172,18 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
     const canvas = canvasRef.current
     const container = containerRef.current
     if (!canvas || !container) return
-    canvas.width  = container.clientWidth
-    canvas.height = container.clientHeight
+    const dpr = window.devicePixelRatio || 1
+    const w = container.clientWidth
+    const h = container.clientHeight
+    // Dimensão real em pixels físicos (resolve o blur em telas Retina/4K)
+    canvas.width  = Math.round(w * dpr)
+    canvas.height = Math.round(h * dpr)
+    // Tamanho CSS continua igual
+    canvas.style.width  = w + "px"
+    canvas.style.height = h + "px"
+    // Escalar o contexto para que o renderer continue usando coordenadas CSS
+    const ctx = canvas.getContext("2d")
+    if (ctx) ctx.scale(dpr, dpr)
   }, [])
 
   useEffect(() => {
@@ -216,22 +226,63 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
 
   const [progress, setProgress] = useState(0)
   const [timeInfo, setTimeInfo] = useState(() => ({ current: 0, total: meta.songLength ? meta.songLength / 1000 : 0 }))
+
+  // Pegar duração de qualquer audio disponível (primaryAudio pode não existir)
+  const allAudioRefs = [primaryAudioRef, guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef]
+
+  function getBestAudioSource(): HTMLAudioElement | null {
+    for (const ref of allAudioRefs) {
+      const el = ref.current
+      if (el && isFinite(el.duration) && el.duration > 0) return el
+    }
+    // Fallback: qualquer elemento com currentTime avançando
+    for (const ref of allAudioRefs) {
+      if (ref.current) return ref.current
+    }
+    return null
+  }
+
+  // Atualiza total assim que qualquer audio carregar metadados
+  useEffect(() => {
+    const totalFromMeta = meta.songLength ? meta.songLength / 1000 : 0
+    const handlers: Array<{ el: HTMLAudioElement; fn: () => void }> = []
+    for (const ref of allAudioRefs) {
+      const el = ref.current
+      if (!el) continue
+      const fn = () => {
+        if (isFinite(el.duration) && el.duration > 0) {
+          setTimeInfo((t: {current:number;total:number}) => ({ ...t, total: el.duration }))
+        }
+      }
+      el.addEventListener("loadedmetadata", fn)
+      handlers.push({ el, fn })
+      // Se já carregou
+      if (isFinite(el.duration) && el.duration > 0) {
+        setTimeInfo((t: {current:number;total:number}) => ({ ...t, total: el.duration }))
+      }
+    }
+    if (totalFromMeta > 0) setTimeInfo((t: {current:number;total:number}) => ({ ...t, total: totalFromMeta }))
+    return () => handlers.forEach(({ el, fn }) => el.removeEventListener("loadedmetadata", fn))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta.songLength])
+
   useEffect(() => {
     if (gameState !== "playing" && gameState !== "paused") return
     const interval = setInterval(() => {
-      const audio = primaryAudioRef.current
-      const totalFromMeta = meta.songLength ? meta.songLength / 1000 : 0
-      if (audio) {
-        const dur = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : totalFromMeta
-        const cur = audio.currentTime || 0
-        setProgress(dur > 0 ? cur / dur : 0)
+      const audio = getBestAudioSource()
+      if (!audio) return
+      const dur = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : timeInfo.total
+      const cur = audio.currentTime || 0
+      if (dur > 0) {
+        setProgress(cur / dur)
         setTimeInfo({ current: cur, total: dur })
-      } else if (totalFromMeta > 0) {
-        setTimeInfo(t => ({ ...t, total: totalFromMeta }))
+      } else {
+        setTimeInfo((t: {current:number;total:number}) => ({ ...t, current: cur }))
       }
     }, 250)
     return () => clearInterval(interval)
-  }, [gameState, meta.songLength])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState])
 
   function formatTime(sec: number) {
     const m = Math.floor(sec / 60)

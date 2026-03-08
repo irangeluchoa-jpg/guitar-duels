@@ -157,7 +157,7 @@ export function useGameEngine({
             lane,
             rating,
             time: performance.now(),
-            y: getHitLineY(canvasRef.current?.height ?? 600),
+            y: getHitLineY((canvasRef.current?.height ?? 600) / (window.devicePixelRatio || 1)),
           })
         }
       }
@@ -216,7 +216,7 @@ export function useGameEngine({
             lane: note.lane,
             rating: "miss",
             time: performance.now(),
-            y: getHitLineY(canvasRef.current?.height ?? 600),
+            y: getHitLineY((canvasRef.current?.height ?? 600) / (window.devicePixelRatio || 1)),
           })
         }
       }
