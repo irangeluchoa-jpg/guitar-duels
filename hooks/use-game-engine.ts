@@ -113,17 +113,37 @@ export function useGameEngine({
    * Tempo atual da música em ms, com calibração aplicada.
    * Valor positivo = notas ficam mais "adiantadas" para o jogador (compensa áudio atrasado).
    */
+  // Ref para sincronização periódica com audio.currentTime
+  const lastAudioSyncTime = useRef(0)     // performance.now() da última sync
+  const lastAudioSyncMs   = useRef(0)     // audio.currentTime em ms na última sync
+  const wallClockOffset   = useRef(0)     // diferença entre wallClock e áudio na última sync
+
   const getCurrentTime = useCallback((): number => {
     const audio = audioRef.current
     let t = 0
+
     if (audio && !audio.paused && !audio.ended && audio.readyState >= 2) {
-      t = audio.currentTime * 1000
+      const now = performance.now()
+      const audioMs = audio.currentTime * 1000
+
+      // Re-sincroniza com audio.currentTime a cada 500ms para corrigir drift
+      // Entre sincronizações usa performance.now() (resolução de 0.1ms)
+      if (now - lastAudioSyncTime.current > 500) {
+        lastAudioSyncTime.current = now
+        lastAudioSyncMs.current   = audioMs
+        wallClockOffset.current   = audioMs - now
+      }
+
+      // Usa o relógio de parede (performance.now) para precisão de input,
+      // corrigido pelo offset medido na última sincronização
+      t = now + wallClockOffset.current
     } else if (gameStartWallRef.current > 0) {
       t = performance.now() - gameStartWallRef.current
     } else {
       t = gameTimeRef.current
     }
-    // Aplica calibração: offset positivo = janela de hit avança, offset negativo = recua
+
+    // Aplica calibração
     return t + calibrationRef.current
   }, [audioRef])
 
@@ -137,7 +157,22 @@ export function useGameEngine({
       let bestDelta = Infinity
 
       for (const note of notes) {
-        if (note.lane !== lane || note.hit || note.missed) continue
+        if (note.lane !== lane || note.hit) continue
+        // Aceita notas recém-marcadas como missed (race condition com checkMisses no mesmo frame)
+        // Se a nota foi marcada missed mas o currentTime ainda está dentro da janela, aceita o hit
+        if (note.missed) {
+          const delta = Math.abs(note.time - currentTime)
+          if (delta > TIMING_MISS + 30) continue   // muito tarde, ignora mesmo
+          // Recupera: desmarca missed e aceita o hit
+          note.missed = false
+          // Reverte o miss que foi aplicado aos stats
+          const reverted = { ...statsRef.current }
+          reverted.miss = Math.max(0, reverted.miss - 1)
+          reverted.combo = statsRef.current.combo   // combo já foi zerado, mantém
+          reverted.rockMeter = Math.min(100, statsRef.current.rockMeter + 8) // devolve o -8 do miss
+          statsRef.current = reverted
+          setStats(reverted)
+        }
         const delta = Math.abs(note.time - currentTime)
         if (delta <= TIMING_MISS && delta < bestDelta) {
           bestNote = note
@@ -213,9 +248,11 @@ export function useGameEngine({
 
   const checkMisses = useCallback(
     (currentTime: number) => {
+      // Margem de 1 frame extra (≈20ms) para evitar race condition com keydown no mesmo frame
+      const MISS_GUARD = TIMING_MISS + 20
       for (const note of notesRef.current) {
         if (note.hit || note.missed) continue
-        if (currentTime - note.time > TIMING_MISS) {
+        if (currentTime - note.time > MISS_GUARD) {
           note.missed = true
           const newStats = applyHit(statsRef.current, "miss")
           statsRef.current = newStats
@@ -364,6 +401,9 @@ export function useGameEngine({
     keysDownRef.current.clear()
     gameTimeRef.current = 0
     gameStartWallRef.current = 0
+    lastAudioSyncTime.current = 0
+    lastAudioSyncMs.current = 0
+    wallClockOffset.current = 0
 
     setGameState("countdown")
     gameStateRef.current = "countdown"
