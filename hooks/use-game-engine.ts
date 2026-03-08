@@ -66,6 +66,8 @@ export function useGameEngine({
   const whammyRef = useRef<WhammyState>({ active: false, accumulatedMs: 0, bonusScore: 0 })
   const whammyKeyRef = useRef(false)
   const lastWhammyTime = useRef(0)
+  const pendingHitsRef = useRef<number[]>([])   // lanes pendentes para processar no início do frame
+  const difficultyRef   = useRef<number>(meta.difficulty ?? 3)
   const gamepadEnabledRef  = useRef<boolean>(true)
 
   useEffect(() => {
@@ -147,32 +149,16 @@ export function useGameEngine({
     return t + calibrationRef.current
   }, [audioRef])
 
-  const processHit = useCallback(
-    (lane: number) => {
-      if (gameStateRef.current !== "playing") return
-      const currentTime = getCurrentTime()
+  // Versão interna: recebe currentTime já calculado (chamada no início do frame)
+  const _processHit = useCallback(
+    (lane: number, currentTime: number) => {
       const notes = notesRef.current
 
       let bestNote: ActiveNote | null = null
       let bestDelta = Infinity
 
       for (const note of notes) {
-        if (note.lane !== lane || note.hit) continue
-        // Aceita notas recém-marcadas como missed (race condition com checkMisses no mesmo frame)
-        // Se a nota foi marcada missed mas o currentTime ainda está dentro da janela, aceita o hit
-        if (note.missed) {
-          const delta = Math.abs(note.time - currentTime)
-          if (delta > TIMING_MISS + 30) continue   // muito tarde, ignora mesmo
-          // Recupera: desmarca missed e aceita o hit
-          note.missed = false
-          // Reverte o miss que foi aplicado aos stats
-          const reverted = { ...statsRef.current }
-          reverted.miss = Math.max(0, reverted.miss - 1)
-          reverted.combo = statsRef.current.combo   // combo já foi zerado, mantém
-          reverted.rockMeter = Math.min(100, statsRef.current.rockMeter + 8) // devolve o -8 do miss
-          statsRef.current = reverted
-          setStats(reverted)
-        }
+        if (note.lane !== lane || note.hit || note.missed) continue
         const delta = Math.abs(note.time - currentTime)
         if (delta <= TIMING_MISS && delta < bestDelta) {
           bestNote = note
@@ -187,7 +173,7 @@ export function useGameEngine({
           bestNote.hitRating = rating
           bestNote.hitTime = currentTime
 
-          const newStats = applyHit(statsRef.current, rating)
+          const newStats = applyHit(statsRef.current, rating, difficultyRef.current)
           statsRef.current = newStats
           setStats(newStats)
           onScoreUpdate?.(newStats)
@@ -205,7 +191,17 @@ export function useGameEngine({
         }
       }
     },
-    [getCurrentTime, canvasRef, onScoreUpdate]
+    [canvasRef, onScoreUpdate]
+  )
+
+  // API pública: enfileira o hit para processamento no início do próximo frame
+  const processHit = useCallback(
+    (lane: number) => {
+      if (gameStateRef.current !== "playing") return
+      // Enfileira para processar ANTES do checkMisses no próximo frame
+      pendingHitsRef.current.push(lane)
+    },
+    []
   )
 
   // Teclado
@@ -248,13 +244,14 @@ export function useGameEngine({
 
   const checkMisses = useCallback(
     (currentTime: number) => {
-      // Margem de 1 frame extra (≈20ms) para evitar race condition com keydown no mesmo frame
-      const MISS_GUARD = TIMING_MISS + 20
+      // Margem extra de 40ms (≈2-3 frames a 60fps) para que o keydown sempre chegue primeiro
+      // Isso evita que checkMisses marque miss enquanto o jogador ainda tem tempo de acertar
+      const MISS_GUARD = TIMING_MISS + 40
       for (const note of notesRef.current) {
         if (note.hit || note.missed) continue
         if (currentTime - note.time > MISS_GUARD) {
           note.missed = true
-          const newStats = applyHit(statsRef.current, "miss")
+          const newStats = applyHit(statsRef.current, "miss", difficultyRef.current)
           statsRef.current = newStats
           setStats(newStats)
           onScoreUpdate?.(newStats)
@@ -280,6 +277,10 @@ export function useGameEngine({
 
     const currentTime = getCurrentTime()
     gameTimeRef.current = currentTime
+    // IMPORTANTE: processar hits pendentes ANTES de checkMisses
+    // para evitar que notas sejam marcadas como missed no mesmo frame em que foram acertadas
+    const pending = pendingHitsRef.current.splice(0)
+    for (const lane of pending) _processHit(lane, currentTime)
     checkMisses(currentTime)
 
     const now = performance.now()

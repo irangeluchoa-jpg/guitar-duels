@@ -45,9 +45,25 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
   const vocalsAudioRef  = useRef<HTMLAudioElement>(null)
   const crowdAudioRef   = useRef<HTMLAudioElement>(null)
   const keysAudioRef    = useRef<HTMLAudioElement>(null)
+  const allAudioRefs = [primaryAudioRef, guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef]
 
   // Carrega configurações salvas
   const [settings] = useState(() => loadSettings())
+
+  // Aplica dispositivo de saída de áudio escolhido nas configurações
+  useEffect(() => {
+    const deviceId = settings.audioOutputDeviceId ?? ""
+    for (const ref of allAudioRefs) {
+      const el = ref.current
+      if (!el) continue
+      // setSinkId é suportado no Chrome/Edge; Firefox e Safari ainda não suportam
+      if (typeof (el as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }).setSinkId === "function") {
+        ;(el as HTMLAudioElement & { setSinkId: (id: string) => Promise<void> })
+          .setSinkId(deviceId)
+          .catch(() => {/* dispositivo pode ter sido desconectado */})
+      }
+    }
+  }, [settings.audioOutputDeviceId])
 
   // Faixa principal: song > backing > guitar > rhythm (para sincronizar o tempo)
   const primarySrc = audioUrls?.song || audioUrls?.backing || audioUrls?.guitar || audioUrls?.rhythm || null

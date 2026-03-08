@@ -81,16 +81,29 @@ export function calculateMultiplier(combo: number): number {
   return 1
 }
 
-export function updateRockMeter(current: number, rating: HitRating): number {
-  const delta: Record<HitRating, number> = { perfect: 3, great: 2, good: 1, miss: -8 }
+// Penalidade de miss por dificuldade:
+//   Easy   (0-1): miss = -3  (precisa de ~17 misses seguidos para falhar do meio)
+//   Medium (2-3): miss = -6
+//   Hard   (4-5): miss = -10
+//   Expert (6+):  miss = -14
+export function getMissPenalty(difficulty: number): number {
+  if (difficulty <= 1) return -3
+  if (difficulty <= 3) return -6
+  if (difficulty <= 5) return -10
+  return -14
+}
+
+export function updateRockMeter(current: number, rating: HitRating, difficulty = 3): number {
+  const missPenalty = getMissPenalty(difficulty)
+  const delta: Record<HitRating, number> = { perfect: 3, great: 2, good: 1, miss: missPenalty }
   return Math.max(0, Math.min(100, current + delta[rating]))
 }
 
-export function applyHit(stats: GameStats, rating: HitRating): GameStats {
+export function applyHit(stats: GameStats, rating: HitRating, difficulty = 3): GameStats {
   const s = { ...stats }
   if (rating === "miss") {
     s.miss += 1; s.combo = 0; s.streak = 0; s.multiplier = 1
-    s.rockMeter = updateRockMeter(s.rockMeter, rating)
+    s.rockMeter = updateRockMeter(s.rockMeter, rating, difficulty)
     return s
   }
   s[rating] += 1
@@ -98,7 +111,7 @@ export function applyHit(stats: GameStats, rating: HitRating): GameStats {
   s.maxCombo = Math.max(s.maxCombo, s.combo)
   s.multiplier = calculateMultiplier(s.combo)
   s.score += getScoreForRating(rating, s.multiplier)
-  s.rockMeter = updateRockMeter(s.rockMeter, rating)
+  s.rockMeter = updateRockMeter(s.rockMeter, rating, difficulty)
   return s
 }
 

@@ -17,6 +17,7 @@ export interface GameSettings {
   highwayTheme: "default" | "neon" | "fire" | "space" | "wood"
   noteShape: "circle" | "square" | "diamond"
   cameraShake: boolean
+  audioOutputDeviceId: string   // '' = padrão do sistema
 }
 
 export const DEFAULT_KEY_BINDINGS  = ["a", "s", "d", "j", "k", "l"]
@@ -38,6 +39,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   highwayTheme: "default",
   noteShape: "circle",
   cameraShake: true,
+  audioOutputDeviceId: "",
 }
 
 const KEY = "guitar-duels-settings"
@@ -58,7 +60,8 @@ export function loadSettings(): GameSettings {
         gamepadEnabled:  parsed.gamepadEnabled  ?? true,
         highwayTheme:    parsed.highwayTheme    ?? "default",
         noteShape:       parsed.noteShape       ?? "circle",
-        cameraShake:     parsed.cameraShake     ?? true,
+        cameraShake:         parsed.cameraShake         ?? true,
+        audioOutputDeviceId: parsed.audioOutputDeviceId ?? "",
       }
     }
   } catch {}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Volume2, Gauge, Eye, Keyboard, RotateCcw, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Volume2, Gauge, Eye, Keyboard, RotateCcw, AlertTriangle, Headphones, RefreshCw } from "lucide-react"
 import { loadSettings, saveSettings, DEFAULT_SETTINGS, DEFAULT_KEY_BINDINGS, DEFAULT_KEY_BINDINGS4, DEFAULT_KEY_BINDINGS5, type GameSettings } from "@/lib/settings"
 import { loadGamepadBindings, saveGamepadBindings, DEFAULT_GAMEPAD_BINDINGS, GAMEPAD_PROFILES, detectProfile, type GamepadProfile } from "@/hooks/use-gamepad"
 import { playClickSound, playHoverSound, playHitSound } from "@/lib/game/sounds"
@@ -24,6 +24,9 @@ export default function SettingsPage() {
   const router = useRouter()
   const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS)
   const [saved, setSaved] = useState(false)
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
+  const [sinkIdSupported, setSinkIdSupported] = useState(false)
+  const [loadingDevices, setLoadingDevices] = useState(false)
 
   // Gamepad state
   const [gamepadConnected, setGamepadConnected] = useState(false)
@@ -42,6 +45,39 @@ export default function SettingsPage() {
     setSettings(loadSettings())
     setGamepadBindings(loadGamepadBindings())
   }, [])
+
+  // Verifica suporte a setSinkId e carrega dispositivos de saída
+  const loadAudioDevices = useCallback(async () => {
+    const testEl = document.createElement("audio")
+    const supported = typeof (testEl as HTMLAudioElement & { setSinkId?: unknown }).setSinkId === "function"
+    setSinkIdSupported(supported)
+    if (!supported) return
+
+    setLoadingDevices(true)
+    try {
+      // Pede permissão de microfone para desbloquear enumeração completa de dispositivos
+      // (sem isso, os labels aparecem vazios em alguns browsers)
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        stream.getTracks().forEach(t => t.stop())
+      } catch { /* permissão negada — lista parcial ainda pode aparecer */ }
+
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const outputs = devices.filter(d => d.kind === "audiooutput")
+      setAudioDevices(outputs)
+    } catch {
+      setAudioDevices([])
+    } finally {
+      setLoadingDevices(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadAudioDevices()
+    // Re-enumerate quando dispositivos mudam (plug/unplug)
+    navigator.mediaDevices?.addEventListener?.("devicechange", loadAudioDevices)
+    return () => navigator.mediaDevices?.removeEventListener?.("devicechange", loadAudioDevices)
+  }, [loadAudioDevices])
 
   // Gamepad detection — polling ativo (necessário para Bluetooth e alguns controles)
   // Eventos gamepadconnected não são confiáveis via Bluetooth; polling a cada 500ms resolve
@@ -290,6 +326,89 @@ export default function SettingsPage() {
               <span className="text-xs font-mono text-white/40 w-8 text-right">
                 {Math.round((settings.masterVolume / 100) * (settings.musicVolume / 100) * 100)}%
               </span>
+            </div>
+
+            {/* ── Dispositivo de Saída de Áudio ── */}
+            <div className="mt-2 p-3 rounded-xl flex flex-col gap-3"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Headphones size={14} style={{ color: "#e11d48" }} />
+                  <div>
+                    <p className="text-sm text-white font-semibold">Saída de Áudio</p>
+                    <p className="text-xs text-white/30 mt-0.5">Escolha o dispositivo de saída do jogo</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { playClickSound(vol); loadAudioDevices() }}
+                  title="Recarregar dispositivos"
+                  className="p-1.5 rounded-lg transition-all hover:scale-110"
+                  style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}
+                >
+                  <RefreshCw size={13} className={loadingDevices ? "animate-spin" : ""} />
+                </button>
+              </div>
+
+              {!sinkIdSupported ? (
+                <div className="flex items-center gap-2 p-2 rounded-lg"
+                  style={{ background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.2)" }}>
+                  <AlertTriangle size={13} style={{ color: "#f97316", flexShrink: 0 }} />
+                  <p className="text-xs" style={{ color: "rgba(249,115,22,0.8)" }}>
+                    Seu navegador não suporta seleção de dispositivo de áudio.
+                    Use Chrome ou Edge para esta função.
+                  </p>
+                </div>
+              ) : audioDevices.length === 0 ? (
+                <div className="flex items-center gap-2 p-2 rounded-lg"
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <p className="text-xs text-white/30">
+                    {loadingDevices ? "Carregando dispositivos..." : "Nenhum dispositivo encontrado. Clique em ↺ para tentar novamente."}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {/* Default option */}
+                  {[{ deviceId: "", label: "🔊 Padrão do Sistema" }, ...audioDevices.map(d => ({
+                    deviceId: d.deviceId,
+                    label: d.label || `Dispositivo ${d.deviceId.slice(0, 8)}…`,
+                  }))].map(dev => {
+                    const isSelected = (settings.audioOutputDeviceId ?? "") === dev.deviceId
+                    return (
+                      <button
+                        key={dev.deviceId}
+                        onClick={() => { playClickSound(vol); update({ audioOutputDeviceId: dev.deviceId }) }}
+                        className="flex items-center gap-3 p-2.5 rounded-xl text-left transition-all hover:scale-[1.01]"
+                        style={{
+                          background: isSelected ? "rgba(225,29,72,0.15)" : "rgba(255,255,255,0.04)",
+                          border: `1px solid ${isSelected ? "rgba(225,29,72,0.4)" : "rgba(255,255,255,0.07)"}`,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div style={{
+                          width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
+                          background: isSelected ? "#e11d48" : "rgba(255,255,255,0.15)",
+                          boxShadow: isSelected ? "0 0 8px rgba(225,29,72,0.6)" : "none",
+                          transition: "all 0.15s",
+                        }} />
+                        <span className="text-sm font-medium flex-1 min-w-0 truncate"
+                          style={{ color: isSelected ? "#fff" : "rgba(255,255,255,0.55)" }}>
+                          {dev.label}
+                        </span>
+                        {isSelected && (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                            style={{ background: "rgba(225,29,72,0.25)", color: "#e11d48" }}>
+                            ativo
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
+                💡 Se não ver seus dispositivos, clique em ↺ ou permita acesso ao microfone quando pedido.
+              </p>
             </div>
           </Section>
 
