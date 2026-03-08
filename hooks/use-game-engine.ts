@@ -234,10 +234,10 @@ export function useGameEngine({
 
   // Controle (gamepad) — suporta Xbox, PlayStation, guitarra GH e genéricos
   useGamepad({
-    enabled: gamepadEnabledRef.current,
+    enabled: true, // enabledRef dentro do hook cuida de ligar/desligar dinamicamente
     keysDownRef,
     laneCount,
-    onLanePress:   (lane) => { processHit(lane) },
+    onLanePress:   (lane) => { if (gamepadEnabledRef.current) processHit(lane) },
     onLaneRelease: (lane) => { keysDownRef.current.delete(lane) },
     onPause:       () => { if (gameStateRef.current === "playing") pause() },
   })
