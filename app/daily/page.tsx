@@ -105,7 +105,9 @@ export default function DailyPage() {
   function handleSongEnd(stats: GameStats) {
     setLastStats(stats)
 
-    const playerName = (typeof window !== "undefined" && sessionStorage.getItem("playerName")) || "Jogador"
+    const profileRaw = typeof window !== "undefined" ? localStorage.getItem("guitar-duels-profile") : null
+    const profileName = profileRaw ? (JSON.parse(profileRaw).displayName || "") : ""
+    const playerName = (typeof window !== "undefined" && sessionStorage.getItem("playerName")) || profileName || "Guitarrista"
     const accuracy = getAccuracy(stats)
     const fc = isFullCombo(stats)
     const grade = getGrade(accuracy, fc)

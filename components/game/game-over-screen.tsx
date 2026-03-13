@@ -45,7 +45,9 @@ export function GameOverScreen({
   // Salva score + detecta novo recorde
   useEffect(() => {
     try {
-      const playerName = sessionStorage.getItem("playerName") || "Jogador"
+      const profileRaw = localStorage.getItem("guitar-duels-profile")
+      const profileName = profileRaw ? (JSON.parse(profileRaw).displayName || "") : ""
+      const playerName = sessionStorage.getItem("playerName") || profileName || "Guitarrista"
 
       // Verificar recorde anterior
       const scoresRaw = localStorage.getItem("guitar-duels-scores")
