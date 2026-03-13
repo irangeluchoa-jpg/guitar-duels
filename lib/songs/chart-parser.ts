@@ -103,7 +103,7 @@ export function parseChart(content: string): ChartData {
 
     let lane = GH_FRET_TO_LANE[rn.fret]
     if (lane === undefined) continue // unknown fret
-    lane = Math.min(lane, 4) // clamp to 5 lanes (0-4)
+    // Não clampear aqui — prepareNotes no engine cuida do mapeamento por laneCount
 
     const timeMs = tickToMs(rn.tick, bpmChanges, resolution)
     const durationMs = rn.duration > 0

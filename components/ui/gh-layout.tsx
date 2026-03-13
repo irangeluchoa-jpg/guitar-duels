@@ -151,11 +151,11 @@ export function GHLogo({ size = "sm" }: { size?: "sm" | "md" | "lg" }) {
 }
 
 // ── Botão de voltar GH3 ───────────────────────────────────────────────────────
-export function GHBackButton({ label = "Voltar" }: { label?: string }) {
+export function GHBackButton({ label = "Voltar", href = "/" }: { label?: string; href?: string }) {
   const router = useRouter()
   return (
     <button
-      onClick={() => { playClickSound(getVol()); router.back() }}
+      onClick={() => { playClickSound(getVol()); router.push(href) }}
       onMouseEnter={() => playHoverSound(getVol())}
       className="flex items-center gap-2 px-4 py-2 transition-all hover:scale-105 active:scale-95"
       style={{ fontFamily:"'Impact','Arial Black',sans-serif",
@@ -169,12 +169,13 @@ export function GHBackButton({ label = "Voltar" }: { label?: string }) {
 }
 
 // ── Card de conteúdo GH3 ──────────────────────────────────────────────────────
-export function GHCard({ children, className="" }: { children: React.ReactNode; className?: string }) {
+export function GHCard({ children, className="", style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
     <div className={`relative overflow-hidden ${className}`}
       style={{ background:"linear-gradient(135deg,rgba(20,8,35,.92),rgba(12,4,22,.95))",
         border:"1px solid rgba(180,80,255,.18)", borderRadius:"6px",
-        boxShadow:"0 4px 24px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05)" }}>
+        boxShadow:"0 4px 24px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05)",
+        ...style }}>
       {/* Top colored stripe */}
       <div className="absolute top-0 left-0 right-0 h-px"
         style={{ background:"linear-gradient(90deg,transparent,rgba(220,100,255,.5),transparent)" }} />

@@ -9,6 +9,7 @@ import { useGameEngine } from "@/hooks/use-game-engine"
 import { GameCountdown } from "./game-countdown"
 import { GameOverScreen } from "./game-over-screen"
 import { PauseOverlay } from "./pause-overlay"
+import { TouchLanes } from "./touch-lanes"
 import { loadSettings, toGain } from "@/lib/settings"
 import { useGamepad } from "@/hooks/use-gamepad"
 
@@ -29,12 +30,13 @@ interface GameCanvasProps {
   speed?: number
   onBack?: () => void
   onScoreUpdate?: (stats: GameStats) => void
-  onSongEnd?: () => void
+  onSongEnd?: (stats: GameStats) => void
   externalPaused?: boolean
   laneCount?: number
+  isDaily?: boolean
 }
 
-export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused, laneCount = 5 }: GameCanvasProps) {
+export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused, laneCount = 5, isDaily = false }: GameCanvasProps) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const isLeavingRef = useRef(false)   // impede startGame após navegar para fora
@@ -85,7 +87,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
 
   const [gpConnected, setGpConnected] = useState(false)
 
-  const { gameState, stats, countdown, startGame, pause, resume, restart, accuracy, grade } =
+  const { gameState, stats, countdown, startGame, pause, resume, restart, accuracy, grade, isFC, failed, touchPress, touchRelease } =
     useGameEngine({
       chart, meta,
       audioRef: primaryAudioRef,
@@ -97,7 +99,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       noteShape: settings.noteShape,
       highwayTheme: settings.highwayTheme,
       cameraShake: settings.cameraShake,
-      onSongEnd: () => { onSongEnd?.() },
+      onSongEnd: (stats) => { onSongEnd?.(stats) },
       onScoreUpdate,
     })
 
@@ -293,7 +295,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
   const hasAudio = !!(realPrimary || realGuitar || realRhythm)
 
   return (
-    <div ref={containerRef} className="relative w-full h-screen overflow-hidden" style={{ background: "#060608" }}>
+    <div ref={containerRef} className="relative w-full overflow-hidden" style={{ background: "#060608", height: "100dvh" }}>
       {/* Background da música — imagem ou vídeo */}
       {backgroundUrl && (
         backgroundUrl.endsWith(".mp4") || backgroundUrl.endsWith(".webm") ? (
@@ -360,45 +362,45 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
 
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
-        <div className="mx-3 mt-3 rounded-2xl overflow-hidden"
+        <div className="mx-1 sm:mx-3 mt-1 sm:mt-3 rounded-xl sm:rounded-2xl overflow-hidden"
           style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 4px 24px rgba(0,0,0,0.5)" }}>
 
           {/* Conteúdo principal */}
-          <div className="flex items-center gap-3 px-4 py-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-3 px-2 sm:px-4 py-1.5 sm:py-2.5">
             {/* Info da música */}
             <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.3em] truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
-                {meta.artist}{gpConnected && <span className="ml-2 text-indigo-400">🎮</span>}
+              <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-[0.2em] sm:tracking-[0.3em] truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
+                {meta.artist}{gpConnected && <span className="ml-1 sm:ml-2 text-indigo-400">🎮</span>}
               </p>
-              <h2 className="text-sm font-black text-white truncate leading-tight">{meta.name}</h2>
+              <h2 className="text-xs sm:text-sm font-black text-white truncate leading-tight">{meta.name}</h2>
             </div>
 
             {/* Timer central */}
-            <div className="flex flex-col items-center gap-0.5 shrink-0">
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-black font-mono text-white leading-none">
+            <div className="flex flex-col items-center shrink-0">
+              <div className="flex items-baseline gap-0.5 sm:gap-1">
+                <span className="text-sm sm:text-lg font-black font-mono text-white leading-none">
                   {formatTime(timeInfo.current)}
                 </span>
-                <span className="text-xs text-white/25 font-mono">/</span>
-                <span className="text-sm font-bold font-mono" style={{ color: "rgba(255,255,255,0.45)" }}>
+                <span className="text-[9px] sm:text-xs text-white/25 font-mono">/</span>
+                <span className="text-[10px] sm:text-sm font-bold font-mono" style={{ color: "rgba(255,255,255,0.45)" }}>
                   {timeInfo.total > 0 ? formatTime(timeInfo.total) : "--:--"}
                 </span>
               </div>
             </div>
 
             {/* Velocidade */}
-            <div className="shrink-0 flex items-center gap-2">
+            <div className="shrink-0 flex items-center gap-1 sm:gap-2">
               {!hasAudio && (
-                <span className="text-[9px] text-yellow-500/60 bg-yellow-500/10 px-2 py-0.5 rounded-full">sem áudio</span>
+                <span className="hidden sm:inline text-[9px] text-yellow-500/60 bg-yellow-500/10 px-2 py-0.5 rounded-full">sem áudio</span>
               )}
-              <div className="px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                <span className="text-xs font-black text-white/50">{effectiveSpeed}x</span>
+              <div className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full" style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                <span className="text-[10px] sm:text-xs font-black text-white/50">{effectiveSpeed}x</span>
               </div>
             </div>
           </div>
 
           {/* Progress bar integrada */}
-          <div className="h-1 w-full" style={{ background: "rgba(255,255,255,0.04)" }}>
+          <div className="h-0.5 sm:h-1 w-full" style={{ background: "rgba(255,255,255,0.04)" }}>
             <div className="h-full transition-all duration-300"
               style={{
                 width: `${progress * 100}%`,
@@ -420,10 +422,19 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
         </div>
       )}
 
+      {/* Botões de toque para mobile */}
+      {gameState === "playing" && (
+        <TouchLanes
+          laneCount={laneCount}
+          onLanePress={touchPress}
+          onLaneRelease={touchRelease}
+        />
+      )}
+
       {gameState === "countdown" && <GameCountdown count={countdown} />}
       {gameState === "paused" && externalPaused === undefined && <PauseOverlay onResume={resume} onRestart={handleRestart} onQuit={handleBack} />}
       {gameState === "ended"     && (
-        <GameOverScreen stats={stats} accuracy={accuracy} grade={grade} meta={meta} onRestart={handleRestart} onBack={handleBack} />
+        <GameOverScreen stats={stats} accuracy={accuracy} grade={grade} isFC={isFC} meta={meta} onRestart={handleRestart} onBack={handleBack} failed={failed.current} isDaily={isDaily} />
       )}
     </div>
   )

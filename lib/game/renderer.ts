@@ -10,8 +10,13 @@ const TRACK_WIDTH_RATIO = 0.50
 const TRACK_WIDTH_TOP   = 0.09
 const GLOW_DURATION     = 520
 const NOTE_SPEED_BASE   = 0.55
+// Tamanho das notas proporcional à largura da lane (responsivo a qualquer resolução)
+// rx = 42% da meia-largura da lane; ry = 32% de rx (nota achatada estilo GH)
+function noteRX(laneW: number) { return Math.max(12, Math.min(laneW * 0.42, 48)) }
+function noteRY(laneW: number) { return Math.max(4,  Math.min(laneW * 0.13, 14)) }
+// Valores de referência para efeitos que não têm laneW facilmente (mantidos para compat)
 const NOTE_RX_BASE      = 33
-const NOTE_RY_BASE      = 11   // notas achatadas tipo GH:WT / GHL
+const NOTE_RY_BASE      = 11
 const SUSTAIN_WIDTH     = 16
 const STAR_POWER_COMBO  = 30
 
@@ -64,6 +69,9 @@ const COMBO_GLOW = ["#FFDD00","#D55800","#00FF00","#4E7F9E","#B2E1FF","#CC44FF"]
 // ── Cache ──────────────────────────────────────────────────────────────────
 // Cache: [diffKey][starPower] -> OffscreenCanvas
 const _fretCache = new Map<string, OffscreenCanvas>()
+// Cache de notas pré-renderizadas: evita recriar gradientes a cada frame
+const _noteCache = new Map<string, OffscreenCanvas>()
+const MAX_NOTE_CACHE = 48
 let _fretW = 0, _fretH = 0
 
 // Pre-loaded highway images (loaded once on first use)
@@ -123,7 +131,8 @@ interface RenderState {
 export function getHitLineY(h: number) { return h * HIT_LINE_Y_RATIO }
 
 function project(lane: number, timeAhead: number, canvas: HTMLCanvasElement, noteSpeed: number, lc = LANE_COUNT) {
-  const w = canvas.width, h = canvas.height
+  const dpr = (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1
+  const w = canvas.width / dpr, h = canvas.height / dpr
   const vanishY = h * VANISHING_Y_RATIO, hitY = h * HIT_LINE_Y_RATIO
   const maxMs = 2200 / noteSpeed
   const t = Math.min(timeAhead / maxMs, 1)
@@ -486,6 +495,7 @@ function noteShapePath(ctx: CanvasRenderingContext2D, x: number, y: number, rx: 
   }
 }
 
+// Desenha nota usando cache de OffscreenCanvas — só reconstrói quando muda tamanho/lane/shape
 function drawNoteGH(
   ctx: CanvasRenderingContext2D,
   x: number, y: number,
@@ -495,9 +505,52 @@ function drawNoteGH(
   now: number,
   shape: "circle" | "square" | "diamond" = "circle"
 ) {
-  const sp   = starPower
-  const t    = now * 0.003
-  // Nota usa a cor da lane — aro brilhante com a cor do botão
+  const sp  = starPower
+  const rxR = Math.round(rx * 2) / 2
+  const ryR = Math.round(ry * 2) / 2
+  const cacheKey = `n:${laneIdx}:${rxR}:${ryR}:${sp?1:0}:${shape}`
+
+  let cached = _noteCache.get(cacheKey)
+  if (!cached) {
+    if (_noteCache.size >= MAX_NOTE_CACHE) {
+      const firstKey = _noteCache.keys().next().value
+      if (firstKey) _noteCache.delete(firstKey)
+    }
+    const pad = Math.ceil(rxR * 3.5)
+    const ow  = Math.ceil(rxR * 2 + pad * 2)
+    const oh  = Math.ceil(ryR * 2 + pad * 2)
+    const oc  = new OffscreenCanvas(ow, oh)
+    _drawNoteGHInner(oc.getContext('2d')!, ow / 2, oh / 2, rxR, ryR, laneIdx, sp, shape)
+    cached = oc
+    _noteCache.set(cacheKey, cached)
+  }
+
+  // Blit do cache (barato — sem gradientes)
+  ctx.drawImage(cached, Math.round(x - cached.width / 2), Math.round(y - cached.height / 2))
+
+  // Corona pulsante animada (só 1 ellipse fill por nota — custo mínimo)
+  const t      = now * 0.003
+  const anim   = NOTE_ANIM_COLORS[laneIdx] ?? "#ffffff"
+  const rgb    = hexToRgb(sp ? "#00ffff" : anim)
+  const flick  = 0.82 + Math.sin(t * 2.4 + x * 0.03) * 0.18
+  ctx.globalAlpha = sp ? 0.45 : 0.28
+  ctx.beginPath()
+  ctx.ellipse(x, y + ryR * 0.3, rxR * 0.45 * flick, ryR * 1.6 * flick, 0, 0, Math.PI * 2)
+  ctx.fillStyle = `rgba(${rgb},0.9)`
+  ctx.fill()
+  ctx.globalAlpha = 1
+}
+
+
+// ── Helper interno para renderizar nota em OffscreenCanvas (sem animação) ──────
+function _drawNoteGHInner(
+  ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D,
+  x: number, y: number,
+  rx: number, ry: number,
+  laneIdx: number,
+  sp: boolean,
+  shape: "circle" | "square" | "diamond"
+) {
   const laneCol  = NOTE_COLORS[laneIdx]  ?? "#00e5ff"
   const laneAnim = NOTE_ANIM_COLORS[laneIdx] ?? laneCol
   const rimCol   = sp ? "#00ffff" : laneCol
@@ -508,75 +561,65 @@ function drawNoteGH(
 
   ctx.save()
 
-  // ── Glow externo sutil ───────────────────────────────────────────────
-  const haloG = ctx.createRadialGradient(x, y, rx*0.5, x, y, rx*3.2)
+  // Glow externo
+  const haloG = (ctx as CanvasRenderingContext2D).createRadialGradient(x, y, rx*0.5, x, y, rx*3.2)
   haloG.addColorStop(0,   `rgba(${rimAnimRgb},${sp?0.30:0.18})`)
   haloG.addColorStop(1,   "transparent")
   ctx.fillStyle = haloG
-  noteShapePath(ctx, x, y, rx*3.2, ry*3.2, shape); ctx.fill()
+  noteShapePath(ctx as CanvasRenderingContext2D, x, y, rx*3.2, ry*3.2, shape); ctx.fill()
 
-  // ── Shadow drop ───────────────────────────────────────────────────────
+  // Shadow drop
   ctx.save(); ctx.globalAlpha = 0.35
   ctx.beginPath(); ctx.ellipse(x, y + ry*1.0, rx*0.82, ry*0.20, 0, 0, Math.PI*2)
   ctx.fillStyle = "rgba(0,0,0,1)"; ctx.fill(); ctx.restore()
 
-  // ── Glow edge ─────────────────────────────────────────────────────────
+  // Glow edge
   ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt
 
-  // ── Base — gradiente escuro metálico ─────────────────────────────────
-  const baseG = ctx.createRadialGradient(x - rx*0.20, y - ry*0.35, 0, x, y, rx*1.05)
+  // Base metálica
+  const baseG = (ctx as CanvasRenderingContext2D).createRadialGradient(x - rx*0.20, y - ry*0.35, 0, x, y, rx*1.05)
   baseG.addColorStop(0,    "#3a3a3a")
   baseG.addColorStop(0.30, "#1e1e1e")
   baseG.addColorStop(0.70, "#111111")
   baseG.addColorStop(1,    "#080808")
-  noteShapePath(ctx, x, y, rx, ry, shape)
+  noteShapePath(ctx as CanvasRenderingContext2D, x, y, rx, ry, shape)
   ctx.fillStyle = baseG; ctx.fill()
   ctx.shadowBlur = 0
 
-  // ── Aro externo brilhante ─────────────────────────────────────────────
-  noteShapePath(ctx, x, y, rx, ry, shape)
+  // Aro externo
+  noteShapePath(ctx as CanvasRenderingContext2D, x, y, rx, ry, shape)
   ctx.strokeStyle = rimCol
   ctx.lineWidth = Math.max(1.8, rx * 0.12)
   ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt * 1.2
   ctx.stroke(); ctx.shadowBlur = 0
 
-  // ── Anel interno médio (detalhe metálico) ─────────────────────────────
+  // Anel interno
   ctx.beginPath(); ctx.ellipse(x, y, rx*0.68, ry*0.68, 0, 0, Math.PI*2)
   ctx.strokeStyle = `rgba(${rimRgb},${sp?0.70:0.45})`
   ctx.lineWidth = 1.0; ctx.stroke()
 
-  // ── Centro escuro + pequeno reflexo ──────────────────────────────────
+  // Centro escuro
   ctx.beginPath(); ctx.ellipse(x, y, rx*0.46, ry*0.46, 0, 0, Math.PI*2)
   ctx.fillStyle = "#0a0a0a"; ctx.fill()
 
-  // Dot reflexo no centro
-  const dotG = ctx.createRadialGradient(x - rx*0.08, y - ry*0.15, 0, x, y, rx*0.32)
+  // Dot reflexo
+  const dotG = (ctx as CanvasRenderingContext2D).createRadialGradient(x - rx*0.08, y - ry*0.15, 0, x, y, rx*0.32)
   dotG.addColorStop(0,    `rgba(${rimRgb},${sp?0.85:0.60})`)
   dotG.addColorStop(0.5,  `rgba(${rimRgb},0.12)`)
   dotG.addColorStop(1,    "transparent")
   ctx.fillStyle = dotG; ctx.fill()
 
-  // ── Shine especular no topo esquerdo ─────────────────────────────────
+  // Shine especular
   ctx.save()
   ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2); ctx.clip()
-  const shG = ctx.createRadialGradient(x - rx*0.28, y - ry*0.48, 0, x, y - ry*0.1, rx*0.58)
+  const shG = (ctx as CanvasRenderingContext2D).createRadialGradient(x - rx*0.28, y - ry*0.48, 0, x, y - ry*0.1, rx*0.58)
   shG.addColorStop(0,    "rgba(255,255,255,0.75)")
   shG.addColorStop(0.18, "rgba(255,255,255,0.18)")
   shG.addColorStop(1,    "transparent")
   ctx.fillStyle = shG; ctx.fill(); ctx.restore()
 
-  // ── Glow pulsante embaixo (corona cyan sutil) ─────────────────────────
-  const flicker = 0.82 + Math.sin(t*2.4 + x*0.03)*0.18
-  const coronaG = ctx.createRadialGradient(x, y + ry*0.3, 0, x, y + ry*0.3, rx*0.85*flicker)
-  coronaG.addColorStop(0,    `rgba(${rimAnimRgb},${sp?0.55:0.35})`)
-  coronaG.addColorStop(0.55, `rgba(${rimAnimRgb},0.06)`)
-  coronaG.addColorStop(1,    "transparent")
-  ctx.fillStyle = coronaG
-  ctx.beginPath(); ctx.ellipse(x, y + ry*0.3, rx*0.50*flicker, ry*1.8*flicker, 0, 0, Math.PI*2); ctx.fill()
-
   ctx.restore()
 }
-
 
 // ── Hit target estilo GH:WoR — anel duplo, centro escuro, aro colorido por lane ─
 function drawHitTarget(
@@ -584,7 +627,8 @@ function drawHitTarget(
   x: number, baseHitY: number,
   laneIdx: number, pressed: boolean,
   starPower: boolean, now: number,
-  jumpY: number = 0, scaleX: number = 1, scaleY: number = 1
+  jumpY: number = 0, scaleX: number = 1, scaleY: number = 1,
+  baseRX: number = NOTE_RX_BASE, baseRY: number = NOTE_RY_BASE
 ) {
   const hitY  = baseHitY - jumpY
   const sp    = starPower
@@ -592,8 +636,8 @@ function drawHitTarget(
   const headLight = STRIKER_HEAD_LIGHT[laneIdx] ?? laneColor
   const c     = sp ? "#00ffff" : laneColor
   const cRgb  = sp ? "0,255,255" : hexToRgb(laneColor)
-  const rx    = (NOTE_RX_BASE + 8) * scaleX
-  const ry    = (NOTE_RY_BASE + 8) * scaleY
+  const rx    = (baseRX + 8) * scaleX
+  const ry    = (baseRY + 8) * scaleY
   const t     = now * 0.003
 
   ctx.save()
@@ -1013,6 +1057,10 @@ export function renderFrame(state: RenderState): void {
   const hitY=h*HIT_LINE_Y_RATIO, vanishY=h*VANISHING_Y_RATIO
   const trackBot=w*TRACK_WIDTH_RATIO
   const tLB=(w-trackBot)/2, tRB=tLB+trackBot
+  const laneW=trackBot/LC   // largura de cada lane na hit line (base para tamanho das notas)
+  const NRX=noteRX(laneW), NRY=noteRY(laneW)   // tamanho responsivo das notas
+  // Escala de UI: 1.0 em 1080p, menor em telas pequenas, maior em 4K
+  const uiScale = Math.max(0.5, Math.min(1.6, w / 1200))
   const now=performance.now()
   const starPower=stats.combo>=STAR_POWER_COMBO
   // Limpa o canvas (bordas ficam transparentes — mostra o background da música)
@@ -1050,6 +1098,7 @@ export function renderFrame(state: RenderState): void {
   }
 
   // 1 – Fretboard (muda visual conforme star power)
+  ctx.shadowBlur = 0  // garantir que não há shadow residual
   ctx.drawImage(getFretboard(w,h,starPower,difficulty,LC),0,0)
 
   // 2 – Beat lines dinâmicas
@@ -1150,28 +1199,28 @@ export function renderFrame(state: RenderState): void {
       scaleY = 1 + bounce * 0.18              // estica verticalmente (stretch)
     }
 
-    const {rx,ry}=drawHitTarget(ctx,x,hitY,i,pressed,starPower,now,jumpY,scaleX,scaleY)
+    const {rx,ry}=drawHitTarget(ctx,x,hitY,i,pressed,starPower,now,jumpY,scaleX,scaleY,NRX,NRY)
     if (showGuide) {
       const label=(keyLabels?.[i]??LANE_LABELS[i]).toUpperCase()
       ctx.fillStyle=pressed?"#fff":"rgba(200,230,210,0.45)"
       ctx.font=`bold ${Math.round(ry*0.85)}px 'Arial Black', Arial, sans-serif`
       ctx.textAlign="center"; ctx.textBaseline="middle"
-      ctx.fillText(label,x,hitY+ry+18)
+      ctx.fillText(label,x,hitY+ry+Math.max(8,NRY*1.5))
     }
   }
 
   // 7 – Notas (estilo GH:WT — disco achatado + chama)
   const maxV=2200/ns
+  // Sem sort por frame — notas já vêm em ordem do chart parser, custo O(n) apenas
   const visible=notes
     .filter(n=>!n.hit&&!n.missed&&(n.time-currentTime)>=-TIMING_MISS*2&&(n.time-currentTime)<=maxV)
-    .sort((a,b)=>(b.time-currentTime)-(a.time-currentTime))
 
   for (const note of visible) {
     const ahead=note.time-currentTime
     const lane=Math.min(note.lane,LC-1)
     const {x,y,scale}=project(lane,Math.max(ahead,0),canvas,ns,LC)
-    if (y>hitY+NOTE_RY_BASE*4) continue
-    const rx=NOTE_RX_BASE*scale, ry=NOTE_RY_BASE*scale
+    if (y>hitY+NRY*4) continue
+    const rx=NRX*scale, ry=NRY*scale
     drawNoteGH(ctx,x,y,rx,ry,lane,starPower,now,noteShape)
   }
 
@@ -1188,17 +1237,17 @@ export function renderFrame(state: RenderState): void {
     if (!isMiss) {
       // Feixe de luz vertical (como imagem 3)
       if (prog < 0.6) drawLightBeam(ctx,x,hitY,h,color,prog,alpha)
-      drawHitExplosion(ctx,x,hitY,color,prog,alpha,fx.rating,NOTE_RX_BASE,NOTE_RY_BASE,starPower)
+      drawHitExplosion(ctx,x,hitY,color,prog,alpha,fx.rating,NRX,NRY,starPower)
     } else {
-      const xs=NOTE_RX_BASE*(1.1+prog*0.35)
+      const xs=NRX*(1.1+prog*0.35)
       ctx.strokeStyle="#ef4444"+Math.round(alpha*180).toString(16).padStart(2,"0")
       ctx.lineWidth=3.5*(1-prog*0.5); ctx.lineCap="round"
       ctx.shadowColor="#ef4444"; ctx.shadowBlur=6*alpha
-      ctx.beginPath(); ctx.moveTo(x-xs,hitY-NOTE_RY_BASE); ctx.lineTo(x+xs,hitY+NOTE_RY_BASE); ctx.stroke()
-      ctx.beginPath(); ctx.moveTo(x+xs,hitY-NOTE_RY_BASE); ctx.lineTo(x-xs,hitY+NOTE_RY_BASE); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(x-xs,hitY-NRY); ctx.lineTo(x+xs,hitY+NRY); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(x+xs,hitY-NRY); ctx.lineTo(x-xs,hitY+NRY); ctx.stroke()
       ctx.shadowBlur=0
     }
-    const ty=hitY-58-prog*48, fs=Math.round(isMiss?11:16+(1-prog)*7)
+    const ty=hitY-Math.round(58*uiScale)-prog*Math.round(48*uiScale), fs=Math.round((isMiss?11:16+(1-prog)*7)*uiScale)
     ctx.globalAlpha=alpha*(isMiss?0.50:1); ctx.fillStyle=rc
     ctx.shadowColor=rc; ctx.shadowBlur=isMiss?0:10
     ctx.font=`900 ${fs}px 'Arial Black', Arial, sans-serif`; ctx.textAlign="center"; ctx.textBaseline="middle"
@@ -1215,7 +1264,7 @@ export function renderFrame(state: RenderState): void {
       ctx.fillStyle = "#ff4444"
       ctx.shadowColor = "#ff0000"
       ctx.shadowBlur = 8 * penaltyAlpha
-      ctx.font = `900 13px 'Arial Black', Arial, sans-serif`
+      ctx.font = `900 ${Math.round(13*uiScale)}px 'Arial Black', Arial, sans-serif`
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
       ctx.fillText(`-${fx.penalty}`, 0, 0)
@@ -1259,12 +1308,13 @@ export function renderFrame(state: RenderState): void {
   {
     ctx.save()
     const sc = stats.score.toLocaleString()
-    ctx.font = "bold 28px 'Arial Black', Arial, sans-serif"
+    const scoreFontSize = Math.round(28 * uiScale)
+    ctx.font = `bold ${scoreFontSize}px 'Arial Black', Arial, sans-serif`
     ctx.textAlign = "right"; ctx.textBaseline = "top"
     ctx.shadowColor = starPower ? "#00ffff" : "rgba(255,255,255,0.6)"
     ctx.shadowBlur = starPower ? 16 : 6
     ctx.fillStyle = "#ffffff"
-    ctx.fillText(sc, w - 16, 14)
+    ctx.fillText(sc, w - Math.round(16 * uiScale), Math.round(14 * uiScale))
     ctx.shadowBlur = 0
     ctx.restore()
   }
@@ -1275,10 +1325,10 @@ export function renderFrame(state: RenderState): void {
     // GH: 1 estrela a cada 20% do score máximo estimado (200k)
     const totalEstimated = Math.max(stats.totalNotes * 100 * 4, 1)
     const starsFilled = Math.min(5, Math.floor((stats.score / totalEstimated) * 5))
-    const starR = 11, starGap = 26
+    const starR = Math.round(11 * uiScale), starGap = Math.round(26 * uiScale)
     const starsW = 5 * starGap
-    const sx0 = w - starsW - 10
-    const sy0 = 50
+    const sx0 = w - starsW - Math.round(10 * uiScale)
+    const sy0 = Math.round(50 * uiScale)
     for (let s = 0; s < 5; s++) {
       drawGHStar(sx0 + s * starGap + starR, sy0 + starR, starR, s < starsFilled, starPower)
     }
@@ -1292,9 +1342,9 @@ export function renderFrame(state: RenderState): void {
   if (stats.multiplier > 1) {
     ctx.save()
     const mt   = `×${stats.multiplier}`
-    const mulX = tRB + 36
-    const mulY = hitY - 60
-    const mulR  = 26
+    const mulX = tRB + Math.round(36 * uiScale)
+    const mulY = hitY - Math.round(60 * uiScale)
+    const mulR  = Math.round(26 * uiScale)
     // Fundo circular com gradiente
     const mg = ctx.createRadialGradient(mulX, mulY - mulR*0.2, 0, mulX, mulY, mulR)
     mg.addColorStop(0, starPower ? "rgba(0,80,110,0.95)" : "rgba(10,20,55,0.95)")
@@ -1308,7 +1358,7 @@ export function renderFrame(state: RenderState): void {
     ctx.stroke(); ctx.shadowBlur = 0
     // Texto
     ctx.fillStyle = starPower ? "#00ffff" : "#ffffff"
-    ctx.font = "bold 15px 'Arial Black', Arial, sans-serif"
+    ctx.font = `bold ${Math.round(15 * uiScale)}px 'Arial Black', Arial, sans-serif`
     ctx.textAlign = "center"; ctx.textBaseline = "middle"
     ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10
     ctx.fillText(mt, mulX, mulY)
@@ -1316,8 +1366,8 @@ export function renderFrame(state: RenderState): void {
     // Combo abaixo do multiplicador
     if (stats.combo > 1) {
       ctx.fillStyle = "rgba(255,255,255,0.55)"
-      ctx.font = "bold 9px 'Arial Black', Arial, sans-serif"
-      ctx.fillText(`${stats.combo} COMBO`, mulX, mulY + mulR + 10)
+      ctx.font = `bold ${Math.round(9 * uiScale)}px 'Arial Black', Arial, sans-serif`
+      ctx.fillText(`${stats.combo} COMBO`, mulX, mulY + mulR + Math.round(10 * uiScale))
     }
     ctx.restore()
   }
@@ -1325,15 +1375,15 @@ export function renderFrame(state: RenderState): void {
   // ── Rock meter: centralizado na parte inferior ────────────────────────
   {
     ctx.save()
-    const mw = 220, mh = 12
+    const mw = Math.round(220 * uiScale), mh = Math.round(12 * uiScale)
     const mx = (w - mw) / 2
-    const my = h - 28
+    const my = h - Math.round(28 * uiScale)
     const fill = stats.rockMeter / 100
     const mColor = stats.rockMeter > 60 ? "#22c55e" : stats.rockMeter > 30 ? "#f59e0b" : "#ef4444"
 
     // Skull (baixo) à esquerda, nota à direita — apenas ícones simples
     ctx.fillStyle = stats.rockMeter <= 20 ? "#ef4444" : "rgba(255,255,255,0.25)"
-    ctx.font = "bold 12px 'Arial Black', Arial, sans-serif"; ctx.textAlign = "right"; ctx.textBaseline = "middle"
+    ctx.font = `bold ${Math.round(12 * uiScale)}px 'Arial Black', Arial, sans-serif`; ctx.textAlign = "right"; ctx.textBaseline = "middle"
     ctx.fillText("💀", mx - 6, my + mh/2)
     ctx.fillStyle = stats.rockMeter >= 80 ? "#22c55e" : "rgba(255,255,255,0.25)"
     ctx.textAlign = "left"

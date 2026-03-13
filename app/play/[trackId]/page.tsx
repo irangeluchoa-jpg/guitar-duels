@@ -5,7 +5,7 @@ import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { GameCanvas } from "@/components/game/game-canvas"
 import type { ChartData, SongMeta } from "@/lib/songs/types"
 import type { GameStats } from "@/lib/game/engine"
-import { getGrade, getAccuracy } from "@/lib/game/engine"
+import { getGrade, getAccuracy, isFullCombo } from "@/lib/game/engine"
 import { playPauseSound, playResumeSound } from "@/lib/game/sounds"
 import { loadSettings } from "@/lib/settings"
 import { saveRecord } from "@/app/history/page"
@@ -236,6 +236,12 @@ function PlayInner() {
         setMeta(data.meta); setChart(data.chart); setAudioUrls(data.audioUrls || {})
         setAlbumArt(data.albumArt || null); setBackgroundUrl(data.backgroundUrl || null)
         if (!roomCode) setGameStarted(true)
+        // Salvar nas músicas recentes
+        try {
+          const prev: string[] = JSON.parse(localStorage.getItem("gh-recent") ?? "[]")
+          const next = [trackId, ...prev.filter((id: string) => id !== trackId)].slice(0, 8)
+          localStorage.setItem("gh-recent", JSON.stringify(next))
+        } catch {}
       } catch (err) { setError(err instanceof Error ? err.message : "Erro ao carregar") }
     }
     load()
@@ -358,13 +364,14 @@ function PlayInner() {
   }, [roomCode, playerId])
 
   const handleScoreUpdate = useCallback((stats: GameStats) => { latestStatsRef.current = stats }, [])
-  const handleSongEnd = useCallback(() => {
+  const handleSongEnd = useCallback((_stats?: GameStats) => {
     gameEndedRef.current = true
     const stats = latestStatsRef.current
     if (stats && meta) {
       const settings = loadSettings()
       const accuracy = Math.round(getAccuracy(stats))
-      const grade    = getGrade(getAccuracy(stats))
+      const fc       = isFullCombo(stats)
+      const grade    = getGrade(getAccuracy(stats), fc)
 
       saveRecord({
         songId:    meta.id ?? "",

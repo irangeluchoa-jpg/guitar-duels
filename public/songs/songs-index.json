@@ -1,0 +1,13 @@
+[
+  {
+    "id": "demo-song",
+    "name": "Guitar Duels Demo",
+    "artist": "Guitar Duels",
+    "album": "Demo",
+    "year": "2026",
+    "genre": "Rock",
+    "difficulty": 3,
+    "albumArt": null,
+    "previewUrl": null
+  }
+]

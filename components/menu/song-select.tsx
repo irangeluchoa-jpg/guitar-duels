@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Play, Music, Clock, Star, Zap, ChevronRight } from "lucide-react"
+import { Play, Music, Clock, Star, Zap, ChevronRight, Heart, History } from "lucide-react"
 import type { SongListItem } from "@/lib/songs/types"
 import { playClickSound, playHoverSound } from "@/lib/game/sounds"
 import { loadSettings, saveSettings, DEFAULT_KEY_BINDINGS, getKeyBindingsForLanes } from "@/lib/settings"
@@ -90,10 +90,41 @@ export function SongSelect() {
   const [resolvedDurations, setResolvedDurations] = useState<Record<string, number>>({})
   const durationProbeRef = useRef<HTMLAudioElement | null>(null)
   const [laneCount, setLaneCount]      = useState<4|5|6>(5)
+  const [favorites, setFavorites]     = useState<Set<string>>(new Set())  // carregado no useEffect
+  const [bestScores, setBestScores]   = useState<Record<string, { score:number; grade:string }>>({})
+  const [recentIds, setRecentIds]     = useState<string[]>([])  // carregado no useEffect
+  const [activeTab, setActiveTab]     = useState<"all" | "fav" | "recent">("all")
   const prevTimeout                   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const listRef                       = useRef<HTMLDivElement>(null)
 
   useEffect(() => { setAllSettings(loadSettings()) }, [])
+
+  // Carregar dados do localStorage apenas no cliente (evita hydration mismatch)
+  useEffect(() => {
+    try {
+      const favs = JSON.parse(localStorage.getItem("gh-favorites") ?? "[]")
+      setFavorites(new Set(favs))
+    } catch {}
+    try {
+      const recent = JSON.parse(localStorage.getItem("gh-recent") ?? "[]")
+      setRecentIds(recent)
+    } catch {}
+  }, [])
+
+  // Carregar melhores scores pessoais para exibir na lista
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("guitar-duels-scores") ?? "[]")
+      const best: Record<string, { score:number; grade:string }> = {}
+      for (const entry of stored) {
+        const id = entry.trackId
+        if (!best[id] || entry.score > best[id].score) {
+          best[id] = { score: entry.score, grade: entry.grade }
+        }
+      }
+      setBestScores(best)
+    } catch {}
+  }, [])
   const keyBindings = getKeyBindingsForLanes(allSettings, laneCount)
   useEffect(() => {
     fetch("/api/songs").then(r => r.json()).then(d => { setSongs(d); setLoading(false) }).catch(() => setLoading(false))
@@ -188,15 +219,25 @@ export function SongSelect() {
     window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h)
   }, [songs, sel, router, previewAudio])
 
+  function toggleFavorite(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    const next = new Set(favorites)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    setFavorites(next)
+    try { localStorage.setItem("gh-favorites", JSON.stringify([...next])) } catch {}
+  }
+
   // Filtro + ordenação
   const filteredSongs = songs
     .filter(s => {
       const q = query.toLowerCase()
       const matchText = !q || s.name.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q) || (s.genre ?? "").toLowerCase().includes(q)
       const matchDiff = filterDiff === null || s.difficulty === filterDiff
-      return matchText && matchDiff
+      const matchTab = activeTab === "all" || (activeTab === "fav" && favorites.has(s.id)) || (activeTab === "recent" && recentIds.includes(s.id))
+      return matchText && matchDiff && matchTab
     })
     .sort((a, b) => {
+      if (activeTab === "recent") return recentIds.indexOf(a.id) - recentIds.indexOf(b.id)
       if (sortBy === "difficulty") return (a.difficulty ?? 0) - (b.difficulty ?? 0)
       if (sortBy === "duration")   return (a.songLength ?? 0) - (b.songLength ?? 0)
       return a.name.localeCompare(b.name)
@@ -223,7 +264,7 @@ export function SongSelect() {
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
-          <GHBackButton label="Menu" />
+          <GHBackButton label="Menu" href="/" />
           <GHLogo size="sm" />
           <div className="flex items-center gap-3 text-[10px]" style={{ color: "rgba(255,255,255,.2)", fontFamily: "'Arial',sans-serif" }}>
             <span>↑↓ navegar</span><span style={{ color: "rgba(255,255,255,.1)" }}>|</span>
@@ -241,6 +282,24 @@ export function SongSelect() {
 
             {/* Busca + filtros */}
             <div className="flex flex-col gap-1.5">
+              {/* Tabs: Todas / Favoritas / Recentes */}
+              <div className="flex gap-1">
+                {([
+                  { key: "all", label: "Todas", icon: null },
+                  { key: "fav", label: `❤️ ${favorites.size}`, icon: null },
+                  { key: "recent", label: "Recentes", icon: null },
+                ] as const).map(tab => (
+                  <button key={tab.key} onClick={() => { setActiveTab(tab.key); setSel(0) }}
+                    className="flex-1 text-[10px] py-1.5 rounded-lg font-bold transition-all"
+                    style={{
+                      background: activeTab === tab.key ? "rgba(225,29,72,0.2)" : "rgba(255,255,255,0.04)",
+                      color: activeTab === tab.key ? "#e11d48" : "rgba(255,255,255,0.3)",
+                      border: activeTab === tab.key ? "1px solid rgba(225,29,72,0.4)" : "1px solid rgba(255,255,255,0.06)",
+                    }}>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
               <div className="relative">
                 <input
                   value={query} onChange={e => { setQuery(e.target.value); setSel(0) }}
@@ -324,11 +383,27 @@ export function SongSelect() {
                     <p className="font-bold text-xs truncate" style={{ color: isS ? "#fff" : "#888", fontFamily: "'Arial Black',sans-serif" }}>{song.name}</p>
                     <p className="text-[10px] truncate" style={{ color: isS ? "rgba(255,255,255,.45)" : "#444", fontFamily: "'Arial',sans-serif" }}>{song.artist}</p>
                   </div>
-                  <div className="flex gap-0.5 flex-shrink-0">
-                    {Array.from({ length: 5 }).map((_, si) => (
-                      <div key={si} className="w-1 h-3 rounded-sm"
-                        style={{ background: si < Math.round(((song.difficulty + 1) / 7) * 5) ? dc : "rgba(255,255,255,.07)" }} />
-                    ))}
+                  <div className="flex flex-col items-end gap-0.5">
+                    <div className="flex gap-0.5">
+                      {Array.from({ length: 5 }).map((_, si) => (
+                        <div key={si} className="w-1 h-3 rounded-sm"
+                          style={{ background: si < Math.round(((song.difficulty + 1) / 7) * 5) ? dc : "rgba(255,255,255,.07)" }} />
+                      ))}
+                    </div>
+                    {bestScores[song.id] && (
+                      <span className="text-[9px] font-bold" style={{ color: bestScores[song.id].grade === "S+" || bestScores[song.id].grade === "S" ? "#fbbf24" : "rgba(255,255,255,0.3)" }}>
+                        {bestScores[song.id].grade} {bestScores[song.id].score.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={e => toggleFavorite(song.id, e)}
+                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") toggleFavorite(song.id, e as any) }}
+                    className="p-1 rounded-full transition-all hover:scale-125 cursor-pointer"
+                    style={{ color: favorites.has(song.id) ? "#e11d48" : "rgba(255,255,255,0.15)" }}>
+                    <Heart className="w-3 h-3" style={{ fill: favorites.has(song.id) ? "#e11d48" : "transparent" }} />
                   </div>
                   {isS && <ChevronRight className="w-3 h-3 flex-shrink-0" style={{ color: dc }} />}
                 </button>
@@ -438,6 +513,12 @@ export function SongSelect() {
                             <span className="text-base font-black" style={{ color: diffColor, fontFamily: "'Impact',sans-serif", textShadow: `0 0 16px ${diffColor}` }}>
                               {diffLabel.toUpperCase()}
                             </span>
+                            {bestScores[selected.id] && (
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                                style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}>
+                                🏆 {bestScores[selected.id].grade} · {bestScores[selected.id].score.toLocaleString()}
+                              </span>
+                            )}
                           </div>
                           {(selected.songLength > 0 || resolvedDurations[selected.id]) && (
                             <span className="flex items-center gap-1 text-sm font-bold" style={{ color: "rgba(255,255,255,.4)" }}>
@@ -490,7 +571,9 @@ export function SongSelect() {
                       {selected.charter && (
                         <div className="text-right">
                           <p className="text-[9px] uppercase tracking-wider" style={{ color: "rgba(255,255,255,.2)" }}>Charter</p>
-                          <p className="text-xs font-bold" style={{ color: "rgba(255,255,255,.4)" }}>{selected.charter}</p>
+                          <p className="text-xs font-bold" style={{ color: "rgba(255,255,255,.4)" }}>
+                            {selected.charter.replace(/<color=[^>]*>|<\/color>/gi, "").trim()}
+                          </p>
                         </div>
                       )}
                     </div>

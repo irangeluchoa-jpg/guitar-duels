@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Play, RotateCcw, ArrowLeft, Settings, Volume2, Gauge, Eye } from "lucide-react"
+import { Play, RotateCcw, ArrowLeft, Settings, Volume2, Gauge, Eye, Minus, Plus } from "lucide-react"
 import { playClickSound } from "@/lib/game/sounds"
 import { loadSettings, saveSettings, type GameSettings } from "@/lib/settings"
 
@@ -10,6 +10,8 @@ interface PauseOverlayProps {
   onRestart: () => void
   onQuit?: () => void
 }
+
+const NOTE_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
 export function PauseOverlay({ onResume, onRestart, onQuit }: PauseOverlayProps) {
   const [showSettings, setShowSettings] = useState(false)
@@ -26,9 +28,14 @@ export function PauseOverlay({ onResume, onRestart, onQuit }: PauseOverlayProps)
     setTimeout(() => setSaved(false), 1200)
   }
 
-  useEffect(() => { setSettings(loadSettings()) }, [])
+  function stepSpeed(dir: 1 | -1) {
+    const idx = NOTE_SPEEDS.indexOf(settings.noteSpeed)
+    const next = NOTE_SPEEDS[Math.max(0, Math.min(NOTE_SPEEDS.length - 1, idx + dir))]
+    if (next !== undefined) update("noteSpeed", next)
+    playClickSound(vol)
+  }
 
-  const NOTE_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
+  useEffect(() => { setSettings(loadSettings()) }, [])
 
   return (
     <div
@@ -67,10 +74,32 @@ export function PauseOverlay({ onResume, onRestart, onQuit }: PauseOverlayProps)
               <Play className="w-4 h-4 fill-current" /> Continuar
             </button>
 
+            {/* Velocidade rápida — direto no pause sem entrar em configurações */}
+            <div className="rounded-xl px-3 py-2.5 flex items-center gap-3"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <Gauge className="w-4 h-4 flex-shrink-0" style={{ color: "rgba(255,255,255,0.35)" }} />
+              <span className="text-xs font-semibold flex-1" style={{ color: "rgba(255,255,255,0.5)" }}>Velocidade</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => stepSpeed(-1)}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                  style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}
+                  disabled={settings.noteSpeed <= NOTE_SPEEDS[0]}>
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+                <span className="text-sm font-black w-10 text-center" style={{ color: "#fbbf24" }}>{settings.noteSpeed}x</span>
+                <button onClick={() => stepSpeed(1)}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                  style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}
+                  disabled={settings.noteSpeed >= NOTE_SPEEDS[NOTE_SPEEDS.length - 1]}>
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
             <button onClick={() => { playClickSound(vol); setShowSettings(true) }}
               className="flex items-center justify-center gap-2 h-12 rounded-xl font-semibold text-sm transition-all hover:scale-[1.03] active:scale-[0.97]"
               style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <Settings className="w-4 h-4" /> Configurações
+              <Settings className="w-4 h-4" /> Mais configurações
             </button>
 
             <button onClick={() => { playClickSound(vol); onRestart() }}

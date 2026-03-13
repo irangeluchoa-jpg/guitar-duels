@@ -14,6 +14,8 @@ import {
   prepareNotes,
   getAccuracy,
   getGrade,
+  getTimingWindows,
+  isFullCombo,
   MISS_PENALTY_BASE,
 } from "@/lib/game/engine"
 import { renderFrame, getHitLineY } from "@/lib/game/renderer"
@@ -84,6 +86,7 @@ export function useGameEngine({
 
   const notesRef        = useRef<ActiveNote[]>([])
   const statsRef        = useRef<GameStats>(stats)
+  const failedRef       = useRef(false)  // true se terminou por rock meter zerado
   const hitEffectsRef   = useRef<HitEffect[]>([])
   const keysDownRef     = useRef<Set<number>>(new Set())
   const gameStateRef    = useRef<GameState>("idle")
@@ -92,9 +95,10 @@ export function useGameEngine({
   const gameStartWallRef = useRef(0)
 
   // Mantém refs de speed/showGuide/calibration para o game loop sem re-criar callbacks
-  const speedRef       = useRef(speed)
-  const showGuideRef   = useRef(showGuide)
-  const calibrationRef = useRef(calibrationOffset)
+  const speedRef          = useRef(speed)
+  const showGuideRef      = useRef(showGuide)
+  const calibrationRef    = useRef(calibrationOffset)
+  const timingWindowsRef  = useRef(getTimingWindows(meta.difficulty ?? 2))
   useEffect(() => { speedRef.current = speed }, [speed])
   useEffect(() => { showGuideRef.current = showGuide }, [showGuide])
   useEffect(() => { calibrationRef.current = calibrationOffset }, [calibrationOffset])
@@ -125,6 +129,7 @@ export function useGameEngine({
       if (gameStateRef.current !== "playing") return
       const currentTime = getCurrentTime()
       const notes = notesRef.current
+      const windows = timingWindowsRef.current  // janelas dinâmicas por dificuldade
 
       let bestNote: ActiveNote | null = null
       let bestDelta = Infinity
@@ -132,14 +137,14 @@ export function useGameEngine({
       for (const note of notes) {
         if (note.lane !== lane || note.hit || note.missed) continue
         const delta = Math.abs(note.time - currentTime)
-        if (delta <= TIMING_MISS && delta < bestDelta) {
+        if (delta <= windows.miss && delta < bestDelta) {
           bestNote = note
           bestDelta = delta
         }
       }
 
       if (bestNote) {
-        const rating = getRating(bestNote.time - currentTime)
+        const rating = getRating(bestNote.time - currentTime, windows)  // usa janelas corretas
         if (rating) {
           bestNote.hit = true
           bestNote.hitRating = rating
@@ -149,7 +154,6 @@ export function useGameEngine({
           statsRef.current = newStats
           setStats(newStats)
           onScoreUpdate?.(newStats)
-          // Milestone de combo
           if (newStats.combo > 0 && newStats.combo % 10 === 0) {
             playComboSound(newStats.combo, sfxVolRef.current)
           }
@@ -204,9 +208,13 @@ export function useGameEngine({
 
   const checkMisses = useCallback(
     (currentTime: number) => {
+      const missWindow = timingWindowsRef.current.miss
       for (const note of notesRef.current) {
+        // Notas futuras: se ainda não chegaram na janela de miss, podemos parar
+        // (chart está ordenado por tempo)
+        if (note.time > currentTime + missWindow) break
         if (note.hit || note.missed) continue
-        if (currentTime - note.time > TIMING_MISS) {
+        if (currentTime - note.time > missWindow) {
           note.missed = true
           const newStats = applyHit(statsRef.current, "miss")
           statsRef.current = newStats
@@ -239,6 +247,11 @@ export function useGameEngine({
 
     const now = performance.now()
     hitEffectsRef.current = hitEffectsRef.current.filter(e => now - e.time < 400)
+
+    // ── Rock meter chegou a zero: apenas reseta para 1 (sem game over) ───────
+    if (statsRef.current.rockMeter <= 0) {
+      statsRef.current = { ...statsRef.current, rockMeter: 1 }
+    }
 
     const lastNote = notesRef.current[notesRef.current.length - 1]
     const audio = audioRef.current
@@ -311,6 +324,7 @@ export function useGameEngine({
     keysDownRef.current.clear()
     gameTimeRef.current = 0
     gameStartWallRef.current = 0
+    failedRef.current = false
 
     setGameState("countdown")
     gameStateRef.current = "countdown"
@@ -373,10 +387,17 @@ export function useGameEngine({
     return () => { cancelAnimationFrame(animFrameRef.current) }
   }, [])
 
+  const accuracy = getAccuracy(stats)
+  const fc = isFullCombo(stats)
   return {
     gameState, stats, countdown,
     startGame, pause, resume, restart,
-    accuracy: getAccuracy(stats),
-    grade: getGrade(getAccuracy(stats)),
+    accuracy,
+    grade: getGrade(accuracy, fc),
+    isFC: fc,
+    failed: failedRef,
+    // Touch bridge: allows touch controls to drive the same hit logic as keyboard
+    touchPress:   (lane: number) => { keysDownRef.current.add(lane); processHit(lane) },
+    touchRelease: (lane: number) => { keysDownRef.current.delete(lane) },
   }
 }

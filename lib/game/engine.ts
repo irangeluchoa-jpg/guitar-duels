@@ -17,11 +17,23 @@ export function getKeysForLaneCount(lc: number): string[] {
   return ["a","s","d","j","k"]  // 5 (padrão)
 }
 
-// Timing windows — mais generosos para jogar ser divertido
+// Timing windows base (dificuldade média)
 export const TIMING_PERFECT = 60
 export const TIMING_GREAT   = 110
 export const TIMING_GOOD    = 170
 export const TIMING_MISS    = 220
+
+// Retorna as janelas de timing ajustadas pela dificuldade (0=Beginner, 6=Extreme)
+export function getTimingWindows(difficulty: number) {
+  // 0 (Beginner) → 1.6x mais generoso; 6 (Extreme) → 0.7x mais apertado
+  const scale = 1.6 - Math.min(difficulty, 6) * (0.9 / 6)
+  return {
+    perfect: Math.round(TIMING_PERFECT * scale),
+    great:   Math.round(TIMING_GREAT   * scale),
+    good:    Math.round(TIMING_GOOD    * scale),
+    miss:    Math.round(TIMING_MISS    * scale),
+  }
+}
 
 export type HitRating = "perfect" | "great" | "good" | "miss"
 export type GameState = "idle" | "countdown" | "playing" | "paused" | "ended"
@@ -61,12 +73,16 @@ export function createInitialStats(totalNotes: number): GameStats {
     good: 0, miss: 0, totalNotes, rockMeter: 50, streak: 0 }
 }
 
-export function getRating(deltaMs: number): HitRating | null {
+export function getRating(deltaMs: number, windows?: { perfect:number; great:number; good:number; miss:number }): HitRating | null {
   const abs = Math.abs(deltaMs)
-  if (abs <= TIMING_PERFECT) return "perfect"
-  if (abs <= TIMING_GREAT)   return "great"
-  if (abs <= TIMING_GOOD)    return "good"
-  if (abs <= TIMING_MISS)    return "miss"
+  const p = windows?.perfect ?? TIMING_PERFECT
+  const gr = windows?.great  ?? TIMING_GREAT
+  const go = windows?.good   ?? TIMING_GOOD
+  const mi = windows?.miss   ?? TIMING_MISS
+  if (abs <= p)  return "perfect"
+  if (abs <= gr) return "great"
+  if (abs <= go) return "good"
+  if (abs <= mi) return "miss"
   return null
 }
 
@@ -112,10 +128,16 @@ export function applyHit(stats: GameStats, rating: HitRating): GameStats {
 
 export function prepareNotes(chart: Chart, laneCount = 5): ActiveNote[] {
   if (laneCount === 4) {
-    // 4 lanes: comprimir 5→4 (lane 4 → lane 3)
+    // 4 lanes (A S D J): mapeamento fixo sem colisão
+    // Lane 0 (verde/G) → 0 (A)
+    // Lane 1 (vermelho/R) → 1 (S)
+    // Lane 2 (amarelo/Y) → 2 (D)
+    // Lane 3 (azul/B) → 3 (J)
+    // Lane 4 (laranja/O) → 2 (D/amarelo) ← CORRIGIDO: era 3 (causava miss no azul)
+    const MAP4 = [0, 1, 2, 3, 2]
     return chart.notes.map((note, i) => ({
       ...note,
-      lane: note.lane >= 4 ? 3 : note.lane,
+      lane: MAP4[Math.min(note.lane, 4)],
       id: i, hit: false, missed: false,
     }))
   }
@@ -128,22 +150,21 @@ export function prepareNotes(chart: Chart, laneCount = 5): ActiveNote[] {
     }))
   }
 
-  // ── 6 lanes: redistribuir 5 lanes originais em 6 ──────────────────────────
-  // Mapeamento: espalha as notas usando módulo e duplica notas da lane 4 (laranja)
-  // para a nova lane 5 (roxa) quando caem em certos intervalos.
-  //
-  // Regra: a cada nota na lane 4 (laranja/5ª), alternamos entre lane 4 e lane 5.
-  // Isso distribui visualmente metade das laranjas para o roxo.
+  // ── 6 lanes (A S D J K L): espalhar 5 frets originais em 6 lanes ──────────
+  // Mapeamento direto: lanes 0-4 ficam iguais; lane 5 (L/roxa) recebe
+  // metade das notas da lane 4 (laranja/K) para popular a 6ª lane.
+  // Resultado: lanes 0 a 4 têm notas normais; lane 5 tem ~50% das laranjas.
   let orangeToggle = false
   const notes: ActiveNote[] = []
   let id = 0
 
   for (const note of chart.notes) {
     if (note.lane === 4) {
-      // Alterna entre lane 4 (laranja) e lane 5 (roxo)
       orangeToggle = !orangeToggle
+      // Alterna entre K (4) e L (5) para distribuir notas na 6ª lane
       notes.push({ ...note, lane: orangeToggle ? 5 : 4, id: id++, hit: false, missed: false })
     } else {
+      // Lanes 0-3: mapeamento direto
       notes.push({ ...note, lane: note.lane, id: id++, hit: false, missed: false })
     }
   }
@@ -157,11 +178,16 @@ export function getAccuracy(stats: GameStats): number {
   return Math.round((weighted / (total * 100)) * 100)
 }
 
-export function getGrade(accuracy: number): string {
+export function getGrade(accuracy: number, isFC = false): string {
+  if (accuracy === 100 && isFC) return "S+"
   if (accuracy >= 95) return "S"
   if (accuracy >= 90) return "A"
   if (accuracy >= 80) return "B"
   if (accuracy >= 70) return "C"
   if (accuracy >= 60) return "D"
   return "F"
+}
+
+export function isFullCombo(stats: GameStats): boolean {
+  return stats.miss === 0 && stats.totalNotes > 0
 }

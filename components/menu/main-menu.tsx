@@ -9,7 +9,7 @@ function getVol() {
   try { const s = loadSettings(); return (s.masterVolume/100)*(s.sfxVolume/100) } catch { return 0.5 }
 }
 
-const LANE_COLORS = ["#22c55e","#ef4444","#eab308","#3b82f6","#f97316"]
+const LANE_COLORS = ["#22c55e","#ef4444","#eab308","#3b82f6","#f97316","#a855f7"]
 
 import { loadProfile, levelFromXP, levelProgress, levelTitle } from "@/lib/progression"
 
@@ -188,6 +188,7 @@ export function MainMenu() {
 
   const menuItems = [
     { label: "Jogar Solo",       sub: "Modo carreira",     icon: "🎸", path: "/songs",    primary: true },
+    { label: "Desafio Diário",   sub: "Música do dia",     icon: "⚡", path: "/daily",   primary: true },
     { label: "Multiplayer",      sub: "Até 4 jogadores",   icon: "⚔️",  path: "/lobby",   primary: false },
     { label: "Ranking",          sub: "Melhores placares", icon: "🏆", path: "/ranking",  primary: false },
     { label: "Perfil",           sub: "XP e conquistas",   icon: "🏆", path: "/profile",  primary: false },
@@ -196,8 +197,7 @@ export function MainMenu() {
   ]
 
   return (
-    <div className="relative w-full h-screen overflow-hidden select-none"
-      style={{ fontFamily: "'Impact', 'Arial Black', sans-serif", background: "#000" }}>
+    <div className="relative w-full overflow-hidden select-none" style={{ height: "100dvh", fontFamily: "'Impact', 'Arial Black', sans-serif", background: "#000" }}>
 
       {/* Canvas de background animado */}
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />

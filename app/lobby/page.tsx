@@ -47,7 +47,7 @@ export default function LobbyPage() {
       <div className="flex flex-col h-full items-center justify-center px-4">
 
         {/* Logo + back */}
-        <div className="absolute top-5 left-6"><GHBackButton label="Menu" /></div>
+        <div className="absolute top-5 left-6"><GHBackButton label="Menu" href="/" /></div>
         <GHLogo size="sm" />
 
         <div className="mt-6 w-full max-w-sm">
