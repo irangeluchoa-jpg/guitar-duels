@@ -38,32 +38,55 @@ interface RoomSnapshot {
 function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResume, canResume }:
   { players: RoomPlayer[]; myId: string; isPaused: boolean; pausedByName: string
     onPause: () => void; onResume: () => void; canResume: boolean }) {
+
+  // Ordenar: eu primeiro, depois outros por score desc
+  const sorted = [...players].sort((a, b) => {
+    if (a.id === myId) return -1
+    if (b.id === myId) return 1
+    return b.score - a.score
+  })
+
   return (
     <>
+      {/* HUD topo — substitui o top bar do GameCanvas */}
       <div className="fixed top-0 left-0 right-0 z-30 pointer-events-none">
-        <div className="flex items-stretch gap-0 mx-3 mt-3 rounded-2xl overflow-hidden"
-          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 4px 24px rgba(0,0,0,0.5)" }}>
-          {players.map((p, i) => {
-            const color = PLAYER_COLORS[i % 4]; const isMe = p.id === myId
+        <div className="flex gap-1.5 mx-2 mt-2">
+          {sorted.map((p, i) => {
+            const color = PLAYER_COLORS[players.indexOf(p) % 4]
+            const isMe = p.id === myId
             return (
-              <div key={p.id} className="flex-1 flex flex-col items-center py-2.5 px-2 relative"
-                style={{ borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.06)" : "none", background: isMe ? `${color}10` : "transparent" }}>
-                {isMe && <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-sm" style={{ background: color }} />}
-                <div className="flex items-center gap-1 mb-0.5">
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
-                  <span className="text-[10px] font-semibold truncate max-w-[80px]" style={{ color: isMe ? color : "rgba(255,255,255,0.4)" }}>
+              <div key={p.id} className="flex-1 rounded-xl overflow-hidden"
+                style={{
+                  background: "rgba(0,0,0,0.72)",
+                  backdropFilter: "blur(14px)",
+                  border: `1px solid ${isMe ? color + "55" : "rgba(255,255,255,0.07)"}`,
+                  boxShadow: isMe ? `0 0 12px ${color}22` : "none",
+                }}>
+                {/* Barra de cor no topo */}
+                <div className="h-0.5 w-full" style={{ background: color }} />
+
+                <div className="flex items-center gap-2 px-3 py-1.5">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
+                  <span className="text-[11px] font-bold truncate flex-1"
+                    style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.55)" }}>
                     {isMe ? "Você" : p.name}
                   </span>
+                  {p.combo > 1 && (
+                    <span className="text-[10px] font-black" style={{ color: color + "cc" }}>{p.combo}x</span>
+                  )}
+                  <span className="text-sm font-black font-mono flex-shrink-0"
+                    style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.6)" }}>
+                    {p.score.toLocaleString()}
+                  </span>
                 </div>
-                <span className="text-base font-black font-mono" style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.65)" }}>
-                  {p.score.toLocaleString()}
-                </span>
-                <div className="flex items-center gap-2 mt-1 w-full">
-                  {p.combo > 1 && <span className="text-[9px] font-bold" style={{ color: color + "cc" }}>{p.combo}x</span>}
-                  <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
-                    <div className="h-full rounded-full transition-all duration-300"
-                      style={{ width: `${p.rockMeter}%`, background: p.rockMeter > 60 ? "#22c55e" : p.rockMeter > 30 ? "#fbbf24" : "#ef4444" }} />
-                  </div>
+
+                {/* Rock meter */}
+                <div className="h-1 w-full" style={{ background: "rgba(255,255,255,0.06)" }}>
+                  <div className="h-full transition-all duration-300"
+                    style={{
+                      width: `${p.rockMeter}%`,
+                      background: p.rockMeter > 60 ? "#22c55e" : p.rockMeter > 30 ? "#fbbf24" : "#ef4444",
+                    }} />
                 </div>
               </div>
             )
@@ -71,29 +94,41 @@ function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResu
         </div>
       </div>
 
+      {/* Pausa multiplayer */}
       {isPaused && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.82)", backdropFilter: "blur(12px)" }}>
+        <div className="fixed inset-0 z-40 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.82)", backdropFilter: "blur(12px)" }}>
           <div className="flex flex-col items-center gap-6 w-64">
             <div className="text-center">
               <h2 className="text-xl font-black tracking-[0.2em] uppercase text-white">Pausado</h2>
               <p className="text-xs text-white/35 mt-1">por {pausedByName}</p>
             </div>
-            <div className="w-full rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="w-full rounded-2xl overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
               {players.slice().sort((a, b) => b.score - a.score).map((p, rank) => {
-                const color = PLAYER_COLORS[players.indexOf(p) % 4]; const isMe = p.id === myId
+                const color = PLAYER_COLORS[players.indexOf(p) % 4]
+                const isMe = p.id === myId
                 return (
                   <div key={p.id} className="flex items-center gap-3 px-4 py-2.5"
                     style={{ borderBottom: rank < players.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                    <span className="text-sm font-black w-5 text-center" style={{ color: rank === 0 ? "#fbbf24" : "rgba(255,255,255,0.25)" }}>{rank + 1}</span>
+                    <span className="text-sm font-black w-5 text-center"
+                      style={{ color: rank === 0 ? "#fbbf24" : "rgba(255,255,255,0.25)" }}>{rank + 1}</span>
                     <div className="w-2 h-2 rounded-full" style={{ background: color }} />
-                    <span className="flex-1 text-sm font-semibold truncate" style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.55)" }}>{isMe ? "Você" : p.name}</span>
-                    <span className="text-sm font-black font-mono" style={{ color: isMe ? color : "rgba(255,255,255,0.5)" }}>{p.score.toLocaleString()}</span>
+                    <span className="flex-1 text-sm font-semibold truncate"
+                      style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.55)" }}>
+                      {isMe ? "Você" : p.name}
+                    </span>
+                    <span className="text-sm font-black font-mono"
+                      style={{ color: isMe ? color : "rgba(255,255,255,0.5)" }}>
+                      {p.score.toLocaleString()}
+                    </span>
                   </div>
                 )
               })}
             </div>
             {canResume ? (
-              <button onClick={onResume} className="flex items-center justify-center gap-2 w-full h-12 rounded-xl font-bold text-sm transition-all hover:scale-[1.03] active:scale-[0.97]"
+              <button onClick={onResume}
+                className="flex items-center justify-center gap-2 w-full h-12 rounded-xl font-bold text-sm transition-all hover:scale-[1.03] active:scale-[0.97]"
                 style={{ background: "linear-gradient(135deg,#e11d48,#be123c)", color: "#fff", boxShadow: "0 0 24px rgba(225,29,72,0.4)" }}>
                 ▶ Retomar jogo
               </button>
@@ -508,6 +543,7 @@ function PlayInner() {
         onNextSong={handleNextSong}
         playlistCount={playlist.length}
         playlistPosition={playlist.indexOf(trackId) + 1}
+        hideTopBar={isMultiplayer}
       />
       {isMultiplayer && roomSnapshot && (
         <MultiplayerHUD

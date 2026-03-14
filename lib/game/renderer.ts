@@ -131,6 +131,7 @@ interface RenderState {
   noteShape?: "circle" | "square" | "diamond"
   highwayTheme?: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice"
   cameraShake?: boolean
+  topBarH?: number   // altura reservada pelo top bar React (px CSS), para não sobrepor HUD do canvas
 }
 
 export function getHitLineY(h: number) { return h * HIT_LINE_Y_RATIO }
@@ -1159,7 +1160,7 @@ function drawDiffLabel(ctx: CanvasRenderingContext2D, x: number, y: number, diff
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────────────────────
 export function renderFrame(state: RenderState): void {
-  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true } = state
+  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true, topBarH = 0 } = state
   // Usar dimensões CSS (não físicas) para que as coords batam com o ctx já escalado pelo dpr
   const dpr = (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1
   const w = canvas.width / dpr
@@ -1406,7 +1407,7 @@ export function renderFrame(state: RenderState): void {
     ctx.shadowBlur = 0
   }
 
-  // ── Score: canto superior direito, grande ─────────────────────────────
+  // ── Score: canto superior direito, abaixo do top bar ─────────────────
   {
     ctx.save()
     const sc = stats.score.toLocaleString()
@@ -1416,7 +1417,8 @@ export function renderFrame(state: RenderState): void {
     ctx.shadowColor = starPower ? "#00ffff" : "rgba(255,255,255,0.6)"
     ctx.shadowBlur = starPower ? 16 : 6
     ctx.fillStyle = "#ffffff"
-    ctx.fillText(sc, w - Math.round(16 * uiScale), Math.round(14 * uiScale))
+    const scoreY = topBarH + Math.round(10 * uiScale)
+    ctx.fillText(sc, w - Math.round(16 * uiScale), scoreY)
     ctx.shadowBlur = 0
     ctx.restore()
   }
@@ -1424,13 +1426,12 @@ export function renderFrame(state: RenderState): void {
   // ── 5 estrelas abaixo do score ────────────────────────────────────────
   {
     ctx.save()
-    // GH: 1 estrela a cada 20% do score máximo estimado (200k)
     const totalEstimated = Math.max(stats.totalNotes * 100 * 4, 1)
     const starsFilled = Math.min(5, Math.floor((stats.score / totalEstimated) * 5))
     const starR = Math.round(11 * uiScale), starGap = Math.round(26 * uiScale)
     const starsW = 5 * starGap
     const sx0 = w - starsW - Math.round(10 * uiScale)
-    const sy0 = Math.round(50 * uiScale)
+    const sy0 = topBarH + Math.round(46 * uiScale)
     for (let s = 0; s < 5; s++) {
       drawGHStar(sx0 + s * starGap + starR, sy0 + starR, starR, s < starsFilled, starPower)
     }

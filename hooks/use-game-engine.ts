@@ -306,6 +306,11 @@ export function useGameEngine({
       return
     }
 
+    // Altura do top bar React: distância entre topo do canvas e topo da viewport
+    // O canvas ocupa toda a tela, mas o top bar fica em z-10 sobre ele
+    // Estimamos pela proporção da tela: ~60px em mobile, ~72px em desktop
+    const topBarH = Math.round(Math.max(52, Math.min(80, canvas.clientHeight * 0.072)))
+
     renderFrame({
       canvas, ctx,
       notes: notesRef.current,
@@ -321,6 +326,7 @@ export function useGameEngine({
       noteShape: noteShapeRef.current,
       highwayTheme: highwayThemeRef.current,
       cameraShake: cameraShakeRef.current,
+      topBarH,
     })
 
     animFrameRef.current = requestAnimationFrame(gameLoop)

@@ -37,9 +37,10 @@ interface GameCanvasProps {
   onNextSong?: () => void
   playlistCount?: number
   playlistPosition?: number
+  hideTopBar?: boolean
 }
 
-export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused, laneCount = 5, isDaily = false, onNextSong, playlistCount = 0, playlistPosition = 0 }: GameCanvasProps) {
+export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused, laneCount = 5, isDaily = false, onNextSong, playlistCount = 0, playlistPosition = 0, hideTopBar = false }: GameCanvasProps) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const isLeavingRef = useRef(false)   // impede startGame após navegar para fora
@@ -364,7 +365,8 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
 
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" style={{ zIndex: 1 }} />
 
-      {/* Top bar */}
+      {/* Top bar — oculto no modo multiplayer (o MultiplayerHUD já exibe as infos) */}
+      {!hideTopBar && (
       <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
         <div className="mx-1 sm:mx-3 mt-1 sm:mt-3 rounded-xl sm:rounded-2xl overflow-hidden"
           style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 4px 24px rgba(0,0,0,0.5)" }}>
@@ -414,6 +416,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
           </div>
         </div>
       </div>
+      )}
 
       {gameState === "playing" && (
         <div className="absolute top-[72px] right-4 z-10 pointer-events-none">
