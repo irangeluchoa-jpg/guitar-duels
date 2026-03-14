@@ -3,9 +3,8 @@ import { getRoom, serializeRoom, updatePlayer, setRoomSong, setRoomState, heartb
 
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
-  // Evict jogadores sem heartbeat antes de retornar o estado da sala
-  evictStalePlayers(code, 8000)
-  const room = getRoom(code)
+  await evictStalePlayers(code, 8000)
+  const room = await getRoom(code)
   if (!room) return NextResponse.json({ error: "Sala não encontrada" }, { status: 404 })
   return NextResponse.json(serializeRoom(room))
 }
@@ -13,57 +12,49 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
 export async function PATCH(req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
   const body = await req.json()
-  const room = getRoom(code)
+  const room = await getRoom(code)
   if (!room) return NextResponse.json({ error: "Sala não encontrada" }, { status: 404 })
 
   if (body.action === "score" && body.playerId) {
-    updatePlayer(code, body.playerId, {
-      score: body.score,
-      combo: body.combo,
-      rockMeter: body.rockMeter,
+    await updatePlayer(code, body.playerId, {
+      score: body.score, combo: body.combo, rockMeter: body.rockMeter,
     })
   }
 
   if (body.action === "setSong" && body.songId) {
-    setRoomSong(code, body.songId)
+    await setRoomSong(code, body.songId)
   }
 
   if (body.action === "setState" && body.state) {
-    setRoomState(code, body.state, body.pausedBy ?? undefined)
+    await setRoomState(code, body.state, body.pausedBy ?? undefined)
   }
 
   if (body.action === "ready" && body.playerId) {
-    const readyData: Record<string, unknown> = { ready: body.ready }
-    if (body.laneCount) readyData.laneCount = body.laneCount
-    updatePlayer(code, body.playerId, readyData as Parameters<typeof updatePlayer>[2])
+    await updatePlayer(code, body.playerId, { ready: body.ready })
   }
 
-  // Pause: qualquer jogador pode pausar para todos
   if (body.action === "pause" && body.playerId) {
-    setRoomState(code, "paused", body.playerId)
+    await setRoomState(code, "paused", body.playerId)
   }
 
-  // Resume: apenas quem pausou (ou o host) pode retomar
   if (body.action === "resume" && body.playerId) {
-    const r = getRoom(code)
+    const r = await getRoom(code)
     if (r && (r.pausedBy === body.playerId || r.hostId === body.playerId)) {
-      setRoomState(code, "playing")
+      await setRoomState(code, "playing")
     }
   }
 
-  // Heartbeat: atualiza lastSeen sem mudar estado
   if (body.action === "heartbeat" && body.playerId) {
-    heartbeat(code, body.playerId)
+    await heartbeat(code, body.playerId)
   }
 
-  // Leave: jogador saiu voluntariamente
   if (body.action === "leave" && body.playerId) {
-    const after = removePlayer(code, body.playerId)
+    const after = await removePlayer(code, body.playerId)
     if (!after) return NextResponse.json({ left: true })
     return NextResponse.json(serializeRoom(after))
   }
 
-  const updated = getRoom(code)
+  const updated = await getRoom(code)
   if (!updated) return NextResponse.json({ error: "Sala não encontrada" }, { status: 404 })
   return NextResponse.json(serializeRoom(updated))
 }

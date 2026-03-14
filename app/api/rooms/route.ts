@@ -10,14 +10,14 @@ export async function POST(req: Request) {
   if (action === "create") {
     const name = playerName || "Jogador 1"
     const max = typeof maxPlayers === "number" && [2,3,4].includes(maxPlayers) ? maxPlayers : 4
-    const room = createRoom(playerId, name, max)
+    const room = await createRoom(playerId, name, max)
     return NextResponse.json({ success: true, playerId, room: serializeRoom(room) })
   }
 
   if (action === "join") {
     if (!code) return NextResponse.json({ success: false, error: "Código inválido" }, { status: 400 })
     const name = playerName || "Jogador"
-    const room = joinRoom(code, playerId, name)
+    const room = await joinRoom(code, playerId, name)
     if (!room) return NextResponse.json({ success: false, error: "Sala não encontrada ou cheia" }, { status: 404 })
     return NextResponse.json({ success: true, playerId, room: serializeRoom(room) })
   }

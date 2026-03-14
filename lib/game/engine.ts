@@ -174,13 +174,7 @@ export function prepareNotes(chart: Chart, laneCount = 5): ActiveNote[] {
       notes.push({ ...note, lane: note.lane, id: id++, hit: false, missed: false })
     }
   }
-  // Deduplicar após redistribuição (pode criar colisões temporais)
-  const kept6: ActiveNote[] = []
-  for (const note of notes) {
-    const conflict = kept6.some(k => k.lane === note.lane && Math.abs(k.time - note.time) < DEDUP_MS)
-    if (!conflict) kept6.push(note)
-  }
-  return kept6
+  return notes
 }
 
 export function getAccuracy(stats: GameStats): number {
@@ -203,12 +197,3 @@ export function getGrade(accuracy: number, isFC = false): string {
 export function isFullCombo(stats: GameStats): boolean {
   return stats.miss === 0 && stats.totalNotes > 0
 }
-
-// ── Modo Prática ──────────────────────────────────────────────────────────────
-export interface PracticeConfig {
-  enabled: boolean
-  speed: number       // 0.5 | 0.75 | 1.0
-  loopStart: number   // ms
-  loopEnd: number     // ms
-}
-export const PRACTICE_SPEEDS = [0.5, 0.75, 1.0] as const

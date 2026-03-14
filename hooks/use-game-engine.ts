@@ -35,7 +35,6 @@ interface UseGameEngineOptions {
   noteShape?: "circle" | "square" | "diamond"
   highwayTheme?: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice"
   cameraShake?: boolean
-  practice?: PracticeConfig
   onSongEnd?: (stats: GameStats) => void
   onScoreUpdate?: (stats: GameStats) => void
 }
@@ -52,7 +51,6 @@ export function useGameEngine({
   noteShape = "circle" as "circle" | "square" | "diamond",
   highwayTheme = "default" as "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice",
   cameraShake = true,
-  practice,
   onSongEnd,
   onScoreUpdate,
 }: UseGameEngineOptions) {
@@ -91,7 +89,6 @@ export function useGameEngine({
   const failedRef       = useRef(false)  // true se terminou por rock meter zerado
   const hitEffectsRef   = useRef<HitEffect[]>([])
   const keysDownRef     = useRef<Set<number>>(new Set())
-  const pendingHitsRef  = useRef<number[]>([])  // hits a processar antes do checkMisses
   const gameStateRef    = useRef<GameState>("idle")
   const animFrameRef    = useRef<number>(0)
   const gameTimeRef     = useRef(0)
@@ -140,9 +137,10 @@ export function useGameEngine({
     return t + calibrationRef.current
   }, [audioRef])
 
-  // Versão interna: chamada no início do frame com currentTime já calculado
-  const _processHit = useCallback(
-    (lane: number, currentTime: number) => {
+  const processHit = useCallback(
+    (lane: number) => {
+      if (gameStateRef.current !== "playing") return
+      const currentTime = getCurrentTime()
       const notes = notesRef.current
       const windows = timingWindowsRef.current  // janelas dinâmicas por dificuldade
 
@@ -182,16 +180,7 @@ export function useGameEngine({
         }
       }
     },
-    [canvasRef, onScoreUpdate]
-  )
-
-  // API pública: enfileira o hit para processar ANTES do checkMisses no próximo frame
-  const processHit = useCallback(
-    (lane: number) => {
-      if (gameStateRef.current !== "playing") return
-      pendingHitsRef.current.push(lane)
-    },
-    []
+    [getCurrentTime, canvasRef, onScoreUpdate]
   )
 
   // Teclado
@@ -232,10 +221,11 @@ export function useGameEngine({
 
   const checkMisses = useCallback(
     (currentTime: number) => {
-      const missWindow = timingWindowsRef.current.miss + 40  // +40ms guard: 2-3 frames a 60fps
+      const missWindow = timingWindowsRef.current.miss
       for (const note of notesRef.current) {
-        // Notas futuras: skip
-        if (note.time > currentTime) break
+        // Notas futuras: se ainda não chegaram na janela de miss, podemos parar
+        // (chart está ordenado por tempo)
+        if (note.time > currentTime + missWindow) break
         if (note.hit || note.missed) continue
         if (currentTime - note.time > missWindow) {
           note.missed = true
@@ -267,9 +257,6 @@ export function useGameEngine({
 
     const currentTime = getCurrentTime()
     gameTimeRef.current = currentTime
-    // Processa hits pendentes ANTES de checkMisses (evita race condition)
-    const pending = pendingHitsRef.current.splice(0)
-    for (const lane of pending) _processHit(lane, currentTime)
     checkMisses(currentTime)
 
     const now = performance.now()
@@ -278,20 +265,6 @@ export function useGameEngine({
     // ── Rock meter chegou a zero: apenas reseta para 1 (sem game over) ───────
     if (statsRef.current.rockMeter <= 0) {
       statsRef.current = { ...statsRef.current, rockMeter: 1 }
-    }
-
-    // ── Modo Prática: loop automático ────────────────────────────────────
-    if (practice?.enabled && audioRef.current) {
-      const audio = audioRef.current
-      const ct = audio.currentTime * 1000
-      if (ct >= practice.loopEnd) {
-        audio.currentTime = practice.loopStart / 1000
-        for (const note of notesRef.current) {
-          if (note.time >= practice.loopStart) {
-            note.hit = false; note.missed = false; note.hitRating = undefined
-          }
-        }
-      }
     }
 
     const lastNote = notesRef.current[notesRef.current.length - 1]
@@ -391,8 +364,6 @@ export function useGameEngine({
     keysDownRef.current.clear()
     gameTimeRef.current = 0
     gameStartWallRef.current = 0
-    lastAudioSyncTime.current = 0
-    wallClockOffset.current = 0
     failedRef.current = false
 
     setGameState("countdown")

@@ -101,12 +101,8 @@ export default function RoomPage() {
 
   const fetchRoom = useCallback(async () => {
     try {
-      const res=await fetch(`/api/rooms/${code}`)
-      if(!res.ok){setError("Sala não encontrada"); setRoom(null); return}
-      const data:RoomData=await res.json()
-      // Garante que players é sempre um array (defensive)
-      if (!Array.isArray(data.players)) data.players = []
-      setRoom(data)
+      const res=await fetch(`/api/rooms/${code}`); if(!res.ok){setError("Sala não encontrada");return}
+      const data:RoomData=await res.json(); setRoom(data)
       if (data.state==="playing" && !startedRef.current) {
         startedRef.current=true
         const pid=sessionStorage.getItem("playerId")
@@ -148,7 +144,7 @@ export default function RoomPage() {
   function copyCode() { navigator.clipboard.writeText(code); setCopied(true); setTimeout(()=>setCopied(false),2000) }
 
   const isHost   = room?.hostId===playerId
-  const canStart = isHost && (players?.length??0)>=2 && !!room?.songId
+  const canStart = isHost && ((room?.players?.length ?? 0) >= 2) && !!room?.songId
 
   if (error) return (
     <div className="flex flex-col items-center justify-center h-screen gap-4" style={{background:"#060608"}}>
@@ -162,8 +158,8 @@ export default function RoomPage() {
     </div>
   )
 
-  const players = Array.isArray(room.players) ? room.players : []
-  const slots = Array.from({length: room.maxPlayers}, (_, i) => players[i] ?? null)
+  const safePlayers = room.players ?? []
+  const slots = Array.from({length: room.maxPlayers}, (_, i) => safePlayers[i] ?? null)
 
   return (
     <div className="flex h-screen overflow-hidden" style={{background:"#060608", fontFamily:"'Inter',sans-serif"}}>
@@ -385,7 +381,7 @@ export default function RoomPage() {
         <div className="relative z-10 px-6 py-4 flex-shrink-0"
           style={{ borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
           <p className="bebas text-xs tracking-[0.35em] mb-4" style={{ color:"rgba(255,180,60,0.4)" }}>
-            JOGADORES — {players.length} / {room.maxPlayers}
+            JOGADORES — {(room.players?.length ?? 0)} / {room.maxPlayers}
           </p>
           <div className="flex gap-6">
             {slots.map((p, idx) => (
@@ -418,8 +414,8 @@ export default function RoomPage() {
               }}>
               {canStart && <Zap className="w-5 h-5 fill-current opacity-70"/>}
               {!room.songId ? "ESCOLHA UMA MÚSICA"
-                : players.length<2 ? "AGUARDANDO OPONENTE..."
-                : `INICIAR BATALHA — ${players.length} JOGADORES`}
+                : room.players?.length < 2 ? "AGUARDANDO OPONENTE..."
+                : `INICIAR BATALHA — ${room.players.length} JOGADORES`}
               {canStart && <ChevronRight className="w-5 h-5 opacity-40"/>}
             </button>
           ) : (

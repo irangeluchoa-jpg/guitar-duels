@@ -201,7 +201,6 @@ interface RenderState {
   noteShape?: "circle" | "square" | "diamond"
   highwayTheme?: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice"
   cameraShake?: boolean
-  practice?: { enabled: boolean; loopStart: number; loopEnd: number; speed: number }
   topBarH?: number
   songMeta?: { artist?: string; name?: string }
   songProgress?: number
@@ -1277,7 +1276,7 @@ function drawDiffLabel(ctx: CanvasRenderingContext2D, x: number, y: number, diff
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────────────────────
 export function renderFrame(state: RenderState): void {
-  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true, topBarH = 0, lastMissTime = 0, displayScore, practice } = state
+  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true, topBarH = 0, lastMissTime = 0, displayScore } = state
   // Usar dimensões CSS (não físicas) para que as coords batam com o ctx já escalado pelo dpr
   const dpr = (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1
   const w = canvas.width / dpr
@@ -1956,19 +1955,7 @@ export function renderFrame(state: RenderState): void {
       cY += Math.round(35 * uS)
     }
 
-    // ── Modo prática: badge de velocidade ───────────────────────────────────
-  if (practice?.enabled) {
-    ctx.save()
-    ctx.fillStyle = "rgba(0,0,0,0.65)"
-    ctx.beginPath(); ctx.roundRect(w/2 - 36, 6, 72, 20, 4); ctx.fill()
-    ctx.fillStyle = "#f97316"; ctx.font = "bold 9px monospace"
-    ctx.textAlign = "center"; ctx.textBaseline = "middle"
-    ctx.shadowColor = "#f97316"; ctx.shadowBlur = 6
-    ctx.fillText(`PRÁTICA ${practice.speed}x`, w/2, 16)
-    ctx.shadowBlur = 0; ctx.restore()
-  }
-
-  // ── Rock meter ─────────────────────────────────────────────────────
+    // ── Rock meter ─────────────────────────────────────────────────────
     {
       const mw = pW - Math.round(24 * uS)
       const mh = Math.round(6 * uS)
