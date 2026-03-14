@@ -496,24 +496,26 @@ function PlayInner() {
     setIAmReady(true)
     setRoomSnapshot(prev => prev ? {
       ...prev,
-      players: prev.players.map(p => p.id === playerId ? { ...p, ready: true, laneCount } : p)
+      players: prev.players.map(p => p.id === playerId ? { ...p, ready: true } : p)
     } : prev)
     try {
+      // Marca jogador como pronto no servidor (ação "ready")
       await fetch(`/api/rooms/${roomCode}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "instrument", playerId, instrument: `lanes_${laneCount}` }),
+        body: JSON.stringify({ action: "ready", playerId, ready: true, laneCount }),
       })
     } catch {}
   }, [roomCode, playerId, laneCount])
 
   const handleStart = useCallback(async () => {
     if (!roomCode || !playerId) return
+    // Inicia localmente imediatamente (não espera o poll detectar)
+    setGameStarted(true)
     try {
       await fetch(`/api/rooms/${roomCode}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "setState", state: "playing" }),
       })
-      setGameStarted(true)
     } catch {}
   }, [roomCode, playerId])
 

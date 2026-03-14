@@ -33,7 +33,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ code: 
   }
 
   if (body.action === "ready" && body.playerId) {
-    updatePlayer(code, body.playerId, { ready: body.ready })
+    const readyData: Record<string, unknown> = { ready: body.ready }
+    if (body.laneCount) readyData.laneCount = body.laneCount
+    updatePlayer(code, body.playerId, readyData as Parameters<typeof updatePlayer>[2])
   }
 
   // Pause: qualquer jogador pode pausar para todos

@@ -10,6 +10,8 @@ import { GameCountdown } from "./game-countdown"
 import { GameOverScreen } from "./game-over-screen"
 import { PauseOverlay } from "./pause-overlay"
 import { TouchLanes } from "./touch-lanes"
+import { PracticePanel } from "./practice-panel"
+import type { PracticeConfig } from "@/lib/game/engine"
 import { loadSettings, toGain } from "@/lib/settings"
 import { useGamepad } from "@/hooks/use-gamepad"
 
@@ -63,7 +65,8 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
   )
 
   // Se speed não foi passado via prop, usa o das configurações
-  const effectiveSpeed = speed ?? settings.noteSpeed
+  const practiceEffectiveSpeed = practiceConfig.enabled ? practiceConfig.speed : speed
+  const effectiveSpeed = practiceEffectiveSpeed ?? speed ?? settings.noteSpeed
 
   // Faixa principal: song > backing > guitar > rhythm (para sincronizar o tempo)
   const primarySrc = audioUrls?.song || audioUrls?.backing || audioUrls?.guitar || audioUrls?.rhythm || null
@@ -91,6 +94,9 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
 
 
   const [gpConnected, setGpConnected] = useState(false)
+  const [practiceConfig, setPracticeConfig] = useState<PracticeConfig>({
+    enabled: false, speed: 0.75, loopStart: 0, loopEnd: 30000,
+  })
 
   const { gameState, stats, countdown, startGame, pause, resume, restart, accuracy, grade, isFC, failed, touchPress, touchRelease } =
     useGameEngine({
@@ -104,6 +110,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       noteShape: settings.noteShape,
       highwayTheme: settings.highwayTheme,
       cameraShake: settings.cameraShake,
+      practice: practiceConfig,
       onSongEnd: (stats) => { onSongEnd?.(stats) },
       onScoreUpdate,
     })
@@ -427,6 +434,16 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
         />
       )}
 
+      {gameState === "playing" && (
+        <PracticePanel
+          songLengthMs={(meta.songLength ?? 180000)}
+          config={practiceConfig}
+          onChange={setPracticeConfig}
+          currentMs={Math.round((primaryAudioRef.current?.currentTime ?? 0) * 1000)}
+          onMarkStart={() => setPracticeConfig(c => ({ ...c, loopStart: Math.round((primaryAudioRef.current?.currentTime ?? 0) * 1000) }))}
+          onMarkEnd={() => setPracticeConfig(c => ({ ...c, loopEnd: Math.round((primaryAudioRef.current?.currentTime ?? 0) * 1000) }))}
+        />
+      )}
       {gameState === "countdown" && <GameCountdown count={countdown} />}
       {gameState === "paused" && externalPaused === undefined && <PauseOverlay onResume={resume} onRestart={handleRestart} onQuit={handleBack} />}
       {gameState === "ended"     && (
