@@ -55,7 +55,7 @@ export function useGameEngine({
   onScoreUpdate,
 }: UseGameEngineOptions) {
   const [gameState, setGameState] = useState<GameState>("idle")
-  const [stats, setStats] = useState<GameStats>(() => createInitialStats(chart.notes.length))
+  const [stats, setStats] = useState<GameStats>(() => createInitialStats(prepareNotes(chart, laneCount).length))
   const [countdown, setCountdown] = useState(3)
 
   // Carrega volume de SFX das configurações
@@ -355,7 +355,9 @@ export function useGameEngine({
 
   const startGame = useCallback(() => {
     notesRef.current = prepareNotes(chart, laneCount)
-    const initialStats = createInitialStats(chart.notes.length)
+    // totalNotes usa as notas JÁ preparadas (após remap de lanes e deduplicação)
+    // para que 0 erros = 100% das notas acertadas, independente do laneCount
+    const initialStats = createInitialStats(notesRef.current.length)
     statsRef.current = initialStats
     setStats(initialStats)
     hitEffectsRef.current = []

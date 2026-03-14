@@ -99,36 +99,77 @@ function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResu
   { players: RoomPlayer[]; myId: string; isPaused: boolean; pausedByName: string
     onPause: () => void; onResume: () => void; canResume: boolean; leftPlayers?: string[] }) {
 
-  const sorted = [...players].sort((a, b) => {
-    if (a.id === myId) return -1
-    if (b.id === myId) return 1
-    return b.score - a.score
-  })
-
-  // Distribui jogadores: eu + metade esquerda, resto direita
-  const leftPlayers2  = sorted.slice(0, Math.ceil(sorted.length / 2))
-  const rightPlayers2 = sorted.slice(Math.ceil(sorted.length / 2))
+  // Ordenado por score decrescente — maior pontuação no topo
+  const sorted = [...players].sort((a, b) => b.score - a.score)
 
   return (
     <>
-      {/* Cards dos jogadores — cantos inferiores estilo Fortnite Festival */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 pointer-events-none flex justify-between items-end px-4 pb-4">
-        {/* Esquerda */}
-        <div className="flex flex-col gap-2">
-          {leftPlayers2.map(p => {
-            const c = PLAYER_COLORS[players.indexOf(p) % 4]
-            const me = p.id === myId
-            return <PlayerCard key={p.id} p={p} color={c} isMe={me} />
-          })}
-        </div>
-        {/* Direita */}
-        <div className="flex flex-col gap-2 items-end">
-          {rightPlayers2.map(p => {
-            const c = PLAYER_COLORS[players.indexOf(p) % 4]
-            const me = p.id === myId
-            return <PlayerCard key={p.id} p={p} color={c} isMe={me} />
-          })}
-        </div>
+      {/* Coluna de jogadores — lado esquerdo, ordenados por pontuação */}
+      <div className="fixed left-0 top-0 bottom-0 z-30 pointer-events-none flex flex-col justify-center px-3 py-16 gap-2"
+        style={{ maxHeight: "100vh", overflowY: "auto" }}>
+        {sorted.map((p, rank) => {
+          const color = PLAYER_COLORS[players.indexOf(p) % 4]
+          const isMe  = p.id === myId
+          return (
+            <div key={p.id} className="flex flex-col gap-0.5" style={{ width: 190 }}>
+              {/* Rank indicator */}
+              <div className="flex items-center gap-1.5 px-1 mb-0.5">
+                <span style={{
+                  fontSize: 9, fontWeight: 900, color: rank === 0 ? "#fbbf24" : "rgba(255,255,255,0.25)",
+                  fontFamily: "'Arial Black',Arial,sans-serif",
+                  textTransform: "uppercase", letterSpacing: "0.1em",
+                }}>
+                  #{rank + 1}
+                </span>
+                {isMe && <span style={{ fontSize: 8, color: color, fontWeight: 700 }}>VOCÊ</span>}
+              </div>
+              {/* Card */}
+              <div style={{
+                background: isMe ? "rgba(0,0,0,0.80)" : "rgba(0,0,0,0.62)",
+                backdropFilter: "blur(16px)",
+                border: `1px solid ${isMe ? color + "60" : "rgba(255,255,255,0.08)"}`,
+                borderRadius: 12,
+                padding: "8px 10px",
+                boxShadow: isMe ? `0 0 16px ${color}28` : "none",
+                borderLeft: `3px solid ${color}`,
+              }}>
+                {/* Nome + combo */}
+                <div className="flex items-center justify-between mb-1">
+                  <span style={{
+                    fontSize: 11, fontWeight: 900,
+                    color: isMe ? "#fff" : "rgba(255,255,255,0.70)",
+                    fontFamily: "'Arial Black',Arial,sans-serif",
+                    maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}>
+                    {p.name || (isMe ? "Você" : "Jogador")}
+                  </span>
+                  {p.combo > 1 && (
+                    <span style={{ fontSize: 10, fontWeight: 900, color: color }}>
+                      {p.combo}x
+                    </span>
+                  )}
+                </div>
+                {/* Score */}
+                <div style={{
+                  fontSize: 20, fontWeight: 900, color: "#ffffff",
+                  fontFamily: "'Arial Black',Arial,sans-serif",
+                  lineHeight: 1,
+                  textShadow: isMe ? `0 0 10px ${color}` : "none",
+                }}>
+                  {p.score.toLocaleString()}
+                </div>
+                {/* Rock meter */}
+                <div style={{ height: 3, background: "rgba(255,255,255,0.08)", borderRadius: 2, marginTop: 6, overflow: "hidden" }}>
+                  <div style={{
+                    height: "100%", width: `${p.rockMeter}%`,
+                    background: p.rockMeter > 60 ? "#22c55e" : p.rockMeter > 30 ? "#f59e0b" : "#ef4444",
+                    transition: "width 0.3s", borderRadius: 2,
+                  }} />
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {/* Notificação de jogador que saiu */}

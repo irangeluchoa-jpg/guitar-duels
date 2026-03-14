@@ -165,7 +165,7 @@ export function GameOverScreen({
     : (GRADE_DATA[grade] || { color: "#888", glow: "rgba(128,128,128,0.3)", label: "" })
   const displayGrade = failed ? "💀" : grade
   const totalHit = stats.perfect + stats.great + stats.good
-  const totalNotes = stats.totalNotes
+  const totalNotes = stats.perfect + stats.great + stats.good + stats.miss  // notas efetivamente jogadas
 
   const vol = (() => {
     try {
