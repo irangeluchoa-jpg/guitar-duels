@@ -3,16 +3,6 @@
 /**
  * use-gamepad.ts
  * Suporte a qualquer controle via Gamepad API, incluindo Bluetooth.
- *
- * Mapeamento padrão (Xbox / PlayStation / genérico):
- *  Lane 0 (Vermelho) → botão 2  (X no Xbox / □ no PS)
- *  Lane 1 (Laranja)  → botão 1  (B no Xbox / ○ no PS)
- *  Lane 2 (Amarelo)  → botão 3  (Y no Xbox / △ no PS)
- *  Lane 3 (Azul)     → botão 0  (A no Xbox / × no PS)
- *  Lane 4 (Verde)    → botão 5  (RB no Xbox / R1 no PS)
- *  Pause             → botão 9  (Start / Options)
- *  Strum Up          → botão 12 (D-pad cima)
- *  Strum Down        → botão 13 (D-pad baixo)
  */
 
 import { useEffect, useRef, useCallback } from "react"
@@ -78,13 +68,13 @@ export function useGamepad({
   const profileRef        = useRef<GamepadProfile>(GAMEPAD_PROFILES[2])
   const prevButtonsRef    = useRef<boolean[]>([])
   const rafRef            = useRef<number | null>(null)
-  const customBindingsRef = useRef<number[]>([...DEFAULT_GAMEPAD_BINDINGS])
+  // null = não customizado pelo usuário → usa profileRef.current.laneButtons
+  const customBindingsRef = useRef<number[] | null>(null)
   const enabledRef        = useRef(enabled)
 
-  // Mantém enabledRef sempre atualizado sem recriar callbacks
   useEffect(() => { enabledRef.current = enabled }, [enabled])
 
-  // Carrega mapeamento customizado
+  // Carrega mapeamento customizado do localStorage (só se o usuário editou)
   useEffect(() => {
     try {
       const stored = localStorage.getItem("guitar-duels-gamepad")
@@ -97,16 +87,19 @@ export function useGamepad({
     } catch {}
   }, [])
 
-  // ── Scan: encontra o primeiro gamepad conectado ────────────────────────────
+  // Retorna bindings ativos: custom (se configurado) OU perfil detectado automaticamente
+  const getBindings = useCallback((): number[] => {
+    if (customBindingsRef.current) return customBindingsRef.current
+    return profileRef.current.laneButtons
+  }, [])
+
+  // ── Scan: encontra o primeiro gamepad conectado ──────────────────────────
   const scanGamepads = useCallback(() => {
-    // navigator.getGamepads() pode retornar null em alguns browsers
     const gps = Array.from(navigator.getGamepads?.() ?? [])
 
-    // Se o gamepad atual ainda está conectado, mantém
     if (gamepadIndexRef.current !== null) {
       const current = gps[gamepadIndexRef.current]
-      if (current?.connected) return true   // ainda ok
-      // Caiu — limpa
+      if (current?.connected) return true
       gamepadIndexRef.current = null
       prevButtonsRef.current  = []
       for (let i = 0; i < laneCount; i++) {
@@ -115,7 +108,6 @@ export function useGamepad({
       }
     }
 
-    // Procura qualquer gamepad conectado
     for (let i = 0; i < gps.length; i++) {
       const gp = gps[i]
       if (gp && gp.connected) {
@@ -128,20 +120,22 @@ export function useGamepad({
     return false
   }, [keysDownRef, onLaneRelease, laneCount])
 
-  // ── Poll principal (rAF) ───────────────────────────────────────────────────
+  // ── Poll principal (rAF) ────────────────────────────────────────────────
   const pollGamepad = useCallback(() => {
     if (enabledRef.current && gamepadIndexRef.current !== null) {
       const gps = navigator.getGamepads?.() ?? []
       const gp  = gps[gamepadIndexRef.current]
 
       if (gp?.connected) {
-        const bindings = customBindingsRef.current
-        const buttons  = Array.from(gp.buttons).map(b => (typeof b === "object" ? b.pressed : Boolean(b)))
+        const bindings = getBindings()
+        const buttons  = Array.from(gp.buttons).map(b =>
+          typeof b === "object" ? b.pressed : Boolean(b)
+        )
 
         // Lanes
         for (let lane = 0; lane < laneCount; lane++) {
           const btnIdx = bindings[lane]
-          if (btnIdx === undefined || btnIdx >= buttons.length) continue
+          if (btnIdx === undefined || btnIdx < 0 || btnIdx >= buttons.length) continue
           const now = buttons[btnIdx]
           const was = prevButtonsRef.current[btnIdx] ?? false
           if (now && !was) { keysDownRef.current.add(lane); onLanePress(lane) }
@@ -150,15 +144,19 @@ export function useGamepad({
 
         // Pause
         const pauseIdx = profileRef.current.pauseButton
-        if (buttons[pauseIdx] && !(prevButtonsRef.current[pauseIdx] ?? false)) onPause()
+        if (pauseIdx < buttons.length && buttons[pauseIdx] && !(prevButtonsRef.current[pauseIdx] ?? false))
+          onPause()
 
-        // Strum (D-pad + analógico)
-        const axisY     = gp.axes[1] ?? 0
-        const strumUp   = buttons[profileRef.current.strumUp]   ?? false
-        const strumDown = buttons[profileRef.current.strumDown]  ?? false
-        const axisTrig  = Math.abs(axisY) > 0.7
-        const prevUp    = prevButtonsRef.current[profileRef.current.strumUp]   ?? false
-        const prevDown  = prevButtonsRef.current[profileRef.current.strumDown]  ?? false
+        // Strum (D-pad + eixo analógico)
+        const axisY        = gp.axes[1] ?? 0
+        const strumUpIdx   = profileRef.current.strumUp
+        const strumDownIdx = profileRef.current.strumDown
+        const strumUp      = strumUpIdx   < buttons.length ? (buttons[strumUpIdx]   ?? false) : false
+        const strumDown    = strumDownIdx < buttons.length ? (buttons[strumDownIdx] ?? false) : false
+        const axisTrig     = Math.abs(axisY) > 0.7
+        const prevUp       = prevButtonsRef.current[strumUpIdx]   ?? false
+        const prevDown     = prevButtonsRef.current[strumDownIdx] ?? false
+
         if ((strumUp && !prevUp) || (strumDown && !prevDown) || axisTrig) {
           for (let lane = 0; lane < laneCount; lane++) {
             if (keysDownRef.current.has(lane)) onLanePress(lane)
@@ -167,17 +165,15 @@ export function useGamepad({
 
         prevButtonsRef.current = buttons
       } else {
-        // Gamepad desconectou silenciosamente
         scanGamepads()
       }
     }
 
     rafRef.current = requestAnimationFrame(pollGamepad)
-  }, [onLanePress, onLaneRelease, onPause, keysDownRef, laneCount, scanGamepads])
+  }, [onLanePress, onLaneRelease, onPause, keysDownRef, laneCount, scanGamepads, getBindings])
 
-  // ── Setup: eventos + polling de fallback para Bluetooth ───────────────────
+  // ── Setup ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Eventos nativos (USB / quando BT já estava pareado antes da página abrir)
     const onConnect = (e: GamepadEvent) => {
       if (gamepadIndexRef.current !== null) return
       gamepadIndexRef.current = e.gamepad.index
@@ -197,35 +193,27 @@ export function useGamepad({
     window.addEventListener("gamepadconnected",    onConnect)
     window.addEventListener("gamepaddisconnected", onDisconnect)
 
-    // Scan imediato — pega controles já conectados antes do mount
     scanGamepads()
 
-    // Polling de fallback a 200ms — essencial para Bluetooth em Chrome/Android
-    // O browser só "vê" o gamepad BT após a primeira interação do usuário,
-    // então precisamos fazer re-scan frequentemente.
+    // Polling BT — Chrome só expõe gamepad BT após primeiro input do usuário
     const scanTimer = setInterval(scanGamepads, 200)
 
-    // Re-scan em qualquer user gesture (clique, toque, tecla) — crítico para BT
-    // O Chrome expõe gamepads BT só após um gesto do usuário
-    const onGesture = () => scanGamepads()
-    window.addEventListener("pointerdown", onGesture)
-    window.addEventListener("keydown",     onGesture)
+    // Scan em pointer (toque/clique) — NÃO keydown para não interferir no jogo
+    const onPointer = () => scanGamepads()
+    window.addEventListener("pointerdown", onPointer)
 
-    // Re-scan quando a aba volta ao foco (usuário alt+tab ou desbloqueia tela)
     const onFocus      = () => scanGamepads()
     const onVisibility = () => { if (document.visibilityState === "visible") scanGamepads() }
-    window.addEventListener("focus",                onFocus)
-    document.addEventListener("visibilitychange",   onVisibility)
+    window.addEventListener("focus",              onFocus)
+    document.addEventListener("visibilitychange", onVisibility)
 
-    // Inicia o loop de rAF
     rafRef.current = requestAnimationFrame(pollGamepad)
 
     return () => {
       clearInterval(scanTimer)
       window.removeEventListener("gamepadconnected",    onConnect)
       window.removeEventListener("gamepaddisconnected", onDisconnect)
-      window.removeEventListener("pointerdown", onGesture)
-      window.removeEventListener("keydown",     onGesture)
+      window.removeEventListener("pointerdown",         onPointer)
       window.removeEventListener("focus",               onFocus)
       document.removeEventListener("visibilitychange",  onVisibility)
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
