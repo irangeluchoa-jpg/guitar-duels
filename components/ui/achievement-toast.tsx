@@ -2,7 +2,15 @@
 
 import React, { useEffect, useState, useCallback } from "react"
 import type { Achievement, LevelUpInfo } from "@/lib/progression"
-import { RARITY_COLORS } from "@/lib/progression"
+
+// Inlined to avoid module initialization ordering issues (TDZ)
+const RARITY_COLORS: Record<string, string> = {
+  common:    "#9ca3af",
+  uncommon:  "#22c55e",
+  rare:      "#3b82f6",
+  epic:      "#a855f7",
+  legendary: "#f59e0b",
+}
 
 interface AchievementToast {
   id: string
