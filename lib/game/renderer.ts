@@ -74,6 +74,11 @@ const _noteCache = new Map<string, OffscreenCanvas>()
 const MAX_NOTE_CACHE = 48
 let _fretW = 0, _fretH = 0
 
+/** Limpa o cache do fretboard — chamar quando o tema muda */
+export function clearFretCache(): void {
+  _fretCache.clear()
+}
+
 // Pre-loaded highway images (loaded once on first use)
 const _hwImages: Record<string, HTMLImageElement | null> = {
   easy: null, hard: null, expert: null

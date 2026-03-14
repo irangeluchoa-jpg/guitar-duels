@@ -26,15 +26,18 @@ export default function SettingsPage() {
   const router = useRouter()
   const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS)
   const [saved, setSaved] = useState(false)
-  const [playerLevel, setPlayerLevel] = useState(1)
-  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([])
+  const [playerProfile, setPlayerProfile] = useState(() => {
+    try { return loadProfile() } catch { return null }
+  })
 
+  // Recarrega perfil quando a página fica visível (ex: voltou das settings)
   useEffect(() => {
-    try {
-      const p = loadProfile()
-      setPlayerLevel(p.level)
-      setUnlockedAchievements(p.unlockedAchievements)
-    } catch {}
+    const refresh = () => {
+      try { setPlayerProfile(loadProfile()) } catch {}
+    }
+    refresh()
+    document.addEventListener("visibilitychange", refresh)
+    return () => document.removeEventListener("visibilitychange", refresh)
   }, [])
 
   // Gamepad state
@@ -475,8 +478,7 @@ export default function SettingsPage() {
               <p className="text-sm text-white font-medium">Tema da Highway</p>
               <div className="grid grid-cols-4 gap-2">
                 {HIGHWAY_THEMES.map(theme => {
-                  const fakeProfile = { level: playerLevel, unlockedAchievements } as Parameters<typeof isThemeUnlocked>[1]
-                  const unlocked = isThemeUnlocked(theme.id, fakeProfile)
+                  const unlocked = playerProfile ? isThemeUnlocked(theme.id, playerProfile) : theme.unlockLevel === 0
                   const isSel = (settings.highwayTheme ?? "default") === theme.id
                   return (
                     <button key={theme.id}

@@ -339,7 +339,13 @@ export function loadProfile(): PlayerProfile {
   if (typeof window === "undefined") return createProfile()
   try {
     const raw = localStorage.getItem(PROFILE_KEY)
-    if (raw) return { ...createProfile(), ...JSON.parse(raw) }
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      const profile = { ...createProfile(), ...parsed }
+      // Garante que o level está sempre sincronizado com o XP real
+      profile.level = levelFromXP(profile.totalXP)
+      return profile
+    }
   } catch {}
   return createProfile()
 }

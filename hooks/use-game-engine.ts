@@ -18,7 +18,7 @@ import {
   isFullCombo,
   MISS_PENALTY_BASE,
 } from "@/lib/game/engine"
-import { renderFrame, getHitLineY } from "@/lib/game/renderer"
+import { renderFrame, getHitLineY, clearFretCache } from "@/lib/game/renderer"
 import { playComboSound, playPauseSound, playResumeSound, playGameOverSound } from "@/lib/game/sounds"
 import { loadSettings, getKeyBindingsForLanes } from "@/lib/settings"
 import { useGamepad } from "@/hooks/use-gamepad"
@@ -98,10 +98,21 @@ export function useGameEngine({
   const speedRef          = useRef(speed)
   const showGuideRef      = useRef(showGuide)
   const calibrationRef    = useRef(calibrationOffset)
+  const noteShapeRef      = useRef(noteShape)
+  const highwayThemeRef   = useRef(highwayTheme)
+  const cameraShakeRef    = useRef(cameraShake)
   const timingWindowsRef  = useRef(getTimingWindows(meta.difficulty ?? 2))
   useEffect(() => { speedRef.current = speed }, [speed])
   useEffect(() => { showGuideRef.current = showGuide }, [showGuide])
   useEffect(() => { calibrationRef.current = calibrationOffset }, [calibrationOffset])
+  useEffect(() => { noteShapeRef.current = noteShape }, [noteShape])
+  useEffect(() => {
+    if (highwayThemeRef.current !== highwayTheme) {
+      highwayThemeRef.current = highwayTheme
+      clearFretCache()  // invalida cache para o novo tema ser renderizado imediatamente
+    }
+  }, [highwayTheme])
+  useEffect(() => { cameraShakeRef.current = cameraShake }, [cameraShake])
 
   useEffect(() => { statsRef.current = stats }, [stats])
   useEffect(() => { gameStateRef.current = gameState }, [gameState])
@@ -307,9 +318,9 @@ export function useGameEngine({
       keyLabels: keyBindingsRef.current,
       laneCount,
       difficulty: meta.difficulty,
-      noteShape,
-      highwayTheme,
-      cameraShake,
+      noteShape: noteShapeRef.current,
+      highwayTheme: highwayThemeRef.current,
+      cameraShake: cameraShakeRef.current,
     })
 
     animFrameRef.current = requestAnimationFrame(gameLoop)

@@ -48,7 +48,8 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
   const crowdAudioRef   = useRef<HTMLAudioElement>(null)
   const keysAudioRef    = useRef<HTMLAudioElement>(null)
 
-  // Carrega configurações salvas
+  // Carrega configurações salvas — relê do localStorage a cada montagem
+  // para garantir que mudanças feitas nas settings sejam aplicadas
   const [settings] = useState(() => loadSettings())
 
   // Aplicar dispositivo de saída de áudio em todos os elementos
