@@ -79,6 +79,10 @@ export function useGamepad({
   const prevButtonsRef    = useRef<boolean[]>([])
   const rafRef            = useRef<number | null>(null)
   const customBindingsRef = useRef<number[]>([...DEFAULT_GAMEPAD_BINDINGS])
+  const enabledRef        = useRef(enabled)
+
+  // Mantém enabledRef sempre atualizado sem recriar callbacks
+  useEffect(() => { enabledRef.current = enabled }, [enabled])
 
   // Carrega mapeamento customizado
   useEffect(() => {
@@ -126,7 +130,7 @@ export function useGamepad({
 
   // ── Poll principal (rAF) ───────────────────────────────────────────────────
   const pollGamepad = useCallback(() => {
-    if (enabled && gamepadIndexRef.current !== null) {
+    if (enabledRef.current && gamepadIndexRef.current !== null) {
       const gps = navigator.getGamepads?.() ?? []
       const gp  = gps[gamepadIndexRef.current]
 
@@ -169,7 +173,7 @@ export function useGamepad({
     }
 
     rafRef.current = requestAnimationFrame(pollGamepad)
-  }, [enabled, onLanePress, onLaneRelease, onPause, keysDownRef, laneCount, scanGamepads])
+  }, [onLanePress, onLaneRelease, onPause, keysDownRef, laneCount, scanGamepads])
 
   // ── Setup: eventos + polling de fallback para Bluetooth ───────────────────
   useEffect(() => {
@@ -196,10 +200,16 @@ export function useGamepad({
     // Scan imediato — pega controles já conectados antes do mount
     scanGamepads()
 
-    // Polling de fallback a 100ms — essencial para Bluetooth em Chrome/Android
+    // Polling de fallback a 200ms — essencial para Bluetooth em Chrome/Android
     // O browser só "vê" o gamepad BT após a primeira interação do usuário,
     // então precisamos fazer re-scan frequentemente.
-    const scanTimer = setInterval(scanGamepads, 100)
+    const scanTimer = setInterval(scanGamepads, 200)
+
+    // Re-scan em qualquer user gesture (clique, toque, tecla) — crítico para BT
+    // O Chrome expõe gamepads BT só após um gesto do usuário
+    const onGesture = () => scanGamepads()
+    window.addEventListener("pointerdown", onGesture)
+    window.addEventListener("keydown",     onGesture)
 
     // Re-scan quando a aba volta ao foco (usuário alt+tab ou desbloqueia tela)
     const onFocus      = () => scanGamepads()
@@ -214,6 +224,8 @@ export function useGamepad({
       clearInterval(scanTimer)
       window.removeEventListener("gamepadconnected",    onConnect)
       window.removeEventListener("gamepaddisconnected", onDisconnect)
+      window.removeEventListener("pointerdown", onGesture)
+      window.removeEventListener("keydown",     onGesture)
       window.removeEventListener("focus",               onFocus)
       document.removeEventListener("visibilitychange",  onVisibility)
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
