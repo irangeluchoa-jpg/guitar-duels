@@ -4,25 +4,17 @@ import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Trophy, Star, Music2, Target } from "lucide-react"
 import { loadSettings } from "@/lib/settings"
+import { loadHistory, clearHistory, type GameRecord, HISTORY_KEY } from "@/lib/history"
 
 function fmtDate(ts: number) {
   const d = new Date(ts)
   return d.toLocaleDateString("pt-BR", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" })
 }
 
-export interface GameRecord {
-  id: string; songId: string; songName: string; artist: string; albumArt?: string
-  score: number; accuracy: number; combo: number; grade: string
-  laneCount: 4|5|6; noteSpeed: number
-  perfect: number; great: number; good: number; miss: number
-  timestamp: number
-}
-
-export const HISTORY_KEY = "guitar-duels-history"
 export function saveRecord(record: Omit<GameRecord, "id">) {
   if (typeof window === "undefined") return
   try {
-    const history: GameRecord[] = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]")
+    const history: GameRecord[] = loadHistory()
     history.unshift({ ...record, id: `${Date.now()}-${Math.random().toString(36).slice(2,7)}` })
     if (history.length > 50) history.splice(50)
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
@@ -52,7 +44,7 @@ export default function HistoryPage() {
   const [filter, setFilter] = useState<"all"|"s"|"fc">("all")
 
   useEffect(() => {
-    try { setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]")) } catch {}
+    try { setHistory(loadHistory()) } catch {}
   }, [])
 
   const filtered = history.filter((r: GameRecord) => {

@@ -8,7 +8,7 @@ import type { GameStats } from "@/lib/game/engine"
 import { getGrade, getAccuracy, isFullCombo } from "@/lib/game/engine"
 import { playPauseSound, playResumeSound } from "@/lib/game/sounds"
 import { loadSettings } from "@/lib/settings"
-import { saveRecord } from "@/app/history/page"
+import { saveRecord } from "@/lib/history"
 import { processGameSession } from "@/lib/progression"
 import { showAchievementToast, showLevelUpToast, showXPToast, ToastContainer } from "@/components/ui/achievement-toast"
 
