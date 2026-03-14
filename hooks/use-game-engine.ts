@@ -327,6 +327,13 @@ export function useGameEngine({
       highwayTheme: highwayThemeRef.current,
       cameraShake: cameraShakeRef.current,
       topBarH,
+      songMeta: { artist: meta.artist, name: meta.name },
+      songProgress: (() => {
+        const audio = audioRef.current
+        if (audio && isFinite(audio.duration) && audio.duration > 0)
+          return Math.min(1, audio.currentTime / audio.duration)
+        return 0
+      })(),
     })
 
     animFrameRef.current = requestAnimationFrame(gameLoop)

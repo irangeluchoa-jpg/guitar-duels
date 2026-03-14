@@ -201,7 +201,9 @@ interface RenderState {
   noteShape?: "circle" | "square" | "diamond"
   highwayTheme?: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice"
   cameraShake?: boolean
-  topBarH?: number   // altura reservada pelo top bar React (px CSS), para não sobrepor HUD do canvas
+  topBarH?: number
+  songMeta?: { artist?: string; name?: string }
+  songProgress?: number  // 0-1, progresso da música para a barra
 }
 
 export function getHitLineY(h: number) { return h * HIT_LINE_Y_RATIO }
@@ -1570,160 +1572,223 @@ export function renderFrame(state: RenderState): void {
     ctx.shadowBlur=0; ctx.restore()
   }
 
-  // 9 – HUD estilo GH clássico
-  // ── helper: desenha estrela de 5 pontas ─────────────────────────────────
-  function drawGHStar(cx: number, cy: number, r: number, filled: boolean, sp2: boolean) {
-    ctx.beginPath()
-    for (let i = 0; i < 10; i++) {
-      const ang = (i / 5) * Math.PI - Math.PI / 2
-      const rad = i % 2 === 0 ? r : r * 0.42
-      i === 0 ? ctx.moveTo(cx + Math.cos(ang)*rad, cy + Math.sin(ang)*rad)
-              : ctx.lineTo(cx + Math.cos(ang)*rad, cy + Math.sin(ang)*rad)
-    }
-    ctx.closePath()
-    if (filled) {
-      const sg = ctx.createRadialGradient(cx, cy - r*0.2, 0, cx, cy, r)
-      sg.addColorStop(0, sp2 ? spPal.starFill1 : "#fff7aa")
-      sg.addColorStop(0.5, sp2 ? spPal.starFill2 : "#f59e0b")
-      sg.addColorStop(1,   sp2 ? spPal.starFill3 : "#92400e")
-      ctx.fillStyle = sg
-      ctx.shadowColor = sp2 ? spPal.primary : "#fbbf24"
-      ctx.shadowBlur = 18
-    } else {
-      ctx.fillStyle = "rgba(255,255,255,0.12)"
+  // 9 – HUD lateral esquerdo (estilo Fortnite Festival / referência)
+  {
+    ctx.save()
+    const uS      = uiScale
+    const pW      = Math.round(210 * uS)   // largura do painel
+    const pX      = Math.round(14 * uS)    // margem esquerda
+    const pY      = Math.round((topBarH || 0) + Math.round(10 * uS))
+    const rr      = Math.round(12 * uS)    // border-radius
+    const sp      = starPower
+    const spC     = sp ? spPal.primary : "#e11d48"
+    const spCRgb  = sp ? spPal.primaryRgb : "225,29,72"
+
+    // ── Painel de fundo com blur visual ────────────────────────────────
+    ctx.fillStyle = sp ? "rgba(0,0,0,0.45)" : "rgba(0,0,0,0.62)"
+    ctx.beginPath(); ctx.roundRect(pX, pY, pW, Math.round(260 * uS), rr); ctx.fill()
+
+    // Borda do painel
+    ctx.strokeStyle = sp ? `rgba(${spCRgb},0.40)` : "rgba(255,255,255,0.09)"
+    ctx.lineWidth = 1.2
+    ctx.beginPath(); ctx.roundRect(pX, pY, pW, Math.round(260 * uS), rr); ctx.stroke()
+
+    // Stripe colorida no topo
+    const stripeG = ctx.createLinearGradient(pX, 0, pX + pW, 0)
+    stripeG.addColorStop(0, sp ? spPal.primary : "#e11d48")
+    stripeG.addColorStop(1, sp ? spPal.secondary : "#f97316")
+    ctx.fillStyle = stripeG
+    ctx.beginPath(); ctx.roundRect(pX, pY, pW, Math.round(3 * uS), [rr, rr, 0, 0]); ctx.fill()
+
+    let cY = pY + Math.round(10 * uS)
+
+    // ── Nome da música + artista ────────────────────────────────────────
+    {
+      const artist = (state.songMeta?.artist ?? "").toUpperCase()
+      const name   = state.songMeta?.name ?? ""
+      const padX   = pX + Math.round(10 * uS)
+      const maxW   = pW - Math.round(20 * uS)
+
+      ctx.textAlign = "left"; ctx.textBaseline = "top"
+      ctx.fillStyle = "rgba(255,255,255,0.35)"
+      ctx.font = `600 ${Math.round(8 * uS)}px 'Inter',Arial,sans-serif`
+      ctx.fillText(artist, padX, cY, maxW)
+      cY += Math.round(12 * uS)
+
+      ctx.fillStyle = "#ffffff"
+      ctx.font = `900 ${Math.round(12 * uS)}px 'Arial Black',Arial,sans-serif`
+      ctx.shadowColor = sp ? spPal.primary : "rgba(255,255,255,0.3)"
+      ctx.shadowBlur = sp ? 8 : 2
+      ctx.fillText(name, padX, cY, maxW)
       ctx.shadowBlur = 0
+      cY += Math.round(16 * uS)
     }
-    ctx.fill()
-    ctx.strokeStyle = filled ? (sp2 ? spPal.primary : "#fbbf24") : "rgba(255,255,255,0.25)"
-    ctx.lineWidth = filled ? 1.5 : 1
-    ctx.stroke()
-    ctx.shadowBlur = 0
-  }
 
-  // ── Score: canto superior direito, abaixo do top bar ─────────────────
-  {
-    ctx.save()
-    const sc = stats.score.toLocaleString()
-    const scoreFontSize = Math.round(28 * uiScale)
-    ctx.font = `bold ${scoreFontSize}px 'Arial Black', Arial, sans-serif`
-    ctx.textAlign = "right"; ctx.textBaseline = "top"
-    ctx.shadowColor = starPower ? spPal.primary : "rgba(255,255,255,0.6)"
-    ctx.shadowBlur = starPower ? 16 : 6
-    ctx.fillStyle = "#ffffff"
-    const scoreY = topBarH + Math.round(10 * uiScale)
-    ctx.fillText(sc, w - Math.round(16 * uiScale), scoreY)
-    ctx.shadowBlur = 0
+    // ── Barra de progresso da música ────────────────────────────────────
+    {
+      const padX = pX + Math.round(10 * uS)
+      const bw   = pW - Math.round(20 * uS)
+      const bh   = Math.round(4 * uS)
+      ctx.fillStyle = "rgba(255,255,255,0.10)"
+      ctx.beginPath(); ctx.roundRect(padX, cY, bw, bh, bh/2); ctx.fill()
+      // progresso calculado a partir de stats (aproximação via nota atual)
+      const prog = state.songProgress ?? 0
+      if (prog > 0) {
+        const pg = ctx.createLinearGradient(padX, 0, padX + bw, 0)
+        pg.addColorStop(0, sp ? spPal.primary : "#e11d48")
+        pg.addColorStop(1, sp ? spPal.secondary : "#f97316")
+        ctx.fillStyle = pg
+        ctx.shadowColor = sp ? spPal.primary : "#e11d48"; ctx.shadowBlur = 4
+        ctx.beginPath(); ctx.roundRect(padX, cY, bw * prog, bh, bh/2); ctx.fill()
+        ctx.shadowBlur = 0
+      }
+      cY += bh + Math.round(10 * uS)
+    }
+
+    // ── Separador ────────────────────────────────────────────────────────
+    ctx.strokeStyle = "rgba(255,255,255,0.07)"; ctx.lineWidth = 1
+    ctx.beginPath(); ctx.moveTo(pX + Math.round(10*uS), cY); ctx.lineTo(pX + pW - Math.round(10*uS), cY); ctx.stroke()
+    cY += Math.round(8 * uS)
+
+    // ── Score grande ─────────────────────────────────────────────────────
+    {
+      const padX = pX + Math.round(10 * uS)
+      ctx.textAlign = "left"; ctx.textBaseline = "top"
+      ctx.fillStyle = "rgba(255,255,255,0.30)"
+      ctx.font = `600 ${Math.round(8*uS)}px 'Inter',Arial,sans-serif`
+      ctx.fillText("PONTUAÇÃO", padX, cY)
+      cY += Math.round(11 * uS)
+
+      const sc = stats.score.toLocaleString()
+      ctx.fillStyle = "#ffffff"
+      ctx.font = `900 ${Math.round(28*uS)}px 'Arial Black',Arial,sans-serif`
+      ctx.shadowColor = sp ? spPal.primary : "rgba(255,255,255,0.4)"
+      ctx.shadowBlur = sp ? 14 : 4
+      ctx.fillText(sc, padX, cY, pW - Math.round(20*uS))
+      ctx.shadowBlur = 0
+      cY += Math.round(32 * uS)
+    }
+
+    // ── Estrelas ────────────────────────────────────────────────────────
+    {
+      const totalEstimated = Math.max(stats.totalNotes * 100 * 4, 1)
+      const filled = Math.min(5, Math.floor((stats.score / totalEstimated) * 5))
+      const starR  = Math.round(10 * uS)
+      const starGap= Math.round(22 * uS)
+      const sx0    = pX + (pW - 5 * starGap) / 2
+
+      for (let s = 0; s < 5; s++) {
+        const scx = sx0 + s * starGap + starR
+        const scy = cY + starR
+        ctx.beginPath()
+        for (let i = 0; i < 10; i++) {
+          const ang = (i / 5) * Math.PI - Math.PI / 2
+          const r2  = i % 2 === 0 ? starR : starR * 0.42
+          i === 0 ? ctx.moveTo(scx + Math.cos(ang)*r2, scy + Math.sin(ang)*r2)
+                  : ctx.lineTo(scx + Math.cos(ang)*r2, scy + Math.sin(ang)*r2)
+        }
+        ctx.closePath()
+        if (s < filled) {
+          const sg = ctx.createRadialGradient(scx, scy - starR*0.2, 0, scx, scy, starR)
+          sg.addColorStop(0, sp ? spPal.starFill1 : "#fff7aa")
+          sg.addColorStop(0.5, sp ? spPal.starFill2 : "#f59e0b")
+          sg.addColorStop(1, sp ? spPal.starFill3 : "#92400e")
+          ctx.fillStyle = sg
+          ctx.shadowColor = sp ? spPal.primary : "#fbbf24"; ctx.shadowBlur = 14
+        } else {
+          ctx.fillStyle = "rgba(255,255,255,0.10)"; ctx.shadowBlur = 0
+        }
+        ctx.fill()
+        ctx.strokeStyle = s < filled ? (sp ? spPal.primary : "#fbbf24") : "rgba(255,255,255,0.15)"
+        ctx.lineWidth = s < filled ? 1.2 : 0.7; ctx.stroke()
+        ctx.shadowBlur = 0
+      }
+      cY += starR * 2 + Math.round(10 * uS)
+    }
+
+    // ── Rock meter ──────────────────────────────────────────────────────
+    {
+      const padX = pX + Math.round(10 * uS)
+      const mw   = pW - Math.round(20 * uS)
+      const mh   = Math.round(7 * uS)
+      const fill = stats.rockMeter / 100
+      const mCol = stats.rockMeter > 60 ? "#22c55e" : stats.rockMeter > 30 ? "#f59e0b" : "#ef4444"
+
+      ctx.fillStyle = "rgba(255,255,255,0.07)"
+      ctx.beginPath(); ctx.roundRect(padX, cY, mw, mh, Math.round(3.5*uS)); ctx.fill()
+      if (fill > 0) {
+        const fg = ctx.createLinearGradient(padX, 0, padX + mw, 0)
+        fg.addColorStop(0, "#ef4444"); fg.addColorStop(0.3, "#f59e0b")
+        fg.addColorStop(0.6, "#22c55e"); fg.addColorStop(1, "#4ade80")
+        ctx.fillStyle = fg
+        ctx.shadowColor = mCol; ctx.shadowBlur = 5
+        ctx.beginPath(); ctx.roundRect(padX, cY, mw * fill, mh, Math.round(3.5*uS)); ctx.fill()
+        ctx.shadowBlur = 0
+      }
+      const midX = padX + mw / 2
+      ctx.strokeStyle = "rgba(255,255,255,0.40)"; ctx.lineWidth = 1
+      ctx.beginPath(); ctx.moveTo(midX, cY - 2); ctx.lineTo(midX, cY + mh + 2); ctx.stroke()
+      ctx.font = `${Math.round(9*uS)}px serif`
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"
+      ctx.fillStyle = stats.rockMeter <= 20 ? "#ef4444" : "rgba(255,255,255,0.28)"
+      ctx.fillText("💀", padX - Math.round(7*uS), cY + mh/2)
+      ctx.fillStyle = stats.rockMeter >= 80 ? "#22c55e" : "rgba(255,255,255,0.28)"
+      ctx.fillText("🎸", padX + mw + Math.round(7*uS), cY + mh/2)
+      cY += mh + Math.round(12 * uS)
+    }
+
+    // ── Último rating de hit (feedback visível no painel) ────────────────
+    {
+      const padX = pX + Math.round(10 * uS)
+      // Pegar o hit effect mais recente
+      const recent = hitEffects.filter(fx => !fx.rating.includes("miss") && (now - fx.time) < 600)
+        .sort((a, b) => b.time - a.time)[0]
+      if (recent) {
+        const age     = now - recent.time
+        const alpha2  = Math.max(0, 1 - age / 600)
+        const rColors: Record<string,string> = { perfect:"#fbbf24", great:"#22c55e", good:"#3b82f6", miss:"#ef4444" }
+        const rLabel:  Record<string,string> = { perfect:"PERFEITO", great:"ÓTIMO", good:"BOM", miss:"MISS" }
+        const rc2 = rColors[recent.rating] ?? "#fff"
+        ctx.textAlign = "left"; ctx.textBaseline = "top"
+        ctx.globalAlpha = alpha2
+        ctx.fillStyle = rc2
+        ctx.font = `900 ${Math.round(11*uS)}px 'Arial Black',Arial,sans-serif`
+        ctx.shadowColor = rc2; ctx.shadowBlur = 8
+        ctx.fillText(rLabel[recent.rating] ?? recent.rating.toUpperCase(), padX, cY)
+        ctx.shadowBlur = 0
+        ctx.globalAlpha = 1
+      }
+    }
+
     ctx.restore()
   }
 
-  // ── 5 estrelas abaixo do score ────────────────────────────────────────
-  {
-    ctx.save()
-    const totalEstimated = Math.max(stats.totalNotes * 100 * 4, 1)
-    const starsFilled = Math.min(5, Math.floor((stats.score / totalEstimated) * 5))
-    const starR = Math.round(11 * uiScale), starGap = Math.round(26 * uiScale)
-    const starsW = 5 * starGap
-    const sx0 = w - starsW - Math.round(10 * uiScale)
-    const sy0 = topBarH + Math.round(46 * uiScale)
-    for (let s = 0; s < 5; s++) {
-      drawGHStar(sx0 + s * starGap + starR, sy0 + starR, starR, s < starsFilled, starPower)
-    }
-    ctx.restore()
-  }
-
-  // ── Restaurar translate do camera shake ──────────────────────────────
-  if (cameraShake && starPower) { ctx.restore() }
-
-  // ── Multiplicador: badge flutuando à direita da highway ───────────────
-  if (stats.multiplier > 1) {
-    ctx.save()
-    const mt   = `×${stats.multiplier}`
-    const mulX = tRB + Math.round(36 * uiScale)
-    const mulY = hitY - Math.round(60 * uiScale)
-    const mulR  = Math.round(26 * uiScale)
-    // Fundo circular com gradiente
-    const mg = ctx.createRadialGradient(mulX, mulY - mulR*0.2, 0, mulX, mulY, mulR)
-    mg.addColorStop(0, starPower ? "rgba(0,80,110,0.95)" : "rgba(10,20,55,0.95)")
-    mg.addColorStop(1, starPower ? "rgba(0,30,50,0.95)"  : "rgba(5,10,30,0.95)")
+  // ── Multiplicador central embaixo da highway (estilo referência) ────────
+  if (stats.multiplier > 0) {
+    const mulR  = Math.round(28 * uiScale)
+    const mulX  = w / 2
+    const mulY  = hitY + Math.round(48 * uiScale)
+    const sp2   = starPower
+    const mg2   = ctx.createRadialGradient(mulX, mulY - mulR*0.2, 0, mulX, mulY, mulR)
+    mg2.addColorStop(0, sp2 ? `rgba(${spPal.primaryRgb},0.50)` : "rgba(10,30,80,0.96)")
+    mg2.addColorStop(1, sp2 ? `rgba(${spPal.primaryRgb},0.15)` : "rgba(5,15,50,0.96)")
     ctx.beginPath(); ctx.arc(mulX, mulY, mulR, 0, Math.PI*2)
-    ctx.fillStyle = mg; ctx.fill()
-    // Borda brilhante
-    ctx.strokeStyle = starPower ? spPal.primary : "#5599ff"
-    ctx.lineWidth = 2.2
-    ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 16
+    ctx.fillStyle = mg2; ctx.fill()
+    ctx.strokeStyle = sp2 ? spPal.primary : "#38bdf8"
+    ctx.lineWidth = 2.5
+    ctx.shadowColor = sp2 ? spPal.primary : "#38bdf8"; ctx.shadowBlur = 18
     ctx.stroke(); ctx.shadowBlur = 0
-    // Texto
-    ctx.fillStyle = starPower ? spPal.primary : "#ffffff"
-    ctx.font = `bold ${Math.round(15 * uiScale)}px 'Arial Black', Arial, sans-serif`
+    ctx.fillStyle = sp2 ? spPal.primary : "#ffffff"
+    ctx.font = `900 ${Math.round(16*uiScale)}px 'Arial Black',Arial,sans-serif`
     ctx.textAlign = "center"; ctx.textBaseline = "middle"
     ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10
-    ctx.fillText(mt, mulX, mulY)
+    ctx.fillText(`${stats.multiplier}x`, mulX, mulY)
     ctx.shadowBlur = 0
-    // Combo abaixo do multiplicador
     if (stats.combo > 1) {
-      ctx.fillStyle = "rgba(255,255,255,0.55)"
-      ctx.font = `bold ${Math.round(9 * uiScale)}px 'Arial Black', Arial, sans-serif`
-      ctx.fillText(`${stats.combo} COMBO`, mulX, mulY + mulR + Math.round(10 * uiScale))
+      ctx.fillStyle = "rgba(255,255,255,0.45)"
+      ctx.font = `700 ${Math.round(9*uiScale)}px 'Arial',sans-serif`
+      ctx.fillText(`${stats.combo} COMBO`, mulX, mulY + mulR + Math.round(8*uiScale))
     }
-    ctx.restore()
-  }
-
-  // ── Rock meter: centralizado na parte inferior ────────────────────────
-  {
-    ctx.save()
-    const mw = Math.round(220 * uiScale), mh = Math.round(12 * uiScale)
-    const mx = (w - mw) / 2
-    const my = h - Math.round(28 * uiScale)
-    const fill = stats.rockMeter / 100
-    const mColor = stats.rockMeter > 60 ? "#22c55e" : stats.rockMeter > 30 ? "#f59e0b" : "#ef4444"
-
-    // Skull (baixo) à esquerda, nota à direita — apenas ícones simples
-    ctx.fillStyle = stats.rockMeter <= 20 ? "#ef4444" : "rgba(255,255,255,0.25)"
-    ctx.font = `bold ${Math.round(12 * uiScale)}px 'Arial Black', Arial, sans-serif`; ctx.textAlign = "right"; ctx.textBaseline = "middle"
-    ctx.fillText("💀", mx - 6, my + mh/2)
-    ctx.fillStyle = stats.rockMeter >= 80 ? "#22c55e" : "rgba(255,255,255,0.25)"
-    ctx.textAlign = "left"
-    ctx.fillText("🎸", mx + mw + 6, my + mh/2)
-
-    // Trilho
-    ctx.fillStyle = "rgba(0,0,0,0.55)"
-    ctx.beginPath(); ctx.roundRect(mx, my, mw, mh, 6); ctx.fill()
-    ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1; ctx.stroke()
-
-    // Preenchimento com gradiente vermelho→amarelo→verde
-    if (fill > 0) {
-      const fg = ctx.createLinearGradient(mx, 0, mx + mw, 0)
-      fg.addColorStop(0,    "#ef4444")
-      fg.addColorStop(0.30, "#f59e0b")
-      fg.addColorStop(0.60, "#22c55e")
-      fg.addColorStop(1,    "#4ade80")
-      ctx.fillStyle = fg
-      ctx.shadowColor = mColor; ctx.shadowBlur = 8
-      ctx.beginPath(); ctx.roundRect(mx, my, mw * fill, mh, 6); ctx.fill()
-      ctx.shadowBlur = 0
-    }
-
-    // Marcador central (linha divisória do rock meter — GH style)
-    const midX = mx + mw / 2
-    ctx.beginPath(); ctx.moveTo(midX, my - 3); ctx.lineTo(midX, my + mh + 3)
-    ctx.strokeStyle = "rgba(255,255,255,0.50)"; ctx.lineWidth = 1.5; ctx.stroke()
-
-    ctx.restore()
-  }
-
-
-  // Guitarra decorativa (muda com dificuldade)
-  {
-    const gSize = 36, gx = 14, gy = 14
-    // Fundo semi-transparente
-    ctx.save()
-    ctx.fillStyle = "rgba(0,0,0,0.38)"
-    ctx.beginPath(); ctx.roundRect(gx-4, gy-4, gSize+10, gSize+26, 6); ctx.fill()
-    ctx.strokeStyle = starPower ? "rgba(0,200,255,0.28)" : "rgba(255,255,255,0.08)"
-    ctx.lineWidth = 1; ctx.stroke()
-    ctx.restore()
-    drawGuitarSilhouette(ctx, gx, gy, gSize, difficulty, now)
-    drawDiffLabel(ctx, gx + gSize*0.38, gy + gSize + 2, difficulty)
   }
 
   // 10 – Efeitos de borda por tema (decoração ambiente + intensificação em star power)

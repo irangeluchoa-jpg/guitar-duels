@@ -380,34 +380,21 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
               transition: "all 0.5s ease",
             }}>
 
-            {/* Conteúdo principal */}
-            <div className="flex items-center gap-1.5 sm:gap-3 px-2 sm:px-4 py-1.5 sm:py-2.5">
-              {/* Info da música */}
-              <div className="min-w-0" style={{ maxWidth: "40%" }}>
-                <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-[0.2em] sm:tracking-[0.3em] truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
-                  {meta.artist}{gpConnected && <span className="ml-1 sm:ml-2 text-indigo-400">🎮</span>}
-                </p>
-                <h2 className="text-xs sm:text-sm font-black text-white truncate leading-tight">{meta.name}</h2>
+            {/* Timer + velocidade (info da música está no painel lateral esquerdo do canvas) */}
+            <div className="flex items-center justify-between px-2 sm:px-4 py-1 sm:py-1.5">
+              <div style={{ width: "210px" }} />
+              <div className="flex items-baseline gap-0.5 sm:gap-1">
+                <span className="text-sm sm:text-lg font-black font-mono text-white leading-none">
+                  {formatTime(timeInfo.current)}
+                </span>
+                <span className="text-[9px] sm:text-xs text-white/25 font-mono">/</span>
+                <span className="text-[10px] sm:text-sm font-bold font-mono" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  {timeInfo.total > 0 ? formatTime(timeInfo.total) : "--:--"}
+                </span>
               </div>
-
-              {/* Timer central */}
-              <div className="flex-1 flex flex-col items-center">
-                <div className="flex items-baseline gap-0.5 sm:gap-1">
-                  <span className="text-sm sm:text-lg font-black font-mono text-white leading-none">
-                    {formatTime(timeInfo.current)}
-                  </span>
-                  <span className="text-[9px] sm:text-xs text-white/25 font-mono">/</span>
-                  <span className="text-[10px] sm:text-sm font-bold font-mono" style={{ color: "rgba(255,255,255,0.45)" }}>
-                    {timeInfo.total > 0 ? formatTime(timeInfo.total) : "--:--"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Velocidade */}
-              <div className="shrink-0 flex items-center gap-1 sm:gap-2">
-                {!hasAudio && (
-                  <span className="hidden sm:inline text-[9px] text-yellow-500/60 bg-yellow-500/10 px-2 py-0.5 rounded-full">sem áudio</span>
-                )}
+              <div className="flex items-center gap-1 sm:gap-2">
+                {!hasAudio && <span className="hidden sm:inline text-[9px] text-yellow-500/60 bg-yellow-500/10 px-2 py-0.5 rounded-full">sem áudio</span>}
+                {gpConnected && <span className="text-indigo-400 text-sm">🎮</span>}
                 <div className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full" style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}>
                   <span className="text-[10px] sm:text-xs font-black text-white/50">{effectiveSpeed}x</span>
                 </div>

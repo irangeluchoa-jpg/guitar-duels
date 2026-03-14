@@ -11,6 +11,7 @@ export interface SongMeta {
   difficulty: number // 0-6, from song.ini diff_guitar
   songLength: number // ms
   previewStart: number // ms
+  albumArt?: string  // URL da capa do álbum
 }
 
 // === Chart / Notes ===
