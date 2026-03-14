@@ -1,7 +1,21 @@
 "use client"
 
 import React, { useEffect, useState, useCallback } from "react"
-import type { Achievement, LevelUpInfo } from "@/lib/progression"
+// Inline types to remove ALL dependencies on @/lib/progression
+// (prevents TDZ chunk ordering errors in Next.js 16)
+interface Achievement {
+  id: string
+  title: string
+  description: string
+  icon: string
+  rarity: string
+  xpReward: number
+}
+interface LevelUpInfo {
+  oldLevel: number
+  newLevel: number
+  levelsGained: number
+}
 
 // Inlined to avoid module initialization ordering issues (TDZ)
 const RARITY_COLORS: Record<string, string> = {
