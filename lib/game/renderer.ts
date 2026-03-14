@@ -1404,7 +1404,181 @@ export function renderFrame(state: RenderState): void {
     ctx.restore()
   }
 
-  // 3b – Star Power lightning (hit line + raios nas bordas)
+  // 3b – Star Power efeitos TEMÁTICOS (partículas únicas por tema)
+  if (starPower) {
+    const intensity = Math.min(1, (stats.combo - STAR_POWER_COMBO) / 25)
+    const t2 = now * 0.001
+    ctx.save()
+
+    if (highwayTheme === "fire") {
+      // 🔥 FOGO: faíscas + labaredas voando pela tela
+      for (let f = 0; f < 20; f++) {
+        const seed = f * 73.13
+        // Posição emergindo da hit line e subindo
+        const phase = (t2 * (0.4 + f * 0.05) + seed * 0.02) % 1
+        const px2 = tLB + trackBot * (0.1 + (Math.sin(seed) * 0.5 + 0.5) * 0.8)
+        const py2 = hitY - phase * hitY * 0.9
+        const size = (2 + Math.sin(seed * 3 + t2 * 4) * 1.5) * intensity
+        const alpha = (1 - phase) * 0.8 * intensity
+        // Faísca
+        ctx.beginPath(); ctx.arc(px2 + Math.sin(t2 * 3 + seed) * 20, py2, size, 0, Math.PI * 2)
+        ctx.fillStyle = phase < 0.4 ? `rgba(255,255,100,${alpha})` : `rgba(255,80,0,${alpha})`
+        ctx.shadowColor = "#ff4400"; ctx.shadowBlur = size * 3
+        ctx.fill()
+      }
+      // Labaredas maiores na hit line
+      for (let f = 0; f < 8; f++) {
+        const fx2 = tLB + trackBot * (0.05 + f * 0.13)
+        const fh2 = (30 + Math.sin(t2 * 5 + f) * 15) * intensity
+        const fa  = (0.3 + Math.sin(t2 * 3 + f * 1.3) * 0.15) * intensity
+        const flG = ctx.createLinearGradient(fx2, hitY, fx2, hitY - fh2 * 2)
+        flG.addColorStop(0, `rgba(255,200,0,${fa})`)
+        flG.addColorStop(0.4, `rgba(255,80,0,${fa * 0.7})`)
+        flG.addColorStop(1, "transparent")
+        ctx.fillStyle = flG
+        ctx.beginPath()
+        ctx.moveTo(fx2 - 8, hitY)
+        ctx.quadraticCurveTo(fx2 + Math.sin(t2 * 4 + f) * 12, hitY - fh2, fx2, hitY - fh2 * 2)
+        ctx.quadraticCurveTo(fx2 + Math.sin(t2 * 3 + f) * 10, hitY - fh2, fx2 + 8, hitY)
+        ctx.fill()
+      }
+      ctx.shadowBlur = 0
+    }
+
+    else if (highwayTheme === "ice") {
+      // ❄️ GELO: flocos de neve caindo pela tela
+      for (let f = 0; f < 25; f++) {
+        const seed = f * 61.7
+        const phase = (t2 * (0.12 + f * 0.008) + seed * 0.015) % 1
+        const px2 = w * (0.05 + (Math.sin(seed * 2.7) * 0.5 + 0.5) * 0.9)
+        const py2 = phase * h
+        const swing = Math.sin(t2 * 1.5 + seed) * 15
+        const size  = (3 + Math.sin(seed) * 2) * intensity
+        const alpha = (0.4 + Math.sin(t2 * 2 + seed) * 0.2) * intensity
+        ctx.save()
+        ctx.translate(px2 + swing, py2)
+        ctx.rotate(t2 * 0.8 + seed)
+        ctx.strokeStyle = `rgba(200,240,255,${alpha})`
+        ctx.lineWidth = 1
+        ctx.shadowColor = "#88eeff"; ctx.shadowBlur = size * 2
+        // Floco hexagonal de 6 pontas
+        for (let i = 0; i < 6; i++) {
+          const ang = (i / 6) * Math.PI * 2
+          ctx.beginPath()
+          ctx.moveTo(0, 0)
+          ctx.lineTo(Math.cos(ang) * size, Math.sin(ang) * size)
+          ctx.stroke()
+          // Ramificação
+          const mx = Math.cos(ang) * size * 0.6, my = Math.sin(ang) * size * 0.6
+          const perp = ang + Math.PI / 2
+          ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + Math.cos(perp)*size*0.3, my + Math.sin(perp)*size*0.3); ctx.stroke()
+          ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx - Math.cos(perp)*size*0.3, my - Math.sin(perp)*size*0.3); ctx.stroke()
+        }
+        ctx.restore()
+      }
+      ctx.shadowBlur = 0
+    }
+
+    else if (highwayTheme === "neon") {
+      // ⚡ NEON: raios elétricos coloridos zigzag
+      for (let b = 0; b < 8; b++) {
+        const seed = b * 47.3
+        const bx0 = b % 2 === 0 ? 0 : w
+        const by0 = h * (0.1 + b * 0.11)
+        const endX = b % 2 === 0 ? w * (0.2 + Math.sin(seed + t2) * 0.15) : w * (0.8 - Math.sin(seed + t2) * 0.15)
+        const endY = h * (0.05 + Math.sin(t2 * 2 + seed) * 0.1)
+        ctx.beginPath(); ctx.moveTo(bx0, by0)
+        const segs = 8
+        for (let s = 1; s <= segs; s++) {
+          const frac = s / segs
+          const nx2 = bx0 + (endX - bx0) * frac + Math.sin(t2 * 6 + seed + s * 2.3) * 20 * (1 - frac)
+          const ny2 = by0 + (endY - by0) * frac + Math.cos(t2 * 5 + seed + s * 1.7) * 15 * (1 - frac)
+          ctx.lineTo(nx2, ny2)
+        }
+        const useSecondary = b % 2 === 0
+        ctx.strokeStyle = `rgba(${useSecondary ? "0,255,180" : "255,0,204"},${(0.4 + Math.sin(t2 * 4 + b) * 0.2) * intensity})`
+        ctx.lineWidth = 1.5
+        ctx.shadowColor = useSecondary ? "#00ff88" : "#ff00cc"; ctx.shadowBlur = 8
+        ctx.stroke()
+      }
+      ctx.shadowBlur = 0
+    }
+
+    else if (highwayTheme === "space") {
+      // 🌌 ESPAÇO: meteoros atravessando a tela
+      for (let m = 0; m < 10; m++) {
+        const seed = m * 83.7
+        const phase = (t2 * (0.25 + m * 0.04) + seed * 0.02) % 1
+        const startX = w * (Math.sin(seed) * 0.5 + 0.5)
+        const startY = -20
+        const endX   = startX - 200 - m * 30
+        const endY   = h + 20
+        const px2 = startX + (endX - startX) * phase
+        const py2 = startY + (endY - startY) * phase
+        const tailLen = (40 + m * 8) * intensity
+        const angle = Math.atan2(endY - startY, endX - startX)
+        const alpha = (1 - Math.abs(phase - 0.5) * 2) * 0.7 * intensity
+        const tG = ctx.createLinearGradient(px2, py2, px2 - Math.cos(angle) * tailLen, py2 - Math.sin(angle) * tailLen)
+        tG.addColorStop(0, `rgba(200,160,255,${alpha})`)
+        tG.addColorStop(0.3, `rgba(140,80,255,${alpha * 0.6})`)
+        tG.addColorStop(1, "transparent")
+        ctx.beginPath(); ctx.moveTo(px2, py2)
+        ctx.lineTo(px2 - Math.cos(angle) * tailLen, py2 - Math.sin(angle) * tailLen)
+        ctx.strokeStyle = tG; ctx.lineWidth = 2 + m * 0.3
+        ctx.shadowColor = "#aa44ff"; ctx.shadowBlur = 8
+        ctx.stroke()
+        ctx.beginPath(); ctx.arc(px2, py2, 2, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(220,200,255,${alpha})`; ctx.fill()
+      }
+      ctx.shadowBlur = 0
+    }
+
+    else if (highwayTheme === "retro") {
+      // 📼 RETRÔ: pixels coloridos explodindo
+      for (let p3 = 0; p3 < 30; p3++) {
+        const seed = p3 * 53.1
+        const phase = (t2 * (0.35 + p3 * 0.02) + seed * 0.018) % 1
+        const angle = seed * 2.4
+        const dist  = phase * Math.min(w, h) * 0.5
+        const cx2   = w / 2 + Math.cos(angle) * dist
+        const cy2   = h * 0.6 + Math.sin(angle) * dist * 0.6
+        const size2 = Math.round((3 + (p3 % 3) * 2) * intensity)
+        const alpha = (1 - phase) * 0.8 * intensity
+        const colors = ["255,20,147", "0,255,200", "255,200,0", "0,150,255"]
+        const col   = colors[p3 % 4]
+        ctx.fillStyle = `rgba(${col},${alpha})`
+        ctx.shadowColor = `rgba(${col},0.9)`; ctx.shadowBlur = size2 * 2
+        ctx.fillRect(cx2, cy2, size2, size2)
+      }
+      ctx.shadowBlur = 0
+    }
+
+    else if (highwayTheme === "wood") {
+      // 🪵 MADEIRA: notas musicais flutuando
+      for (let n = 0; n < 12; n++) {
+        const seed = n * 41.9
+        const phase = (t2 * (0.15 + n * 0.02) + seed * 0.02) % 1
+        const px2 = w * 0.1 + Math.sin(seed * 1.8 + t2 * 0.5) * w * 0.4
+        const py2 = h * (1 - phase)
+        const alpha = Math.min(1, phase * 3) * (1 - phase) * 1.5 * intensity
+        const size2 = Math.round(10 * uiScale * intensity)
+        ctx.save()
+        ctx.translate(px2, py2)
+        ctx.rotate(Math.sin(t2 + seed) * 0.3)
+        ctx.fillStyle = `rgba(255,200,80,${alpha})`
+        ctx.shadowColor = "#ffcc66"; ctx.shadowBlur = 6
+        ctx.font = `${size2 + 8}px serif`
+        ctx.textAlign = "center"; ctx.textBaseline = "middle"
+        ctx.fillText(n % 2 === 0 ? "♩" : "♪", 0, 0)
+        ctx.restore()
+      }
+      ctx.shadowBlur = 0
+    }
+
+    ctx.restore()
+  }
+
+  // 3c – Star Power lightning (hit line + raios nas bordas)
   drawStarPowerLightning(ctx,w,h,now,stats.combo,highwayTheme)
 
   // 4 – Sustain tails
@@ -1572,66 +1746,102 @@ export function renderFrame(state: RenderState): void {
     ctx.shadowBlur=0; ctx.restore()
   }
 
-  // 9 – HUD lateral esquerdo (estilo Fortnite Festival / referência)
+  // 9 – HUD estilo Fortnite Festival
   {
     ctx.save()
-    const uS      = uiScale
-    const pW      = Math.round(210 * uS)   // largura do painel
-    const pX      = Math.round(14 * uS)    // margem esquerda
-    const pY      = Math.round((topBarH || 0) + Math.round(10 * uS))
-    const rr      = Math.round(12 * uS)    // border-radius
-    const sp      = starPower
-    const spC     = sp ? spPal.primary : "#e11d48"
-    const spCRgb  = sp ? spPal.primaryRgb : "225,29,72"
+    const uS   = uiScale
+    const sp   = starPower
+    const spC  = sp ? spPal.primary : "#e11d48"
+    const spCR = sp ? spPal.primaryRgb : "225,29,72"
 
-    // ── Painel de fundo com blur visual ────────────────────────────────
-    ctx.fillStyle = sp ? "rgba(0,0,0,0.45)" : "rgba(0,0,0,0.62)"
-    ctx.beginPath(); ctx.roundRect(pX, pY, pW, Math.round(260 * uS), rr); ctx.fill()
+    // ── Constantes de layout ────────────────────────────────────────────
+    const pW   = Math.round(220 * uS)   // largura do painel
+    const pX   = Math.round(14 * uS)    // margem esquerda
+    const pTop = Math.round((topBarH || 0) + Math.round(8 * uS))
+    const rr   = Math.round(14 * uS)
+    const padX = pX + Math.round(12 * uS)
+    const maxW = pW - Math.round(24 * uS)
 
-    // Borda do painel
-    ctx.strokeStyle = sp ? `rgba(${spCRgb},0.40)` : "rgba(255,255,255,0.09)"
-    ctx.lineWidth = 1.2
-    ctx.beginPath(); ctx.roundRect(pX, pY, pW, Math.round(260 * uS), rr); ctx.stroke()
+    // ── Painel principal ────────────────────────────────────────────────
+    const totalH = Math.round(235 * uS)
+    ctx.fillStyle = "rgba(0,0,0,0.68)"
+    ctx.beginPath(); ctx.roundRect(pX, pTop, pW, totalH, rr); ctx.fill()
+    ctx.strokeStyle = sp ? `rgba(${spCR},0.35)` : "rgba(255,255,255,0.10)"
+    ctx.lineWidth = 1; ctx.stroke()
 
-    // Stripe colorida no topo
-    const stripeG = ctx.createLinearGradient(pX, 0, pX + pW, 0)
-    stripeG.addColorStop(0, sp ? spPal.primary : "#e11d48")
-    stripeG.addColorStop(1, sp ? spPal.secondary : "#f97316")
-    ctx.fillStyle = stripeG
-    ctx.beginPath(); ctx.roundRect(pX, pY, pW, Math.round(3 * uS), [rr, rr, 0, 0]); ctx.fill()
-
-    let cY = pY + Math.round(10 * uS)
-
-    // ── Nome da música + artista ────────────────────────────────────────
+    // Stripe topo com cor do tema
     {
-      const artist = (state.songMeta?.artist ?? "").toUpperCase()
-      const name   = state.songMeta?.name ?? ""
-      const padX   = pX + Math.round(10 * uS)
-      const maxW   = pW - Math.round(20 * uS)
-
-      ctx.textAlign = "left"; ctx.textBaseline = "top"
-      ctx.fillStyle = "rgba(255,255,255,0.35)"
-      ctx.font = `600 ${Math.round(8 * uS)}px 'Inter',Arial,sans-serif`
-      ctx.fillText(artist, padX, cY, maxW)
-      cY += Math.round(12 * uS)
-
-      ctx.fillStyle = "#ffffff"
-      ctx.font = `900 ${Math.round(12 * uS)}px 'Arial Black',Arial,sans-serif`
-      ctx.shadowColor = sp ? spPal.primary : "rgba(255,255,255,0.3)"
-      ctx.shadowBlur = sp ? 8 : 2
-      ctx.fillText(name, padX, cY, maxW)
-      ctx.shadowBlur = 0
-      cY += Math.round(16 * uS)
+      const sG = ctx.createLinearGradient(pX, 0, pX + pW, 0)
+      sG.addColorStop(0, sp ? spPal.primary : "#e11d48")
+      sG.addColorStop(1, sp ? spPal.secondary : "#f97316")
+      ctx.fillStyle = sG
+      ctx.beginPath(); ctx.roundRect(pX, pTop, pW, Math.round(3*uS), [rr,rr,0,0]); ctx.fill()
     }
 
-    // ── Barra de progresso da música ────────────────────────────────────
+    let cY = pTop + Math.round(12 * uS)
+
+    // ── Estrelas (topo do painel, estilo Fortnite) ──────────────────────
     {
-      const padX = pX + Math.round(10 * uS)
-      const bw   = pW - Math.round(20 * uS)
-      const bh   = Math.round(4 * uS)
+      const totalEst = Math.max(stats.totalNotes * 100 * 4, 1)
+      const filled   = Math.min(5, Math.floor((stats.score / totalEst) * 5))
+      const starR    = Math.round(11 * uS)
+      const gap      = Math.round(23 * uS)
+      const sx0      = pX + (pW - 5 * gap) / 2
+
+      for (let s = 0; s < 5; s++) {
+        const scx = sx0 + s * gap + starR
+        const scy = cY + starR
+        ctx.beginPath()
+        for (let i = 0; i < 10; i++) {
+          const ang = (i / 5) * Math.PI - Math.PI / 2
+          const r2  = i % 2 === 0 ? starR : starR * 0.42
+          i === 0 ? ctx.moveTo(scx + Math.cos(ang)*r2, scy + Math.sin(ang)*r2)
+                  : ctx.lineTo(scx + Math.cos(ang)*r2, scy + Math.sin(ang)*r2)
+        }
+        ctx.closePath()
+        if (s < filled) {
+          ctx.fillStyle = sp ? spPal.starFill2 : "#f59e0b"
+          ctx.shadowColor = sp ? spPal.primary : "#fbbf24"; ctx.shadowBlur = 12
+        } else {
+          ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.shadowBlur = 0
+        }
+        ctx.fill()
+        ctx.strokeStyle = s < filled ? (sp ? spPal.primary : "#fbbf24") : "rgba(255,255,255,0.15)"
+        ctx.lineWidth = s < filled ? 1.2 : 0.7; ctx.stroke()
+        ctx.shadowBlur = 0
+      }
+      cY += starR * 2 + Math.round(10 * uS)
+    }
+
+    // ── Separador ─────────────────────────────────────────────────────
+    ctx.strokeStyle = "rgba(255,255,255,0.07)"; ctx.lineWidth = 1
+    ctx.beginPath(); ctx.moveTo(padX, cY); ctx.lineTo(pX + pW - Math.round(12*uS), cY); ctx.stroke()
+    cY += Math.round(8 * uS)
+
+    // ── Artista + nome da música ───────────────────────────────────────
+    {
+      ctx.textAlign = "left"; ctx.textBaseline = "top"
+      const artist = (state.songMeta?.artist ?? "").toUpperCase()
+      ctx.fillStyle = "rgba(255,255,255,0.38)"
+      ctx.font = `600 ${Math.round(8*uS)}px 'Inter',Arial,sans-serif`
+      ctx.fillText(artist, padX, cY, maxW)
+      cY += Math.round(11 * uS)
+
+      const name = state.songMeta?.name ?? ""
+      ctx.fillStyle = "#ffffff"
+      ctx.font = `900 ${Math.round(13*uS)}px 'Arial Black',Arial,sans-serif`
+      ctx.shadowColor = sp ? spPal.primary : "rgba(255,255,255,0.2)"; ctx.shadowBlur = sp ? 8 : 2
+      ctx.fillText(name, padX, cY, maxW)
+      ctx.shadowBlur = 0
+      cY += Math.round(17 * uS)
+    }
+
+    // ── Barra de progresso ─────────────────────────────────────────────
+    {
+      const bw = pW - Math.round(24 * uS)
+      const bh = Math.round(4 * uS)
       ctx.fillStyle = "rgba(255,255,255,0.10)"
       ctx.beginPath(); ctx.roundRect(padX, cY, bw, bh, bh/2); ctx.fill()
-      // progresso calculado a partir de stats (aproximação via nota atual)
       const prog = state.songProgress ?? 0
       if (prog > 0) {
         const pg = ctx.createLinearGradient(padX, 0, padX + bw, 0)
@@ -1645,149 +1855,103 @@ export function renderFrame(state: RenderState): void {
       cY += bh + Math.round(10 * uS)
     }
 
-    // ── Separador ────────────────────────────────────────────────────────
-    ctx.strokeStyle = "rgba(255,255,255,0.07)"; ctx.lineWidth = 1
-    ctx.beginPath(); ctx.moveTo(pX + Math.round(10*uS), cY); ctx.lineTo(pX + pW - Math.round(10*uS), cY); ctx.stroke()
-    cY += Math.round(8 * uS)
-
-    // ── Score grande ─────────────────────────────────────────────────────
+    // ── Label PONTUAÇÃO + score grande ────────────────────────────────
     {
-      const padX = pX + Math.round(10 * uS)
       ctx.textAlign = "left"; ctx.textBaseline = "top"
-      ctx.fillStyle = "rgba(255,255,255,0.30)"
-      ctx.font = `600 ${Math.round(8*uS)}px 'Inter',Arial,sans-serif`
+      ctx.fillStyle = "rgba(255,255,255,0.32)"
+      ctx.font = `700 ${Math.round(8*uS)}px 'Inter',Arial,sans-serif`
       ctx.fillText("PONTUAÇÃO", padX, cY)
       cY += Math.round(11 * uS)
 
       const sc = stats.score.toLocaleString()
       ctx.fillStyle = "#ffffff"
-      ctx.font = `900 ${Math.round(28*uS)}px 'Arial Black',Arial,sans-serif`
-      ctx.shadowColor = sp ? spPal.primary : "rgba(255,255,255,0.4)"
-      ctx.shadowBlur = sp ? 14 : 4
-      ctx.fillText(sc, padX, cY, pW - Math.round(20*uS))
+      ctx.font = `900 ${Math.round(30*uS)}px 'Arial Black',Arial,sans-serif`
+      ctx.shadowColor = sp ? spPal.primary : "rgba(255,255,255,0.3)"; ctx.shadowBlur = sp ? 16 : 3
+      ctx.fillText(sc, padX, cY, maxW)
       ctx.shadowBlur = 0
-      cY += Math.round(32 * uS)
+      cY += Math.round(35 * uS)
     }
 
-    // ── Estrelas ────────────────────────────────────────────────────────
+    // ── Rock meter ─────────────────────────────────────────────────────
     {
-      const totalEstimated = Math.max(stats.totalNotes * 100 * 4, 1)
-      const filled = Math.min(5, Math.floor((stats.score / totalEstimated) * 5))
-      const starR  = Math.round(10 * uS)
-      const starGap= Math.round(22 * uS)
-      const sx0    = pX + (pW - 5 * starGap) / 2
-
-      for (let s = 0; s < 5; s++) {
-        const scx = sx0 + s * starGap + starR
-        const scy = cY + starR
-        ctx.beginPath()
-        for (let i = 0; i < 10; i++) {
-          const ang = (i / 5) * Math.PI - Math.PI / 2
-          const r2  = i % 2 === 0 ? starR : starR * 0.42
-          i === 0 ? ctx.moveTo(scx + Math.cos(ang)*r2, scy + Math.sin(ang)*r2)
-                  : ctx.lineTo(scx + Math.cos(ang)*r2, scy + Math.sin(ang)*r2)
-        }
-        ctx.closePath()
-        if (s < filled) {
-          const sg = ctx.createRadialGradient(scx, scy - starR*0.2, 0, scx, scy, starR)
-          sg.addColorStop(0, sp ? spPal.starFill1 : "#fff7aa")
-          sg.addColorStop(0.5, sp ? spPal.starFill2 : "#f59e0b")
-          sg.addColorStop(1, sp ? spPal.starFill3 : "#92400e")
-          ctx.fillStyle = sg
-          ctx.shadowColor = sp ? spPal.primary : "#fbbf24"; ctx.shadowBlur = 14
-        } else {
-          ctx.fillStyle = "rgba(255,255,255,0.10)"; ctx.shadowBlur = 0
-        }
-        ctx.fill()
-        ctx.strokeStyle = s < filled ? (sp ? spPal.primary : "#fbbf24") : "rgba(255,255,255,0.15)"
-        ctx.lineWidth = s < filled ? 1.2 : 0.7; ctx.stroke()
-        ctx.shadowBlur = 0
-      }
-      cY += starR * 2 + Math.round(10 * uS)
-    }
-
-    // ── Rock meter ──────────────────────────────────────────────────────
-    {
-      const padX = pX + Math.round(10 * uS)
-      const mw   = pW - Math.round(20 * uS)
-      const mh   = Math.round(7 * uS)
-      const fill = stats.rockMeter / 100
-      const mCol = stats.rockMeter > 60 ? "#22c55e" : stats.rockMeter > 30 ? "#f59e0b" : "#ef4444"
-
+      const mw = pW - Math.round(24 * uS)
+      const mh = Math.round(6 * uS)
+      const mc = stats.rockMeter > 60 ? "#22c55e" : stats.rockMeter > 30 ? "#f59e0b" : "#ef4444"
       ctx.fillStyle = "rgba(255,255,255,0.07)"
-      ctx.beginPath(); ctx.roundRect(padX, cY, mw, mh, Math.round(3.5*uS)); ctx.fill()
-      if (fill > 0) {
+      ctx.beginPath(); ctx.roundRect(padX, cY, mw, mh, mh/2); ctx.fill()
+      if (stats.rockMeter > 0) {
         const fg = ctx.createLinearGradient(padX, 0, padX + mw, 0)
         fg.addColorStop(0, "#ef4444"); fg.addColorStop(0.3, "#f59e0b")
         fg.addColorStop(0.6, "#22c55e"); fg.addColorStop(1, "#4ade80")
         ctx.fillStyle = fg
-        ctx.shadowColor = mCol; ctx.shadowBlur = 5
-        ctx.beginPath(); ctx.roundRect(padX, cY, mw * fill, mh, Math.round(3.5*uS)); ctx.fill()
+        ctx.shadowColor = mc; ctx.shadowBlur = 5
+        ctx.beginPath(); ctx.roundRect(padX, cY, mw * (stats.rockMeter/100), mh, mh/2); ctx.fill()
         ctx.shadowBlur = 0
       }
       const midX = padX + mw / 2
-      ctx.strokeStyle = "rgba(255,255,255,0.40)"; ctx.lineWidth = 1
-      ctx.beginPath(); ctx.moveTo(midX, cY - 2); ctx.lineTo(midX, cY + mh + 2); ctx.stroke()
-      ctx.font = `${Math.round(9*uS)}px serif`
-      ctx.textAlign = "center"; ctx.textBaseline = "middle"
-      ctx.fillStyle = stats.rockMeter <= 20 ? "#ef4444" : "rgba(255,255,255,0.28)"
-      ctx.fillText("💀", padX - Math.round(7*uS), cY + mh/2)
-      ctx.fillStyle = stats.rockMeter >= 80 ? "#22c55e" : "rgba(255,255,255,0.28)"
-      ctx.fillText("🎸", padX + mw + Math.round(7*uS), cY + mh/2)
-      cY += mh + Math.round(12 * uS)
-    }
-
-    // ── Último rating de hit (feedback visível no painel) ────────────────
-    {
-      const padX = pX + Math.round(10 * uS)
-      // Pegar o hit effect mais recente
-      const recent = hitEffects.filter(fx => !fx.rating.includes("miss") && (now - fx.time) < 600)
-        .sort((a, b) => b.time - a.time)[0]
-      if (recent) {
-        const age     = now - recent.time
-        const alpha2  = Math.max(0, 1 - age / 600)
-        const rColors: Record<string,string> = { perfect:"#fbbf24", great:"#22c55e", good:"#3b82f6", miss:"#ef4444" }
-        const rLabel:  Record<string,string> = { perfect:"PERFEITO", great:"ÓTIMO", good:"BOM", miss:"MISS" }
-        const rc2 = rColors[recent.rating] ?? "#fff"
-        ctx.textAlign = "left"; ctx.textBaseline = "top"
-        ctx.globalAlpha = alpha2
-        ctx.fillStyle = rc2
-        ctx.font = `900 ${Math.round(11*uS)}px 'Arial Black',Arial,sans-serif`
-        ctx.shadowColor = rc2; ctx.shadowBlur = 8
-        ctx.fillText(rLabel[recent.rating] ?? recent.rating.toUpperCase(), padX, cY)
-        ctx.shadowBlur = 0
-        ctx.globalAlpha = 1
-      }
+      ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1
+      ctx.beginPath(); ctx.moveTo(midX, cY-2); ctx.lineTo(midX, cY+mh+2); ctx.stroke()
     }
 
     ctx.restore()
+
+    // ── Feedback de hit lateral (estilo Fortnite — aparece à esquerda da highway) ──
+    {
+      const recent = hitEffects
+        .filter(fx => !["miss"].includes(fx.rating) && (now - fx.time) < 700)
+        .sort((a, b) => b.time - a.time)[0]
+      if (recent) {
+        const age  = now - recent.time
+        const a2   = Math.max(0, 1 - age / 700)
+        const rise = age / 700 * Math.round(20*uiScale)
+        const rC: Record<string,string> = { perfect:"#fbbf24", great:"#22c55e", good:"#60a5fa", miss:"#ef4444" }
+        const rL: Record<string,string> = { perfect:"PERFEITO", great:"ÓTIMO", good:"BOM", miss:"MISS" }
+        const rc  = rC[recent.rating] ?? "#fff"
+        const hitX = tLB - Math.round(16 * uiScale)
+        const hitY2 = hitY - Math.round(12 * uiScale) - rise
+        ctx.save()
+        ctx.globalAlpha = a2
+        ctx.fillStyle = rc
+        ctx.font = `900 ${Math.round(15*uiScale)}px 'Arial Black',Arial,sans-serif`
+        ctx.textAlign = "right"; ctx.textBaseline = "middle"
+        ctx.shadowColor = rc; ctx.shadowBlur = 10
+        ctx.fillText(rL[recent.rating] ?? recent.rating.toUpperCase(), hitX, hitY2)
+        ctx.shadowBlur = 0
+        ctx.restore()
+      }
+    }
   }
 
-  // ── Multiplicador central embaixo da highway (estilo referência) ────────
-  if (stats.multiplier > 0) {
+  // ── Multiplicador central embaixo da highway (estilo Fortnite) ────────
+  {
     const mulR  = Math.round(28 * uiScale)
     const mulX  = w / 2
-    const mulY  = hitY + Math.round(48 * uiScale)
+    const mulY2 = hitY + Math.round(44 * uiScale)
     const sp2   = starPower
-    const mg2   = ctx.createRadialGradient(mulX, mulY - mulR*0.2, 0, mulX, mulY, mulR)
-    mg2.addColorStop(0, sp2 ? `rgba(${spPal.primaryRgb},0.50)` : "rgba(10,30,80,0.96)")
-    mg2.addColorStop(1, sp2 ? `rgba(${spPal.primaryRgb},0.15)` : "rgba(5,15,50,0.96)")
-    ctx.beginPath(); ctx.arc(mulX, mulY, mulR, 0, Math.PI*2)
-    ctx.fillStyle = mg2; ctx.fill()
+    const mg    = ctx.createRadialGradient(mulX, mulY2 - mulR*0.2, 0, mulX, mulY2, mulR)
+    mg.addColorStop(0, sp2 ? `rgba(${spPal.primaryRgb},0.55)` : "rgba(10,40,100,0.96)")
+    mg.addColorStop(1, sp2 ? `rgba(${spPal.primaryRgb},0.18)` : "rgba(5,20,60,0.96)")
+    ctx.beginPath(); ctx.arc(mulX, mulY2, mulR, 0, Math.PI*2)
+    ctx.fillStyle = mg; ctx.fill()
     ctx.strokeStyle = sp2 ? spPal.primary : "#38bdf8"
     ctx.lineWidth = 2.5
-    ctx.shadowColor = sp2 ? spPal.primary : "#38bdf8"; ctx.shadowBlur = 18
+    ctx.shadowColor = sp2 ? spPal.primary : "#38bdf8"; ctx.shadowBlur = 20
     ctx.stroke(); ctx.shadowBlur = 0
-    ctx.fillStyle = sp2 ? spPal.primary : "#ffffff"
-    ctx.font = `900 ${Math.round(16*uiScale)}px 'Arial Black',Arial,sans-serif`
+    // Anel externo decorativo
+    ctx.beginPath(); ctx.arc(mulX, mulY2, mulR + 4, 0, Math.PI*2)
+    ctx.strokeStyle = sp2 ? `rgba(${spPal.primaryRgb},0.25)` : "rgba(56,189,248,0.20)"
+    ctx.lineWidth = 1; ctx.stroke()
+    // Texto
+    ctx.fillStyle = "#ffffff"
+    ctx.font = `900 ${Math.round(17*uiScale)}px 'Arial Black',Arial,sans-serif`
     ctx.textAlign = "center"; ctx.textBaseline = "middle"
-    ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10
-    ctx.fillText(`${stats.multiplier}x`, mulX, mulY)
+    ctx.shadowColor = sp2 ? spPal.primary : "#38bdf8"; ctx.shadowBlur = 12
+    ctx.fillText(`${stats.multiplier}x`, mulX, mulY2)
     ctx.shadowBlur = 0
     if (stats.combo > 1) {
-      ctx.fillStyle = "rgba(255,255,255,0.45)"
+      ctx.fillStyle = "rgba(255,255,255,0.40)"
       ctx.font = `700 ${Math.round(9*uiScale)}px 'Arial',sans-serif`
-      ctx.fillText(`${stats.combo} COMBO`, mulX, mulY + mulR + Math.round(8*uiScale))
+      ctx.fillText(`${stats.combo} COMBO`, mulX, mulY2 + mulR + Math.round(10*uiScale))
     }
   }
 

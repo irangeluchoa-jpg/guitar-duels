@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef, useCallback, Suspense } from "react"
+import React, { useEffect, useState, useRef, useCallback, Suspense } from "react"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { GameCanvas } from "@/components/game/game-canvas"
 import type { ChartData, SongMeta } from "@/lib/songs/types"
@@ -34,6 +34,66 @@ interface RoomSnapshot {
   players: RoomPlayer[]
 }
 
+// ── PlayerCard (estilo Fortnite Festival) ────────────────────────────────────
+function PlayerCard(props: { key?: React.Key; p: RoomPlayer; color: string; isMe: boolean }) {
+  const { p, color, isMe } = props
+  const totalStars = 5
+  const filledStars = Math.min(5, Math.floor(p.score / 20000))
+  return (
+    <div className="flex flex-col gap-1.5" style={{ width: 200, animation: "fade-in 0.3s ease" }}>
+      <div style={{ height: 3, background: color, borderRadius: 2 }} />
+      <div style={{
+        background: "rgba(0,0,0,0.72)", backdropFilter: "blur(16px)",
+        border: `1px solid ${isMe ? color + "55" : "rgba(255,255,255,0.10)"}`,
+        borderRadius: 14, padding: "10px 12px 8px",
+        boxShadow: isMe ? `0 0 18px ${color}33` : "none",
+      }}>
+        <div className="flex items-center justify-between mb-1">
+          <span style={{
+            fontSize: 11, fontWeight: 900, color: isMe ? "#fff" : "rgba(255,255,255,0.65)",
+            fontFamily: "'Arial Black',Arial,sans-serif",
+            maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {isMe ? "Você" : p.name}
+          </span>
+          {p.combo > 1 && (
+            <span style={{ fontSize: 10, fontWeight: 900, color: color, fontFamily: "'Arial Black',Arial" }}>
+              {p.combo}x
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1 mb-1.5">
+          {Array.from({ length: totalStars }).map((_, i) => (
+            <svg key={i} width={12} height={12} viewBox="0 0 24 24">
+              <path d="M12 2l2.9 6.2L22 9.2l-5.2 5 1.3 7.2L12 18l-6.1 3.4 1.3-7.2L2 9.2l7.1-1z"
+                fill={i < filledStars ? color : "rgba(255,255,255,0.15)"}
+                style={{ filter: i < filledStars ? `drop-shadow(0 0 3px ${color})` : "none" }} />
+            </svg>
+          ))}
+        </div>
+        <div style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.32)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>
+          PONTUAÇÃO
+        </div>
+        <div style={{
+          fontSize: 22, fontWeight: 900, color: "#ffffff",
+          fontFamily: "'Arial Black',Arial,sans-serif",
+          textShadow: isMe ? `0 0 12px ${color}` : "none", lineHeight: 1,
+        }}>
+          {p.score.toLocaleString()}
+        </div>
+        <div style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 2, marginTop: 8, overflow: "hidden" }}>
+          <div style={{
+            height: "100%", width: `${p.rockMeter}%`,
+            background: p.rockMeter > 60 ? "linear-gradient(90deg,#22c55e,#4ade80)" : p.rockMeter > 30 ? "#f59e0b" : "#ef4444",
+            transition: "width 0.3s", borderRadius: 2,
+            boxShadow: `0 0 4px ${p.rockMeter > 60 ? "#22c55e" : p.rockMeter > 30 ? "#f59e0b" : "#ef4444"}`,
+          }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── MultiplayerHUD ────────────────────────────────────────────────────────────
 function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResume, canResume, leftPlayers = [] }:
   { players: RoomPlayer[]; myId: string; isPaused: boolean; pausedByName: string
@@ -45,65 +105,47 @@ function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResu
     return b.score - a.score
   })
 
+  // Distribui jogadores: eu + metade esquerda, resto direita
+  const leftPlayers2  = sorted.slice(0, Math.ceil(sorted.length / 2))
+  const rightPlayers2 = sorted.slice(Math.ceil(sorted.length / 2))
+
   return (
     <>
-      {/* HUD topo */}
-      <div className="fixed top-0 left-0 right-0 z-30 pointer-events-none">
-        <div className="flex gap-1.5 mx-2 mt-2">
-          {sorted.map((p, i) => {
-            const color = PLAYER_COLORS[players.indexOf(p) % 4]
-            const isMe = p.id === myId
-            return (
-              <div key={p.id} className="flex-1 rounded-xl overflow-hidden"
-                style={{
-                  background: "rgba(0,0,0,0.72)",
-                  backdropFilter: "blur(14px)",
-                  border: `1px solid ${isMe ? color + "55" : "rgba(255,255,255,0.07)"}`,
-                  boxShadow: isMe ? `0 0 12px ${color}22` : "none",
-                }}>
-                <div className="h-0.5 w-full" style={{ background: color }} />
-                <div className="flex items-center gap-2 px-3 py-1.5">
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
-                  <span className="text-[11px] font-bold truncate flex-1"
-                    style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.55)" }}>
-                    {isMe ? "Você" : p.name}
-                  </span>
-                  {p.combo > 1 && (
-                    <span className="text-[10px] font-black" style={{ color: color + "cc" }}>{p.combo}x</span>
-                  )}
-                  <span className="text-sm font-black font-mono flex-shrink-0"
-                    style={{ color: isMe ? "#fff" : "rgba(255,255,255,0.6)" }}>
-                    {p.score.toLocaleString()}
-                  </span>
-                </div>
-                <div className="h-1 w-full" style={{ background: "rgba(255,255,255,0.06)" }}>
-                  <div className="h-full transition-all duration-300"
-                    style={{
-                      width: `${p.rockMeter}%`,
-                      background: p.rockMeter > 60 ? "#22c55e" : p.rockMeter > 30 ? "#fbbf24" : "#ef4444",
-                    }} />
-                </div>
-              </div>
-            )
+      {/* Cards dos jogadores — cantos inferiores estilo Fortnite Festival */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 pointer-events-none flex justify-between items-end px-4 pb-4">
+        {/* Esquerda */}
+        <div className="flex flex-col gap-2">
+          {leftPlayers2.map(p => {
+            const c = PLAYER_COLORS[players.indexOf(p) % 4]
+            const me = p.id === myId
+            return <PlayerCard key={p.id} p={p} color={c} isMe={me} />
           })}
         </div>
-
-        {/* Notificação de jogador que saiu */}
-        {leftPlayers.length > 0 && (
-          <div className="flex justify-center mt-2">
-            <div className="px-4 py-1.5 rounded-full text-xs font-bold"
-              style={{
-                background: "rgba(239,68,68,0.15)",
-                border: "1px solid rgba(239,68,68,0.4)",
-                color: "#fca5a5",
-                backdropFilter: "blur(8px)",
-                animation: "fade-in 0.3s ease",
-              }}>
-              👋 {leftPlayers.join(", ")} saiu da sala
-            </div>
-          </div>
-        )}
+        {/* Direita */}
+        <div className="flex flex-col gap-2 items-end">
+          {rightPlayers2.map(p => {
+            const c = PLAYER_COLORS[players.indexOf(p) % 4]
+            const me = p.id === myId
+            return <PlayerCard key={p.id} p={p} color={c} isMe={me} />
+          })}
+        </div>
       </div>
+
+      {/* Notificação de jogador que saiu */}
+      {leftPlayers.length > 0 && (
+        <div className="fixed top-16 left-0 right-0 z-30 flex justify-center pointer-events-none">
+          <div className="px-4 py-1.5 rounded-full text-xs font-bold"
+            style={{
+              background: "rgba(239,68,68,0.15)",
+              border: "1px solid rgba(239,68,68,0.4)",
+              color: "#fca5a5",
+              backdropFilter: "blur(8px)",
+              animation: "fade-in 0.3s ease",
+            }}>
+            👋 {leftPlayers.join(", ")} saiu da sala
+          </div>
+        </div>
+      )}
 
       {/* Pausa multiplayer */}
       {isPaused && (

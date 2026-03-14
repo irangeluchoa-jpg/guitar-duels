@@ -322,15 +322,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
         )
       )}
 
-      {/* Silhueta animada do artista */}
-      {settings.showArtist !== false && (
-        <ArtistSilhouette
-          combo={stats.combo}
-          starPower={stats.combo >= 30}
-          isPlaying={gameState === "playing"}
-          albumArt={meta.albumArt}
-        />
-      )}
+      {/* Silhueta do artista removida — use settings para reativar */}
 
       {realPrimary && (
         <audio ref={primaryAudioRef} preload="auto">
