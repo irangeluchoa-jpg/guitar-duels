@@ -476,7 +476,7 @@ export default function SettingsPage() {
             {/* Tema da Highway */}
             <div className="space-y-2">
               <p className="text-sm text-white font-medium">Tema da Highway</p>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 sm:grid-cols-4 gap-2" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
                 {HIGHWAY_THEMES.map(theme => {
                   const unlocked = playerProfile ? isThemeUnlocked(theme.id, playerProfile) : theme.unlockLevel === 0
                   const isSel = (settings.highwayTheme ?? "default") === theme.id
@@ -484,7 +484,7 @@ export default function SettingsPage() {
                     <button key={theme.id}
                       onClick={() => {
                         if (!unlocked) return
-                        playClickSound(getVol())
+                        playClickSound(getVol(settings))
                         update({ highwayTheme: theme.id as GameSettings["highwayTheme"] })
                       }}
                       className="flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all"
