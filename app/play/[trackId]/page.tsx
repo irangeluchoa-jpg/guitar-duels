@@ -4,8 +4,27 @@ import React, { useEffect, useState, useRef, useCallback, Suspense } from "react
 import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { GameCanvas } from "@/components/game/game-canvas"
 import type { ChartData, SongMeta } from "@/lib/songs/types"
-import type { GameStats } from "@/lib/game/engine"
-import { getGrade, getAccuracy, isFullCombo } from "@/lib/game/engine"
+// GameStats type inlined
+type GameStats = { score: number; combo: number; maxCombo: number; multiplier: number; perfect: number; great: number; good: number; miss: number; totalNotes: number; rockMeter: number; streak: number }
+// Inlined from @/lib/game/engine to prevent TDZ chunk ordering errors
+function getAccuracy(stats: { perfect: number; great: number; good: number; miss: number }): number {
+  const total = stats.perfect + stats.great + stats.good + stats.miss
+  if (total === 0) return 100
+  const weighted = stats.perfect * 100 + stats.great * 75 + stats.good * 50
+  return Math.round((weighted / (total * 100)) * 100)
+}
+function isFullCombo(stats: { miss: number }): boolean {
+  return stats.miss === 0
+}
+function getGrade(accuracy: number, fc = false): string {
+  if (fc && accuracy >= 100) return "S+"
+  if (accuracy >= 95) return "S"
+  if (accuracy >= 90) return "A"
+  if (accuracy >= 80) return "B"
+  if (accuracy >= 70) return "C"
+  if (accuracy >= 60) return "D"
+  return "F"
+}
 import { playPauseSound, playResumeSound } from "@/lib/game/sounds"
 import { loadSettings } from "@/lib/settings"
 import { saveRecord } from "@/lib/history"
