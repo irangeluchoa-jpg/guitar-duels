@@ -397,7 +397,7 @@ function PlayInner() {
 
     // Inicializar lista de jogadores conhecidos
     if (roomSnapshot) {
-      prevPlayersRef.current = roomSnapshot.players.map((p: RoomPlayer) => p.id)
+      prevPlayersRef.current = (roomSnapshot.players ?? []).map((p: RoomPlayer) => p.id)
     }
 
     const pushScore = setInterval(async () => {
@@ -656,7 +656,7 @@ function PlayInner() {
 
   const isMultiplayer = !!roomCode
   const isPaused      = gamePaused
-  const pausedByName  = roomSnapshot?.players.find(p => p.id === roomSnapshot.pausedBy)?.name ?? "alguém"
+  const pausedByName  = (roomSnapshot?.players ?? []).find(p => p.id === roomSnapshot?.pausedBy)?.name ?? "alguém"
   const canResume     = roomSnapshot?.pausedBy === playerId
 
   // Próxima música da playlist
@@ -686,7 +686,7 @@ function PlayInner() {
       />
       {isMultiplayer && roomSnapshot && (
         <MultiplayerHUD
-          players={roomSnapshot.players}
+          players={roomSnapshot.players ?? []}
           myId={playerId ?? ""}
           isPaused={isPaused}
           pausedByName={pausedByName}

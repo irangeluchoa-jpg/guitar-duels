@@ -138,10 +138,24 @@ export default function RoomPage() {
   }
   async function handleStart() {
     if (!room?.songId) return
+    // Apenas muda o estado — o polling de TODOS (inclusive o host) detecta e redireciona
     await fetch(`/api/rooms/${code}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"setState",state:"playing"}) })
-    router.push(`/play/${encodeURIComponent(room.songId)}?room=${code}&player=${playerId}&lanes=${laneCount}`)
   }
   function copyCode() { navigator.clipboard.writeText(code); setCopied(true); setTimeout(()=>setCopied(false),2000) }
+
+  async function handleLeave() {
+    const pid = sessionStorage.getItem("playerId")
+    if (pid) {
+      try {
+        await fetch(`/api/rooms/${code}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "leave", playerId: pid }),
+        })
+      } catch {}
+    }
+    router.push("/lobby")
+  }
 
   const isHost   = room?.hostId===playerId
   const canStart = isHost && ((room?.players?.length ?? 0) >= 2) && !!room?.songId
@@ -149,7 +163,7 @@ export default function RoomPage() {
   if (error) return (
     <div className="flex flex-col items-center justify-center h-screen gap-4" style={{background:"#060608"}}>
       <p className="text-xl font-black" style={{color:"#e11d48", fontFamily:"'Impact',sans-serif"}}>{error}</p>
-      <button onClick={()=>router.push("/lobby")} className="text-white/30 text-sm hover:text-white/60 transition-colors">← Voltar ao Lobby</button>
+      <button onClick={handleLeave} className="text-white/30 text-sm hover:text-white/60 transition-colors">← Voltar ao Lobby</button>
     </div>
   )
   if (!room||!playerId) return (
@@ -186,7 +200,7 @@ export default function RoomPage() {
         {/* Back + search */}
         <div className="px-3 pt-3 pb-2 flex-shrink-0 space-y-2"
           style={{ borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
-          <button onClick={()=>router.push("/lobby")}
+          <button onClick={handleLeave}
             className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest opacity-35 hover:opacity-70 transition-opacity"
             style={{ color:"#fff" }}>
             ← Lobby
