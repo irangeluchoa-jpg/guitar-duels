@@ -8,6 +8,8 @@ import {
   loadProfile, saveProfile, type PlayerProfile, type Achievement,
   ACHIEVEMENTS, RARITY_COLORS, RARITY_LABELS,
   levelFromXP, levelProgress, xpToNextLevel, levelTitle, formatXP, formatTime,
+  SPECIAL_TITLES, getUnlockedTitles, getBestTitle, type SpecialTitle,
+  HIGHWAY_THEMES, isThemeUnlocked,
 } from "@/lib/progression"
 
 const AVATARS = ["🎸", "🎵", "🎤", "🥁", "🎹", "🎺", "🎻", "🤘", "⚡", "🔥", "💎", "👑"]
@@ -317,6 +319,16 @@ export default function ProfilePage() {
                 style={{ background: "rgba(168,85,247,0.2)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.3)" }}>
                 Nível {profile.level} · {levelTitle(profile.level)}
               </span>
+              {/* Melhor título especial */}
+              {(() => {
+                const t = getBestTitle(profile)
+                return (
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
+                    style={{ background: `${t.color}18`, color: t.color, border: `1px solid ${t.color}44` }}>
+                    {t.icon} {t.label}
+                  </span>
+                )
+              })()}
               <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
                 {unlockedCount}/{totalAch} conquistas
               </span>
@@ -377,6 +389,97 @@ export default function ProfilePage() {
             })}
           </div>
         </div>
+
+        {/* ── Títulos Especiais ───────────────────────────────────────── */}
+        {(() => {
+          const unlockedTitles = getUnlockedTitles(profile)
+          const bestTitle = getBestTitle(profile)
+          return (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="bebas text-lg tracking-widest" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  TÍTULOS <span style={{ color: "rgba(255,255,255,0.2)" }}>({unlockedTitles.length}/{SPECIAL_TITLES.length})</span>
+                </h3>
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full"
+                  style={{ background: `${bestTitle.color}18`, border: `1px solid ${bestTitle.color}44` }}>
+                  <span className="text-sm">{bestTitle.icon}</span>
+                  <span className="text-xs font-bold" style={{ color: bestTitle.color }}>{bestTitle.label}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {SPECIAL_TITLES.map(title => {
+                  const has = title.check(profile)
+                  return (
+                    <div key={title.id}
+                      className="flex items-center gap-2.5 p-3 rounded-xl transition-all"
+                      style={{
+                        background: has ? `${title.color}12` : "rgba(255,255,255,0.02)",
+                        border: has ? `1px solid ${title.color}35` : "1px solid rgba(255,255,255,0.05)",
+                        opacity: has ? 1 : 0.45,
+                      }}>
+                      <span className="text-2xl">{has ? title.icon : "🔒"}</span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-black truncate" style={{ color: has ? title.color : "rgba(255,255,255,0.25)" }}>
+                          {title.label}
+                        </p>
+                        <p className="text-[9px] truncate" style={{ color: "rgba(255,255,255,0.25)" }}>
+                          {title.description}
+                        </p>
+                        <span className="text-[8px] font-bold uppercase tracking-wide"
+                          style={{ color: has ? RARITY_COLORS[title.rarity] : "rgba(255,255,255,0.15)" }}>
+                          {RARITY_LABELS[title.rarity]}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ── Temas de Highway Desbloqueados ─────────────────────────── */}
+        {(() => {
+          const unlockedThemes = HIGHWAY_THEMES.filter(t => isThemeUnlocked(t.id, profile))
+          return (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="bebas text-lg tracking-widest" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  TEMAS DA HIGHWAY <span style={{ color: "rgba(255,255,255,0.2)" }}>({unlockedThemes.length}/{HIGHWAY_THEMES.length})</span>
+                </h3>
+              </div>
+              <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                {HIGHWAY_THEMES.map(theme => {
+                  const unlocked = isThemeUnlocked(theme.id, profile)
+                  return (
+                    <div key={theme.id} className="flex flex-col items-center gap-1.5">
+                      <div className="relative w-full aspect-square rounded-xl overflow-hidden"
+                        style={{
+                          background: theme.preview,
+                          border: unlocked ? `1.5px solid ${theme.border}66` : "1px solid rgba(255,255,255,0.06)",
+                          boxShadow: unlocked ? `0 0 12px ${theme.border}33` : "none",
+                          opacity: unlocked ? 1 : 0.35,
+                        }}>
+                        <div className="absolute inset-0 flex items-center justify-center text-xl">
+                          {unlocked ? theme.icon : "🔒"}
+                        </div>
+                      </div>
+                      <p className="text-[9px] font-bold text-center leading-tight"
+                        style={{ color: unlocked ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.2)" }}>
+                        {theme.label}
+                      </p>
+                      {!unlocked && (
+                        <p className="text-[8px] font-semibold" style={{ color: "rgba(251,191,36,0.6)" }}>
+                          Nv.{theme.unlockLevel}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Backup / Restaurar */}
         <div className="p-4 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>

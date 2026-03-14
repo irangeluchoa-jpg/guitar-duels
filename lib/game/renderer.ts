@@ -124,7 +124,7 @@ interface RenderState {
   difficulty?: number
   laneCount?: number
   noteShape?: "circle" | "square" | "diamond"
-  highwayTheme?: "default" | "neon" | "fire" | "space" | "wood"
+  highwayTheme?: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice"
   cameraShake?: boolean
 }
 
@@ -213,7 +213,107 @@ function drawSpider(ctx: CanvasRenderingContext2D, cx: number, cy: number, size:
 }
 
 // ── Fretboard: versão NORMAL (escuro com aranha) ───────────────────────────
-function buildFretboard(w: number, h: number, starPower: boolean, diff: number, lc = LANE_COUNT): OffscreenCanvas {
+// ── Configuração de temas de highway ─────────────────────────────────────────
+// Cada tema define: overlay sobre a imagem, cor das grades/divisores, glow das bordas
+const HIGHWAY_THEME_CONFIG: Record<string, {
+  imgAlpha: number          // opacidade da imagem base
+  overlayStops: [string, number][]  // cor+posição do overlay sobre a imagem
+  gridColor: string         // RGB das linhas horizontais
+  divColor: string          // cor dos divisores de lane
+  borderColor: string       // cor das bordas da highway
+  borderGlow: string        // glow das bordas
+  fogColor: string          // névoa no horizonte
+}> = {
+  default: {
+    imgAlpha: 0.82,
+    overlayStops: [],
+    gridColor: "0,200,255",
+    divColor: "rgba(0,180,220,0.22)",
+    borderColor: "rgba(0,210,255,0.70)",
+    borderGlow: "rgba(0,210,255,0.80)",
+    fogColor: "rgba(0,0,0,0.97)",
+  },
+  neon: {
+    imgAlpha: 0.55,
+    overlayStops: [
+      ["rgba(0,255,180,0.22)", 0],
+      ["rgba(180,0,255,0.18)", 0.5],
+      ["rgba(0,200,255,0.14)", 1],
+    ],
+    gridColor: "0,255,180",
+    divColor: "rgba(180,0,255,0.40)",
+    borderColor: "rgba(0,255,180,0.90)",
+    borderGlow: "rgba(0,255,180,0.95)",
+    fogColor: "rgba(0,0,20,0.97)",
+  },
+  fire: {
+    imgAlpha: 0.50,
+    overlayStops: [
+      ["rgba(255,60,0,0.28)", 0],
+      ["rgba(255,160,0,0.20)", 0.4],
+      ["rgba(200,0,0,0.15)", 1],
+    ],
+    gridColor: "255,140,0",
+    divColor: "rgba(255,80,0,0.45)",
+    borderColor: "rgba(255,120,0,0.90)",
+    borderGlow: "rgba(255,80,0,0.95)",
+    fogColor: "rgba(20,0,0,0.97)",
+  },
+  space: {
+    imgAlpha: 0.45,
+    overlayStops: [
+      ["rgba(60,0,200,0.30)", 0],
+      ["rgba(0,80,255,0.22)", 0.5],
+      ["rgba(100,0,180,0.18)", 1],
+    ],
+    gridColor: "100,60,255",
+    divColor: "rgba(80,0,255,0.40)",
+    borderColor: "rgba(120,80,255,0.90)",
+    borderGlow: "rgba(100,0,255,0.95)",
+    fogColor: "rgba(0,0,15,0.97)",
+  },
+  wood: {
+    imgAlpha: 0.65,
+    overlayStops: [
+      ["rgba(140,70,10,0.25)", 0],
+      ["rgba(100,50,5,0.18)", 0.6],
+      ["rgba(60,30,0,0.12)", 1],
+    ],
+    gridColor: "200,130,50",
+    divColor: "rgba(160,80,20,0.40)",
+    borderColor: "rgba(200,120,40,0.85)",
+    borderGlow: "rgba(180,90,20,0.90)",
+    fogColor: "rgba(10,5,0,0.97)",
+  },
+  retro: {
+    imgAlpha: 0.48,
+    overlayStops: [
+      ["rgba(255,20,150,0.22)", 0],
+      ["rgba(255,200,0,0.16)", 0.4],
+      ["rgba(0,200,100,0.14)", 1],
+    ],
+    gridColor: "255,200,0",
+    divColor: "rgba(255,20,150,0.45)",
+    borderColor: "rgba(255,200,0,0.90)",
+    borderGlow: "rgba(255,20,150,0.95)",
+    fogColor: "rgba(10,0,20,0.97)",
+  },
+  ice: {
+    imgAlpha: 0.50,
+    overlayStops: [
+      ["rgba(180,240,255,0.22)", 0],
+      ["rgba(0,180,255,0.18)", 0.5],
+      ["rgba(100,220,255,0.12)", 1],
+    ],
+    gridColor: "140,220,255",
+    divColor: "rgba(100,200,255,0.40)",
+    borderColor: "rgba(160,230,255,0.90)",
+    borderGlow: "rgba(120,210,255,0.95)",
+    fogColor: "rgba(0,5,15,0.97)",
+  },
+}
+
+function buildFretboard(w: number, h: number, starPower: boolean, diff: number, lc = LANE_COUNT, theme = "default"): OffscreenCanvas {
   const oc = new OffscreenCanvas(w, h)
   const ctx = oc.getContext("2d")!
   const vanishY = h * VANISHING_Y_RATIO, hitY = h * HIT_LINE_Y_RATIO
@@ -221,7 +321,7 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
   const tLB = (w-trackBot)/2, tRB = tLB+trackBot
   const tLT = (w-trackTop)/2, tRT = tLT+trackTop
 
-  // Fundo transparente (o HTML background aparece atrás)
+  const tc = HIGHWAY_THEME_CONFIG[theme] ?? HIGHWAY_THEME_CONFIG.default
 
   // Recorte do fretboard
   ctx.save()
@@ -229,7 +329,7 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
   ctx.moveTo(tLB,hitY); ctx.lineTo(tRB,hitY); ctx.lineTo(tRT,vanishY); ctx.lineTo(tLT,vanishY)
   ctx.closePath(); ctx.clip()
 
-  // ── WoR: fundo escuro metálico (preto-azul profundo) ─────────────────
+  // ── Fundo base (escuro, cor varia com tema) ────────────────────────────
   {
     const bg = ctx.createLinearGradient(0, vanishY, 0, hitY)
     if (starPower) {
@@ -243,64 +343,70 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
     }
     ctx.fillStyle = bg; ctx.fillRect(0,0,w,h)
   }
-  // Reflexo central sutil (coluna de luz no meio)
-  {
-    const cg = ctx.createRadialGradient(w/2, hitY, 0, w/2, vanishY, trackBot*0.7)
-    cg.addColorStop(0, starPower ? "rgba(0,180,220,0.08)" : "rgba(0,160,200,0.05)")
-    cg.addColorStop(1, "transparent")
-    ctx.fillStyle = cg; ctx.fillRect(0,0,w,h)
-  }
 
   // ── Textura da highway (imagem real, perspectiva trapézio) ────────────────
-  const hwKey  = diffToHwKey(diff)
-  const hwImg  = _hwImages[hwKey]
+  const hwKey = diffToHwKey(diff)
+  const hwImg = _hwImages[hwKey]
   if (hwImg && hwImg.complete && hwImg.naturalWidth > 0) {
-    // ── Perspectiva correcta: grade cols × rows ────────────────────────────
-    // A imagem tem ratio ~0.5:1 (largura:altura) — mapeamos ela inteira
-    // no trapézio do fretboard mantendo proporções corretas
     const iw = hwImg.naturalWidth, ih = hwImg.naturalHeight
-    const COLS = 40   // fatias verticais (para convergência X)
-    const ROWS = 40   // fatias horizontais (para perspectiva Y)
-    const fH   = hitY - vanishY  // altura do fretboard em pixels
+    const COLS = 40, ROWS = 40
+    const fH = hitY - vanishY
 
     ctx.save()
-    ctx.globalAlpha = starPower ? 0.50 : 0.82
+    ctx.globalAlpha = starPower ? tc.imgAlpha * 0.62 : tc.imgAlpha
 
     for (let c = 0; c < COLS; c++) {
       const t0 = c / COLS, t1 = (c + 1) / COLS
-      const bx0 = tLB + trackBot * t0, bx1 = tLB + trackBot * t1  // X no fundo
-      const tx0 = tLT + trackTop * t0, tx1 = tLT + trackTop * t1  // X no topo
-      const sx0 = iw * t0, sw = iw * (t1 - t0)                    // X na imagem
+      const bx0 = tLB + trackBot * t0, bx1 = tLB + trackBot * t1
+      const tx0 = tLT + trackTop * t0, tx1 = tLT + trackTop * t1
+      const sx0 = iw * t0, sw = iw * (t1 - t0)
 
       for (let r = 0; r < ROWS; r++) {
         const v0 = r / ROWS, v1 = (r + 1) / ROWS
-        // Y no canvas (de vanishY até hitY)
-        const cy0 = vanishY + fH * v0
-        const cy1 = vanishY + fH * v1
-        // X interpolado na linha (perspectiva horizontal)
+        const cy0 = vanishY + fH * v0, cy1 = vanishY + fH * v1
         const dx0 = tx0 + (bx0 - tx0) * v0
-        const dx1 = tx0 + (bx0 - tx0) * v1
         const dw0 = (tx1 - tx0) + ((bx1 - bx0) - (tx1 - tx0)) * v0
-        // Y na imagem — mapeado de cima para baixo (topo=0, fundo=ih)
         const sy0 = ih * v0, sh = ih * (v1 - v0)
 
         ctx.drawImage(hwImg,
-          sx0, sy0, sw,  sh,          // source (col × row da imagem)
-          dx0, cy0, dw0, cy1 - cy0    // dest   (célula do trapézio)
+          sx0, sy0, sw, sh,
+          dx0, cy0, dw0, cy1 - cy0
         )
       }
     }
     ctx.restore()
+
+    // ── Overlay colorido do tema SOBRE a imagem ───────────────────────
+    if (tc.overlayStops.length > 0) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.moveTo(tLB,hitY); ctx.lineTo(tRB,hitY); ctx.lineTo(tRT,vanishY); ctx.lineTo(tLT,vanishY)
+      ctx.closePath(); ctx.clip()
+
+      const grad = ctx.createLinearGradient(0, vanishY, 0, hitY)
+      tc.overlayStops.forEach(([color, pos]) => grad.addColorStop(pos, color))
+      ctx.fillStyle = grad
+      ctx.globalCompositeOperation = "screen"
+      ctx.fillRect(tLB, vanishY, trackBot, hitY - vanishY)
+      ctx.globalCompositeOperation = "source-over"
+      ctx.restore()
+    }
   }
 
+  // Reflexo central
+  {
+    const cg = ctx.createRadialGradient(w/2, hitY, 0, w/2, vanishY, trackBot*0.7)
+    cg.addColorStop(0, starPower ? "rgba(0,180,220,0.08)" : "rgba(0,160,200,0.04)")
+    cg.addColorStop(1, "transparent")
+    ctx.fillStyle = cg; ctx.fillRect(0,0,w,h)
+  }
 
-  // ── Linhas horizontais da grade ─────────────────────────────────────────
+  // ── Linhas horizontais da grade ────────────────────────────────────────
   function edgeX(frac: number, y: number) {
     const prog = (hitY-y)/(hitY-vanishY), tw = trackBot+(trackTop-trackBot)*prog
     return (w-tw)/2+tw*frac
   }
-  // WoR: grid sempre cyan
-  const gridColor = "0,200,255"
+  const gridColor = starPower ? "0,255,255" : tc.gridColor
   for (let r = 1; r < 9; r++) {
     const t = r/9
     const y = hitY-(hitY-vanishY)*Math.pow(t,0.74)
@@ -309,9 +415,9 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
     ctx.strokeStyle=`rgba(${gridColor},${al})`; ctx.lineWidth=1; ctx.stroke()
   }
 
-  // ── Divisores de lane — WoR: finos, cyan ──────────────────────────────
-  const divColor    = starPower ? "rgba(0,220,255,0.35)" : "rgba(0,180,220,0.22)"
-  const borderColor = starPower ? "rgba(0,240,255,0.85)" : "rgba(0,210,255,0.70)"
+  // ── Divisores de lane ──────────────────────────────────────────────────
+  const divColor   = starPower ? "rgba(0,220,255,0.35)" : tc.divColor
+  const borderColor= starPower ? "rgba(0,240,255,0.85)" : tc.borderColor
   for (let i = 0; i <= lc; i++) {
     const bx = tLB+(trackBot/lc)*i, tx = tLT+(trackTop/lc)*i
     const border = i===0||i===lc
@@ -322,11 +428,11 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
 
   // ── Bordas com glow ────────────────────────────────────────────────────
   ctx.save()
-  ctx.shadowColor = starPower ? "rgba(0,255,255,0.95)" : "rgba(0,210,255,0.80)"
+  ctx.shadowColor = starPower ? "rgba(0,255,255,0.95)" : tc.borderGlow
   ctx.shadowBlur = 22
   for (const [bx,tx] of [[tLB,tLT],[tRB,tRT]] as [number,number][]) {
     ctx.beginPath(); ctx.moveTo(bx,hitY); ctx.lineTo(tx,vanishY)
-    ctx.strokeStyle = starPower ? "rgba(0,255,255,0.90)" : "rgba(0,210,255,0.78)"
+    ctx.strokeStyle = starPower ? "rgba(0,255,255,0.90)" : tc.borderColor
     ctx.lineWidth=2.5; ctx.stroke()
   }
   ctx.shadowBlur=0; ctx.restore()
@@ -335,22 +441,22 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
 
   // ── Névoa no horizonte ─────────────────────────────────────────────────
   const fog = ctx.createLinearGradient(0,vanishY-8,0,vanishY+60)
-  fog.addColorStop(0,"rgba(0,0,0,0.97)"); fog.addColorStop(1,"rgba(0,0,0,0)")
+  fog.addColorStop(0, tc.fogColor); fog.addColorStop(1,"rgba(0,0,0,0)")
   ctx.fillStyle=fog; ctx.fillRect(0,vanishY-8,w,68)
 
   return oc
 }
 
-function getFretboard(w: number, h: number, starPower: boolean, diff: number, lc = LANE_COUNT): OffscreenCanvas {
+function getFretboard(w: number, h: number, starPower: boolean, diff: number, lc = LANE_COUNT, theme = "default"): OffscreenCanvas {
   loadHighwayImages()
-  const key = `${w}x${h}:${diffToHwKey(diff)}:${starPower?1:0}:lc${lc}`
+  const key = `${w}x${h}:${diffToHwKey(diff)}:${starPower?1:0}:lc${lc}:${theme}`
   if (_fretW !== w || _fretH !== h) {
     _fretCache.clear()
     _fretW = w; _fretH = h
   }
   let cached = _fretCache.get(key)
   if (!cached) {
-    cached = buildFretboard(w, h, starPower, diff, lc)
+    cached = buildFretboard(w, h, starPower, diff, lc, theme)
     _fretCache.set(key, cached)
   }
   return cached
@@ -1080,26 +1186,9 @@ export function renderFrame(state: RenderState): void {
     ctx.translate(shakeX, shakeY)
   }
 
-  // ── Overlay de tema da highway ──────────────────────────────────────────
-  if (highwayTheme !== "default") {
-    const themeOverlays: Record<string, [string, number][]> = {
-      neon:  [["rgba(0,255,200,0.04)", 0], ["rgba(255,0,200,0.03)", 1]],
-      fire:  [["rgba(255,80,0,0.06)",  0], ["rgba(255,200,0,0.04)", 1]],
-      space: [["rgba(100,0,255,0.07)", 0], ["rgba(0,100,255,0.04)", 1]],
-      wood:  [["rgba(120,60,0,0.08)",  0], ["rgba(80,40,0,0.05)",   1]],
-    }
-    const stops = themeOverlays[highwayTheme]
-    if (stops) {
-      const grad = ctx.createLinearGradient(0, 0, 0, h)
-      stops.forEach(([c, p]) => grad.addColorStop(p, c))
-      ctx.fillStyle = grad
-      ctx.fillRect(0, 0, w, h)
-    }
-  }
-
-  // 1 – Fretboard (muda visual conforme star power)
-  ctx.shadowBlur = 0  // garantir que não há shadow residual
-  ctx.drawImage(getFretboard(w,h,starPower,difficulty,LC),0,0)
+  // 1 – Fretboard (tema + star power integrados)
+  ctx.shadowBlur = 0
+  ctx.drawImage(getFretboard(w,h,starPower,difficulty,LC,highwayTheme),0,0)
 
   // 2 – Beat lines dinâmicas
   const visMs=2200/ns

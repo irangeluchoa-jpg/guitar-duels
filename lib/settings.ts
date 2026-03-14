@@ -14,7 +14,7 @@ export interface GameSettings {
   keyBindings5: string[]     // 5 teclas (modo normal)
   keyboardEnabled: boolean
   gamepadEnabled: boolean
-  highwayTheme: "default" | "neon" | "fire" | "space" | "wood"
+  highwayTheme: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice"
   noteShape: "circle" | "square" | "diamond"
   cameraShake: boolean
   showArtist: boolean
@@ -60,7 +60,7 @@ export function loadSettings(): GameSettings {
         keyBindings5: Array.isArray(parsed.keyBindings5) && parsed.keyBindings5.length === 5 ? parsed.keyBindings5 : [...DEFAULT_KEY_BINDINGS5],
         keyboardEnabled: parsed.keyboardEnabled ?? true,
         gamepadEnabled:  parsed.gamepadEnabled  ?? true,
-        highwayTheme:    parsed.highwayTheme    ?? "default",
+        highwayTheme:    (["default","neon","fire","space","wood","retro","ice"].includes(parsed.highwayTheme) ? parsed.highwayTheme : "default") as GameSettings["highwayTheme"],
         noteShape:       parsed.noteShape       ?? "circle",
         cameraShake:     parsed.cameraShake     ?? true,
         showArtist:      parsed.showArtist      ?? true,

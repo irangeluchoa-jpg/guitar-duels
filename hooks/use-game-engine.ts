@@ -33,7 +33,7 @@ interface UseGameEngineOptions {
   calibrationOffset?: number
   laneCount?: number
   noteShape?: "circle" | "square" | "diamond"
-  highwayTheme?: "default" | "neon" | "fire" | "space" | "wood"
+  highwayTheme?: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice"
   cameraShake?: boolean
   onSongEnd?: (stats: GameStats) => void
   onScoreUpdate?: (stats: GameStats) => void
@@ -49,7 +49,7 @@ export function useGameEngine({
   calibrationOffset = 0,
   laneCount = 5,
   noteShape = "circle" as "circle" | "square" | "diamond",
-  highwayTheme = "default" as "default" | "neon" | "fire" | "space" | "wood",
+  highwayTheme = "default" as "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice",
   cameraShake = true,
   onSongEnd,
   onScoreUpdate,

@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Volume2, Gauge, Eye, Keyboard, RotateCcw, AlertTriangle, Speaker } from "lucide-react"
+import { ArrowLeft, Volume2, Gauge, Eye, Keyboard, RotateCcw, AlertTriangle, Speaker, Lock } from "lucide-react"
 import { loadSettings, saveSettings, DEFAULT_SETTINGS, DEFAULT_KEY_BINDINGS, DEFAULT_KEY_BINDINGS4, DEFAULT_KEY_BINDINGS5, type GameSettings } from "@/lib/settings"
 import { listAudioOutputs, type AudioOutputDevice } from "@/hooks/use-audio-output"
 import { loadGamepadBindings, saveGamepadBindings, DEFAULT_GAMEPAD_BINDINGS, GAMEPAD_PROFILES, detectProfile, type GamepadProfile } from "@/hooks/use-gamepad"
 import { playClickSound, playHoverSound, playHitSound, setAudioOutputDevice } from "@/lib/game/sounds"
+import { loadProfile, HIGHWAY_THEMES, isThemeUnlocked } from "@/lib/progression"
 
 const LANE_COLORS = ["#FF0000", "#FF7800", "#FFFF00", "#0089FF", "#5AFF00", "#CC44FF"]
 const LANE_NAMES  = ["Vermelho", "Laranja", "Amarelo", "Azul", "Verde", "Roxo"]
@@ -25,6 +26,16 @@ export default function SettingsPage() {
   const router = useRouter()
   const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS)
   const [saved, setSaved] = useState(false)
+  const [playerLevel, setPlayerLevel] = useState(1)
+  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([])
+
+  useEffect(() => {
+    try {
+      const p = loadProfile()
+      setPlayerLevel(p.level)
+      setUnlockedAchievements(p.unlockedAchievements)
+    } catch {}
+  }, [])
 
   // Gamepad state
   const [gamepadConnected, setGamepadConnected] = useState(false)
@@ -462,31 +473,64 @@ export default function SettingsPage() {
             {/* Tema da Highway */}
             <div className="space-y-2">
               <p className="text-sm text-white font-medium">Tema da Highway</p>
-              <div className="grid grid-cols-5 gap-2">
-                {([
-                  { id: "default", label: "Padrão",  preview: "linear-gradient(180deg,#1a1a2e,#0d0d1a)", border: "#444" },
-                  { id: "neon",    label: "Neon",     preview: "linear-gradient(180deg,#001a1a,#00ff88,#ff00cc)", border: "#00ff88" },
-                  { id: "fire",    label: "Fogo",     preview: "linear-gradient(180deg,#1a0000,#ff4400,#ffcc00)", border: "#ff4400" },
-                  { id: "space",   label: "Espaço",   preview: "linear-gradient(180deg,#000010,#0033ff,#6600ff)", border: "#6600ff" },
-                  { id: "wood",    label: "Madeira",  preview: "linear-gradient(180deg,#2a1500,#8b4513,#d2691e)", border: "#8b4513" },
-                ] as const).map(theme => {
+              <div className="grid grid-cols-4 gap-2">
+                {HIGHWAY_THEMES.map(theme => {
+                  const fakeProfile = { level: playerLevel, unlockedAchievements } as Parameters<typeof isThemeUnlocked>[1]
+                  const unlocked = isThemeUnlocked(theme.id, fakeProfile)
                   const isSel = (settings.highwayTheme ?? "default") === theme.id
                   return (
-                    <button key={theme.id} onClick={() => update({ highwayTheme: theme.id })}
-                      className="flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all hover:scale-105 active:scale-95"
+                    <button key={theme.id}
+                      onClick={() => {
+                        if (!unlocked) return
+                        playClickSound(getVol())
+                        update({ highwayTheme: theme.id as GameSettings["highwayTheme"] })
+                      }}
+                      className="flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all"
                       style={{
-                        background: isSel ? "rgba(168,85,247,0.15)" : "rgba(255,255,255,0.04)",
-                        border: isSel ? "1.5px solid #a855f7" : "1px solid rgba(255,255,255,0.08)",
+                        background: isSel ? "rgba(168,85,247,0.18)" : unlocked ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.3)",
+                        border: isSel ? "1.5px solid #a855f7" : unlocked ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.04)",
                         boxShadow: isSel ? "0 0 14px rgba(168,85,247,0.3)" : "none",
+                        opacity: unlocked ? 1 : 0.55,
+                        cursor: unlocked ? "pointer" : "not-allowed",
+                        transform: unlocked ? undefined : undefined,
                       }}>
-                      <div className="w-full h-10 rounded-lg overflow-hidden" style={{ background: theme.preview, border: `1px solid ${theme.border}44` }}/>
-                      <span className="text-[10px] font-bold" style={{ color: isSel ? "#a855f7" : "rgba(255,255,255,0.4)" }}>
+                      {/* Preview */}
+                      <div className="relative w-full h-10 rounded-lg overflow-hidden"
+                        style={{ background: theme.preview, border: `1px solid ${theme.border}44` }}>
+                        {!unlocked && (
+                          <div className="absolute inset-0 flex items-center justify-center"
+                            style={{ background: "rgba(0,0,0,0.55)" }}>
+                            <Lock size={14} style={{ color: "rgba(255,255,255,0.5)" }} />
+                          </div>
+                        )}
+                        {unlocked && (
+                          <div className="absolute inset-0 flex items-center justify-center text-base">
+                            {theme.icon}
+                          </div>
+                        )}
+                      </div>
+                      {/* Label */}
+                      <span className="text-[10px] font-bold leading-tight text-center"
+                        style={{ color: isSel ? "#a855f7" : unlocked ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)" }}>
                         {theme.label}
                       </span>
+                      {/* Nível necessário */}
+                      {!unlocked && (
+                        <span className="text-[9px] font-semibold"
+                          style={{ color: "rgba(251,191,36,0.7)" }}>
+                          Nv.{theme.unlockLevel}
+                        </span>
+                      )}
+                      {unlocked && isSel && (
+                        <span className="text-[9px]" style={{ color: "#a855f7" }}>✓ Ativo</span>
+                      )}
                     </button>
                   )
                 })}
               </div>
+              <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.2)" }}>
+                🔒 Novos temas desbloqueiam ao subir de nível
+              </p>
             </div>
 
             {/* Forma das Notas */}

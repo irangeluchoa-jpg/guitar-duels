@@ -437,3 +437,204 @@ export function formatTime(ms: number): string {
   if (h > 0) return `${h}h ${m}m`
   return `${m}m`
 }
+
+// ── Temas de Highway desbloqueáveis ──────────────────────────────────────────
+
+export interface HighwayThemeInfo {
+  id: string
+  label: string
+  description: string
+  unlockLevel: number      // nível mínimo para desbloquear (0 = disponível desde o início)
+  unlockAchievement?: string  // conquista alternativa para desbloquear
+  preview: string          // CSS gradient para preview
+  border: string           // cor da borda no preview
+  icon: string
+}
+
+export const HIGHWAY_THEMES: HighwayThemeInfo[] = [
+  {
+    id: "default",
+    label: "Padrão",
+    description: "O clássico visual WoR com cyan",
+    unlockLevel: 0,
+    preview: "linear-gradient(180deg,#0a0a1a,#0d1520,#0a0f18)",
+    border: "#0089ff",
+    icon: "🎸",
+  },
+  {
+    id: "neon",
+    label: "Neon",
+    description: "Luzes neon vibrantes verde e roxo",
+    unlockLevel: 5,
+    preview: "linear-gradient(180deg,#001a12,#00ff8833,#cc00ff22)",
+    border: "#00ff88",
+    icon: "⚡",
+  },
+  {
+    id: "fire",
+    label: "Fogo",
+    description: "Chamas vermelhas e laranja intensas",
+    unlockLevel: 15,
+    unlockAchievement: "combo_100",
+    preview: "linear-gradient(180deg,#1a0500,#ff4400aa,#ffcc0055)",
+    border: "#ff4400",
+    icon: "🔥",
+  },
+  {
+    id: "space",
+    label: "Espaço",
+    description: "Viagem pelo cosmos roxo e azul",
+    unlockLevel: 25,
+    unlockAchievement: "songs_50",
+    preview: "linear-gradient(180deg,#000015,#3300ff44,#6600ff33)",
+    border: "#6600ff",
+    icon: "🌌",
+  },
+  {
+    id: "wood",
+    label: "Madeira",
+    description: "Textura de guitarra acústica vintage",
+    unlockLevel: 10,
+    preview: "linear-gradient(180deg,#1a0a00,#8b4513aa,#d2691e44)",
+    border: "#8b4513",
+    icon: "🪵",
+  },
+  {
+    id: "retro",
+    label: "Retrô",
+    description: "Estética dos anos 80, neon colorido",
+    unlockLevel: 35,
+    unlockAchievement: "fc_5",
+    preview: "linear-gradient(180deg,#0d0020,#ff149388,#ffcc0055,#00cc6633)",
+    border: "#ff1493",
+    icon: "📼",
+  },
+  {
+    id: "ice",
+    label: "Gelo",
+    description: "Cristal de gelo com brilho azul ártico",
+    unlockLevel: 20,
+    unlockAchievement: "first_fc",
+    preview: "linear-gradient(180deg,#001020,#00b4ff44,#a0e8ff33)",
+    border: "#00d4ff",
+    icon: "❄️",
+  },
+]
+
+/** Retorna true se o jogador pode usar o tema dado seu perfil */
+export function isThemeUnlocked(themeId: string, profile: PlayerProfile): boolean {
+  const theme = HIGHWAY_THEMES.find(t => t.id === themeId)
+  if (!theme) return false
+  if (theme.unlockLevel === 0) return true
+  if (profile.level >= theme.unlockLevel) return true
+  if (theme.unlockAchievement && profile.unlockedAchievements.includes(theme.unlockAchievement)) return true
+  return false
+}
+
+// ── Títulos Especiais (badges) ───────────────────────────────────────────────
+
+export interface SpecialTitle {
+  id: string
+  label: string
+  description: string
+  icon: string
+  color: string
+  rarity: "common" | "rare" | "epic" | "legendary"
+  check: (profile: PlayerProfile) => boolean
+}
+
+export const SPECIAL_TITLES: SpecialTitle[] = [
+  {
+    id: "first_steps",
+    label: "Primeiros Acordes",
+    description: "Completou a primeira música",
+    icon: "🎸", color: "#9ca3af", rarity: "common",
+    check: p => p.songsPlayed >= 1,
+  },
+  {
+    id: "combo_king",
+    label: "Rei do Combo",
+    description: "Alcançou 200 de combo",
+    icon: "👑", color: "#f59e0b", rarity: "rare",
+    check: p => p.bestCombo >= 200,
+  },
+  {
+    id: "perfectionist",
+    label: "Perfeccionista",
+    description: "10 Full Combos completos",
+    icon: "💎", color: "#a855f7", rarity: "epic",
+    check: p => p.fcCount >= 10,
+  },
+  {
+    id: "rock_god",
+    label: "Deus do Rock",
+    description: "Atingiu nível 99",
+    icon: "🤘", color: "#f59e0b", rarity: "legendary",
+    check: p => p.level >= 99,
+  },
+  {
+    id: "speed_demon",
+    label: "Demônio da Velocidade",
+    description: "Jogou no modo 6 lanes mais de 20 vezes",
+    icon: "⚡", color: "#ef4444", rarity: "rare",
+    check: p => (p.songsPerDifficulty[6] ?? 0) >= 20,
+  },
+  {
+    id: "veteran",
+    label: "Veterano",
+    description: "Mais de 100 músicas jogadas",
+    icon: "🏆", color: "#3b82f6", rarity: "rare",
+    check: p => p.songsPlayed >= 100,
+  },
+  {
+    id: "legend",
+    label: "Lenda",
+    description: "Mais de 500 músicas jogadas",
+    icon: "🌟", color: "#f59e0b", rarity: "legendary",
+    check: p => p.songsPlayed >= 500,
+  },
+  {
+    id: "s_hunter",
+    label: "Caçador de S",
+    description: "50 ranks S ou S+ conquistados",
+    icon: "⭐", color: "#fbbf24", rarity: "epic",
+    check: p => p.sRankCount >= 50,
+  },
+  {
+    id: "marathon",
+    label: "Maratonista",
+    description: "Mais de 10 horas de jogo",
+    icon: "🎵", color: "#22c55e", rarity: "rare",
+    check: p => p.totalPlaytimeMs >= 10 * 3_600_000,
+  },
+  {
+    id: "untouchable",
+    label: "Intocável",
+    description: "20 Full Combos sem erros",
+    icon: "🛡️", color: "#a855f7", rarity: "epic",
+    check: p => p.fcCount >= 20,
+  },
+  {
+    id: "newcomer",
+    label: "Novo Talento",
+    description: "Bem-vindo ao Guitar Duels!",
+    icon: "🌱", color: "#9ca3af", rarity: "common",
+    check: () => true,
+  },
+]
+
+/** Retorna todos os títulos que o jogador desbloqueou */
+export function getUnlockedTitles(profile: PlayerProfile): SpecialTitle[] {
+  return SPECIAL_TITLES.filter(t => t.check(profile))
+}
+
+/** Retorna o título mais raro/impressionante do jogador */
+export function getBestTitle(profile: PlayerProfile): SpecialTitle {
+  const order: SpecialTitle["rarity"][] = ["legendary", "epic", "rare", "common"]
+  const unlocked = getUnlockedTitles(profile)
+  for (const rarity of order) {
+    const match = unlocked.filter(t => t.rarity === rarity).pop()
+    if (match) return match
+  }
+  return SPECIAL_TITLES.find(t => t.id === "newcomer")!
+}
