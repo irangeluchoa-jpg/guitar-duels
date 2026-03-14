@@ -127,44 +127,50 @@ export function applyHit(stats: GameStats, rating: HitRating): GameStats {
 }
 
 export function prepareNotes(chart: Chart, laneCount = 5): ActiveNote[] {
+  const DEDUP_MS = 25  // janela de deduplicação: notas na mesma lane dentro de 25ms viram uma só
+
   if (laneCount === 4) {
-    // 4 lanes (A S D J): mapeamento fixo sem colisão
-    // Lane 0 (verde/G) → 0 (A)
-    // Lane 1 (vermelho/R) → 1 (S)
-    // Lane 2 (amarelo/Y) → 2 (D)
-    // Lane 3 (azul/B) → 3 (J)
-    // Lane 4 (laranja/O) → 2 (D/amarelo) ← CORRIGIDO: era 3 (causava miss no azul)
-    const MAP4 = [0, 1, 2, 3, 2]
-    return chart.notes.map((note, i) => ({
+    // G(0)→0  R(1)→1  Y(2)→2  B(3)→3  O(4)→3
+    // Laranja vai para J (azul) — lane 3, pois B e O raramente aparecem juntos
+    const MAP4 = [0, 1, 2, 3, 3]
+    const mapped = chart.notes.map((note, i) => ({
       ...note,
       lane: MAP4[Math.min(note.lane, 4)],
       id: i, hit: false, missed: false,
     }))
+    // Deduplicar: manter apenas a primeira nota se duas caírem na mesma lane em <DEDUP_MS
+    const kept: ActiveNote[] = []
+    for (const note of mapped) {
+      const conflict = kept.some(k => k.lane === note.lane && Math.abs(k.time - note.time) < DEDUP_MS)
+      if (!conflict) kept.push(note)
+    }
+    return kept
   }
 
   if (laneCount === 5) {
-    return chart.notes.map((note, i) => ({
+    const mapped = chart.notes.map((note, i) => ({
       ...note,
       lane: Math.min(note.lane, 4),
       id: i, hit: false, missed: false,
     }))
+    // Deduplicar também no modo 5 lanes
+    const kept: ActiveNote[] = []
+    for (const note of mapped) {
+      const conflict = kept.some(k => k.lane === note.lane && Math.abs(k.time - note.time) < DEDUP_MS)
+      if (!conflict) kept.push(note)
+    }
+    return kept
   }
 
-  // ── 6 lanes (A S D J K L): espalhar 5 frets originais em 6 lanes ──────────
-  // Mapeamento direto: lanes 0-4 ficam iguais; lane 5 (L/roxa) recebe
-  // metade das notas da lane 4 (laranja/K) para popular a 6ª lane.
-  // Resultado: lanes 0 a 4 têm notas normais; lane 5 tem ~50% das laranjas.
+  // ── 6 lanes (A S D J K L) ────────────────────────────────────────────────
   let orangeToggle = false
   const notes: ActiveNote[] = []
   let id = 0
-
   for (const note of chart.notes) {
     if (note.lane === 4) {
       orangeToggle = !orangeToggle
-      // Alterna entre K (4) e L (5) para distribuir notas na 6ª lane
       notes.push({ ...note, lane: orangeToggle ? 5 : 4, id: id++, hit: false, missed: false })
     } else {
-      // Lanes 0-3: mapeamento direto
       notes.push({ ...note, lane: note.lane, id: id++, hit: false, missed: false })
     }
   }
