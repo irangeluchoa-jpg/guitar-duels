@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
-import { RotateCcw, ArrowLeft, Zap, Target, TrendingUp, Trophy, Star } from "lucide-react"
+import { useEffect, useState, useRef, useCallback } from "react"
+import { RotateCcw, ArrowLeft, Zap, Target, TrendingUp, Trophy, Star, Share2 } from "lucide-react"
 import type { GameStats } from "@/lib/game/engine"
 import type { SongMeta } from "@/lib/songs/types"
 import { playClickSound } from "@/lib/game/sounds"
@@ -17,7 +17,10 @@ interface GameOverScreenProps {
   onBack?: () => void
   failed?: boolean
   isFC?: boolean
-  isDaily?: boolean  // veio do desafio diário
+  isDaily?: boolean
+  onNextSong?: () => void
+  playlistCount?: number
+  playlistPosition?: number
 }
 
 const GRADE_DATA: Record<string, { color: string; glow: string; label: string }> = {
@@ -33,7 +36,8 @@ const GRADE_DATA: Record<string, { color: string; glow: string; label: string }>
 
 export function GameOverScreen({
   stats, accuracy, grade, isFC = false,
-  meta, onRestart, onBack, failed = false, isDaily = false
+  meta, onRestart, onBack, failed = false, isDaily = false,
+  onNextSong, playlistCount = 0, playlistPosition = 0
 }: GameOverScreenProps) {
   const [phase, setPhase] = useState<"hidden" | "grade" | "stats" | "buttons">("hidden")
   const [scoreDisplay, setScoreDisplay] = useState(0)
@@ -159,6 +163,24 @@ export function GameOverScreen({
     } catch { return 0.5 }
   })()
 
+  const handleShare = useCallback(() => {
+    const gradeEmoji: Record<string,string> = { "S+":"🌟","S":"⭐","A":"✅","B":"🔵","C":"🟣","D":"🟠","F":"❌" }
+    const stars = "⭐".repeat(accuracy >= 95 ? 5 : accuracy >= 85 ? 4 : accuracy >= 70 ? 3 : accuracy >= 55 ? 2 : 1)
+    const fc = isFC ? " ✨ FULL COMBO!" : ""
+    const text = [
+      `🎸 Guitar Duels${fc}`,
+      `${gradeEmoji[grade] ?? "🎵"} ${grade} — ${meta.name}`,
+      `📊 ${stats.score.toLocaleString()} pts · ${accuracy}% precisão · ${stats.maxCombo}x combo`,
+      stars,
+    ].join("\n")
+    if (navigator.share) {
+      navigator.share({ title: "Guitar Duels", text }).catch(() => {})
+    } else {
+      navigator.clipboard?.writeText(text).then(() => alert("Resultado copiado!")).catch(() => {})
+    }
+    playClickSound(vol)
+  }, [grade, meta, stats, accuracy, isFC, vol])
+
   return (
     <div
       className="absolute inset-0 z-30 flex items-center justify-center"
@@ -176,6 +198,16 @@ export function GameOverScreen({
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase"
               style={{ background: "rgba(234,179,8,0.15)", border: "1px solid rgba(234,179,8,0.35)", color: "#eab308" }}>
               ⚡ DESAFIO DIÁRIO
+            </div>
+          </div>
+        )}
+
+        {/* Badge Playlist */}
+        {playlistCount > 1 && (
+          <div className="flex justify-center">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase"
+              style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)", color: "#22c55e" }}>
+              🎵 {playlistPosition}/{playlistCount} NA FILA
             </div>
           </div>
         )}
@@ -291,13 +323,31 @@ export function GameOverScreen({
             Menu
           </button>
           <button
-            onClick={() => { playClickSound(vol); onRestart() }}
-            className="flex items-center justify-center gap-2 flex-[2] h-12 rounded-xl text-sm font-bold transition-all duration-150 hover:scale-[1.03] active:scale-[0.97]"
-            style={{ background: "linear-gradient(135deg, #e11d48, #be123c)", color: "#fff", boxShadow: "0 0 24px rgba(225,29,72,0.4), 0 4px 12px rgba(0,0,0,0.3)" }}
+            onClick={handleShare}
+            className="flex items-center justify-center gap-1.5 h-12 px-4 rounded-xl text-sm font-semibold transition-all duration-150 hover:scale-[1.03] active:scale-[0.97]"
+            style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}
+            title="Compartilhar resultado"
           >
-            <RotateCcw className="w-4 h-4" />
-            Jogar Novamente
+            <Share2 className="w-4 h-4" />
           </button>
+          {onNextSong && playlistCount > 1 && playlistPosition < playlistCount ? (
+            <button
+              onClick={() => { playClickSound(vol); onNextSong() }}
+              className="flex items-center justify-center gap-2 flex-[2] h-12 rounded-xl text-sm font-bold transition-all duration-150 hover:scale-[1.03] active:scale-[0.97]"
+              style={{ background: "linear-gradient(135deg,#15803d,#16a34a)", color: "#fff", boxShadow: "0 0 24px rgba(34,197,94,0.35)" }}
+            >
+              Próxima ▶
+            </button>
+          ) : (
+            <button
+              onClick={() => { playClickSound(vol); onRestart() }}
+              className="flex items-center justify-center gap-2 flex-[2] h-12 rounded-xl text-sm font-bold transition-all duration-150 hover:scale-[1.03] active:scale-[0.97]"
+              style={{ background: "linear-gradient(135deg, #e11d48, #be123c)", color: "#fff", boxShadow: "0 0 24px rgba(225,29,72,0.4), 0 4px 12px rgba(0,0,0,0.3)" }}
+            >
+              <RotateCcw className="w-4 h-4" />
+              Jogar Novamente
+            </button>
+          )}
         </div>
       </div>
 

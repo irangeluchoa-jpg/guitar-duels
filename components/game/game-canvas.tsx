@@ -34,9 +34,12 @@ interface GameCanvasProps {
   externalPaused?: boolean
   laneCount?: number
   isDaily?: boolean
+  onNextSong?: () => void
+  playlistCount?: number
+  playlistPosition?: number
 }
 
-export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused, laneCount = 5, isDaily = false }: GameCanvasProps) {
+export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused, laneCount = 5, isDaily = false, onNextSong, playlistCount = 0, playlistPosition = 0 }: GameCanvasProps) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const isLeavingRef = useRef(false)   // impede startGame após navegar para fora
@@ -435,7 +438,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       {gameState === "countdown" && <GameCountdown count={countdown} />}
       {gameState === "paused" && externalPaused === undefined && <PauseOverlay onResume={resume} onRestart={handleRestart} onQuit={handleBack} />}
       {gameState === "ended"     && (
-        <GameOverScreen stats={stats} accuracy={accuracy} grade={grade} isFC={isFC} meta={meta} onRestart={handleRestart} onBack={handleBack} failed={failed.current} isDaily={isDaily} />
+        <GameOverScreen stats={stats} accuracy={accuracy} grade={grade} isFC={isFC} meta={meta} onRestart={handleRestart} onBack={handleBack} failed={failed.current} isDaily={isDaily} onNextSong={onNextSong} playlistCount={playlistCount} playlistPosition={playlistPosition} />
       )}
     </div>
   )

@@ -202,6 +202,9 @@ function PlayInner() {
   const playerIdParam = searchParams.get("player")
   const lanesParam    = parseInt(searchParams.get("lanes") || "5")
   const initLanes     = ([4,5,6].includes(lanesParam) ? lanesParam : 5) as 4|5|6
+  // Playlist: array de IDs passado via URL
+  const playlistParam = searchParams.get("playlist")
+  const playlist      = playlistParam ? (() => { try { return JSON.parse(decodeURIComponent(playlistParam)) as string[] } catch { return [] } })() : []
 
   const [playerId] = useState(() => {
     if (playerIdParam) return playerIdParam
@@ -482,6 +485,14 @@ function PlayInner() {
   const pausedByName  = roomSnapshot?.players.find(p => p.id === roomSnapshot.pausedBy)?.name ?? "alguém"
   const canResume     = roomSnapshot?.pausedBy === playerId
 
+  // Próxima música da playlist
+  const handleNextSong = playlist.length > 1 ? () => {
+    const currentIdx = playlist.indexOf(trackId)
+    const next = playlist[currentIdx + 1] ?? playlist[0]
+    const remaining = playlist.slice(playlist.indexOf(next))
+    router.push(`/play/${encodeURIComponent(next)}?lanes=${laneCount}&playlist=${encodeURIComponent(JSON.stringify(remaining))}`)
+  } : undefined
+
   return (
     <>
       <GameCanvas
@@ -494,6 +505,9 @@ function PlayInner() {
         onSongEnd={handleSongEnd}
         externalPaused={isMultiplayer ? isPaused : undefined}
         laneCount={laneCount}
+        onNextSong={handleNextSong}
+        playlistCount={playlist.length}
+        playlistPosition={playlist.indexOf(trackId) + 1}
       />
       {isMultiplayer && roomSnapshot && (
         <MultiplayerHUD

@@ -49,7 +49,7 @@ export default function RankingPage() {
   async function loadGlobal() {
     setGlobalLoading(true); setGlobalError(null)
     try {
-      const data = await getGlobalTop(100)
+      const data = await getGlobalTop(10)
       setGlobalScores(data)
       if (!data.length) setGlobalError("Supabase não configurado ou sem scores ainda.")
     } catch { setGlobalError("Erro ao carregar. Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY.") }
@@ -102,7 +102,7 @@ export default function RankingPage() {
         <div className="flex gap-2 px-6 pb-3">
           {([
             { key: "local" as Tab,  label: "📱 Local",  sub: `${localScores.length} scores` },
-            { key: "global" as Tab, label: "🌍 Global",  sub: "Online" },
+            { key: "global" as Tab, label: "🌍 Global",  sub: "Top 10" },
             { key: "daily" as Tab,  label: "⚡ Diário",  sub: "Hoje" },
           ]).map(t => (
             <button key={t.key} onClick={() => { playClickSound(getVol()); setTab(t.key) }}

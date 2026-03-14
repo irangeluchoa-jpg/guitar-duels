@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Play, Music, Clock, Star, Zap, ChevronRight, Heart, History } from "lucide-react"
+import { Play, Music, Clock, Star, Zap, ChevronRight, Heart, History, ListPlus, ListX, PlayCircle } from "lucide-react"
 import type { SongListItem } from "@/lib/songs/types"
 import { playClickSound, playHoverSound } from "@/lib/game/sounds"
 import { loadSettings, saveSettings, DEFAULT_KEY_BINDINGS, getKeyBindingsForLanes } from "@/lib/settings"
@@ -92,6 +92,7 @@ export function SongSelect() {
   const [laneCount, setLaneCount]      = useState<4|5|6>(5)
   const [favorites, setFavorites]     = useState<Set<string>>(new Set())  // carregado no useEffect
   const [bestScores, setBestScores]   = useState<Record<string, { score:number; grade:string }>>({})
+  const [playlist, setPlaylist]       = useState<string[]>([])  // IDs na fila
   const [recentIds, setRecentIds]     = useState<string[]>([])  // carregado no useEffect
   const [activeTab, setActiveTab]     = useState<"all" | "fav" | "recent">("all")
   const prevTimeout                   = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -597,6 +598,46 @@ export function SongSelect() {
                           <span className="font-normal opacity-60 text-[10px]">{sub}</span>
                         </button>
                       ))}
+                    </div>
+
+                    {/* Playlist / Fila */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          playClickSound(getVol())
+                          if (playlist.includes(selected.id)) {
+                            setPlaylist(p => p.filter(id => id !== selected.id))
+                          } else {
+                            setPlaylist(p => [...p, selected.id])
+                          }
+                        }}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        style={{
+                          background: playlist.includes(selected.id) ? "rgba(234,179,8,0.15)" : "rgba(255,255,255,0.05)",
+                          border: playlist.includes(selected.id) ? "1px solid rgba(234,179,8,0.4)" : "1px solid rgba(255,255,255,0.08)",
+                          color: playlist.includes(selected.id) ? "#eab308" : "rgba(255,255,255,0.35)",
+                        }}>
+                        {playlist.includes(selected.id)
+                          ? <><ListX className="w-3.5 h-3.5" /> Remover da Fila</>
+                          : <><ListPlus className="w-3.5 h-3.5" /> Adicionar à Fila</>}
+                      </button>
+                      {playlist.length > 0 && (
+                        <button
+                          onClick={() => {
+                            playClickSound(getVol())
+                            previewAudio?.pause()
+                            router.push(`/play/${encodeURIComponent(playlist[0])}?lanes=${laneCount}&playlist=${encodeURIComponent(JSON.stringify(playlist))}`)
+                          }}
+                          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+                          style={{
+                            background: "rgba(34,197,94,0.15)",
+                            border: "1px solid rgba(34,197,94,0.4)",
+                            color: "#22c55e",
+                          }}>
+                          <PlayCircle className="w-3.5 h-3.5" />
+                          Tocar Fila ({playlist.length})
+                        </button>
+                      )}
                     </div>
 
                     {/* Play button */}

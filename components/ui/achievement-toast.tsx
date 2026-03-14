@@ -94,26 +94,56 @@ function SingleToast({ item, onDone }: { item: ToastItem; onDone: () => void }) 
   if (item.type === "levelup") {
     return (
       <div style={{ ...base, marginBottom: 8 }}>
-        <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
+        <div className="relative flex items-center gap-3 px-4 py-3 rounded-2xl overflow-hidden"
           style={{
-            background: "linear-gradient(135deg, rgba(15,5,30,0.95), rgba(30,10,60,0.98))",
-            border: "1.5px solid rgba(168,85,247,0.6)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.6), 0 0 30px rgba(168,85,247,0.3)",
-            minWidth: 280,
+            background: "linear-gradient(135deg, rgba(15,5,30,0.97), rgba(40,10,80,0.99))",
+            border: "1.5px solid rgba(168,85,247,0.7)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.7), 0 0 40px rgba(168,85,247,0.4)",
+            minWidth: 300,
           }}>
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 animate-pulse"
-            style={{ background: "rgba(168,85,247,0.2)", border: "1px solid rgba(168,85,247,0.5)" }}>
-            ⬆️
+          {/* Partículas de fundo */}
+          {Array.from({length:8}).map((_,i) => (
+            <div key={i} className="absolute rounded-full pointer-events-none"
+              style={{
+                width: `${3+Math.random()*5}px`, height: `${3+Math.random()*5}px`,
+                background: `rgba(168,85,247,${0.4+Math.random()*0.5})`,
+                left: `${Math.random()*100}%`, top: `${Math.random()*100}%`,
+                animation: `float-up ${1.5+Math.random()}s ease-out ${Math.random()*0.5}s forwards`,
+              }} />
+          ))}
+          <div className="relative w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+            style={{
+              background: "linear-gradient(135deg,rgba(168,85,247,0.4),rgba(99,102,241,0.3))",
+              border: "2px solid rgba(168,85,247,0.8)",
+              boxShadow: "0 0 20px rgba(168,85,247,0.6)",
+              animation: "level-pop 0.5s cubic-bezier(0.34,1.56,0.64,1)",
+            }}>
+            <span className="text-2xl font-black" style={{ color: "#a855f7", fontFamily:"'Impact',sans-serif" }}>
+              {item.info.newLevel}
+            </span>
           </div>
           <div className="flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5"
-              style={{ color: "#a855f7" }}>Level Up!</p>
-            <p className="text-sm font-black text-white">
-              Nível {item.info.oldLevel} → <span style={{ color: "#a855f7" }}>{item.info.newLevel}</span>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: "rgba(168,85,247,0.7)" }}>
+              🎉 Level Up!
             </p>
+            <p className="text-base font-black text-white">
+              Nível <span style={{ color: "rgba(255,255,255,0.4)" }}>{item.info.oldLevel}</span>
+              {" → "}
+              <span style={{ color: "#c084fc", textShadow: "0 0 12px rgba(192,132,252,0.8)" }}>{item.info.newLevel}</span>
+            </p>
+            {item.info.levelsGained > 1 && (
+              <p className="text-[10px] font-bold" style={{ color: "rgba(251,191,36,0.8)" }}>
+                +{item.info.levelsGained} níveis de uma vez! 🔥
+              </p>
+            )}
           </div>
-          <div className="text-3xl">🎸</div>
+          <div className="text-3xl" style={{ animation: "spin-slow 2s linear infinite" }}>⭐</div>
         </div>
+        <style>{`
+          @keyframes level-pop { 0%{transform:scale(0) rotate(-20deg)}100%{transform:scale(1) rotate(0deg)} }
+          @keyframes float-up { 0%{transform:translateY(0);opacity:1}100%{transform:translateY(-40px);opacity:0} }
+          @keyframes spin-slow { from{transform:rotate(0)}to{transform:rotate(360deg)} }
+        `}</style>
       </div>
     )
   }

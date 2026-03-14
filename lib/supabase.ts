@@ -73,7 +73,7 @@ export async function submitGlobalScore(entry: GlobalScore): Promise<void> {
   } catch {}
 }
 
-export async function getGlobalTop(limit = 100): Promise<GlobalScore[]> {
+export async function getGlobalTop(limit = 10): Promise<GlobalScore[]> {
   if (!isConfigured()) return []
   try {
     const data = await sbFetch(`/global_scores?order=score.desc&limit=${limit}&select=*`)
