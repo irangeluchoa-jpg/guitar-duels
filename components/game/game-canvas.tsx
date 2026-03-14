@@ -366,57 +366,67 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" style={{ zIndex: 1 }} />
 
       {/* Top bar — oculto no modo multiplayer (o MultiplayerHUD já exibe as infos) */}
-      {!hideTopBar && (
-      <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
-        <div className="mx-1 sm:mx-3 mt-1 sm:mt-3 rounded-xl sm:rounded-2xl overflow-hidden"
-          style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 4px 24px rgba(0,0,0,0.5)" }}>
+      {!hideTopBar && (() => {
+        const isStarPower = stats.combo >= 30
+        return (
+        <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none"
+          style={{ transition: "opacity 0.5s ease" }}>
+          <div className="mx-1 sm:mx-3 mt-1 sm:mt-3 rounded-xl sm:rounded-2xl overflow-hidden"
+            style={{
+              background: isStarPower ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.55)",
+              backdropFilter: "blur(16px)",
+              border: isStarPower ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(255,255,255,0.07)",
+              boxShadow: isStarPower ? "0 4px 24px rgba(0,0,0,0.3)" : "0 4px 24px rgba(0,0,0,0.5)",
+              transition: "all 0.5s ease",
+            }}>
 
-          {/* Conteúdo principal */}
-          <div className="flex items-center gap-1.5 sm:gap-3 px-2 sm:px-4 py-1.5 sm:py-2.5">
-            {/* Info da música */}
-            <div className="flex-1 min-w-0">
-              <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-[0.2em] sm:tracking-[0.3em] truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
-                {meta.artist}{gpConnected && <span className="ml-1 sm:ml-2 text-indigo-400">🎮</span>}
-              </p>
-              <h2 className="text-xs sm:text-sm font-black text-white truncate leading-tight">{meta.name}</h2>
-            </div>
+            {/* Conteúdo principal */}
+            <div className="flex items-center gap-1.5 sm:gap-3 px-2 sm:px-4 py-1.5 sm:py-2.5">
+              {/* Info da música */}
+              <div className="min-w-0" style={{ maxWidth: "40%" }}>
+                <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-[0.2em] sm:tracking-[0.3em] truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  {meta.artist}{gpConnected && <span className="ml-1 sm:ml-2 text-indigo-400">🎮</span>}
+                </p>
+                <h2 className="text-xs sm:text-sm font-black text-white truncate leading-tight">{meta.name}</h2>
+              </div>
 
-            {/* Timer central */}
-            <div className="flex flex-col items-center shrink-0">
-              <div className="flex items-baseline gap-0.5 sm:gap-1">
-                <span className="text-sm sm:text-lg font-black font-mono text-white leading-none">
-                  {formatTime(timeInfo.current)}
-                </span>
-                <span className="text-[9px] sm:text-xs text-white/25 font-mono">/</span>
-                <span className="text-[10px] sm:text-sm font-bold font-mono" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  {timeInfo.total > 0 ? formatTime(timeInfo.total) : "--:--"}
-                </span>
+              {/* Timer central */}
+              <div className="flex-1 flex flex-col items-center">
+                <div className="flex items-baseline gap-0.5 sm:gap-1">
+                  <span className="text-sm sm:text-lg font-black font-mono text-white leading-none">
+                    {formatTime(timeInfo.current)}
+                  </span>
+                  <span className="text-[9px] sm:text-xs text-white/25 font-mono">/</span>
+                  <span className="text-[10px] sm:text-sm font-bold font-mono" style={{ color: "rgba(255,255,255,0.45)" }}>
+                    {timeInfo.total > 0 ? formatTime(timeInfo.total) : "--:--"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Velocidade */}
+              <div className="shrink-0 flex items-center gap-1 sm:gap-2">
+                {!hasAudio && (
+                  <span className="hidden sm:inline text-[9px] text-yellow-500/60 bg-yellow-500/10 px-2 py-0.5 rounded-full">sem áudio</span>
+                )}
+                <div className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full" style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <span className="text-[10px] sm:text-xs font-black text-white/50">{effectiveSpeed}x</span>
+                </div>
               </div>
             </div>
 
-            {/* Velocidade */}
-            <div className="shrink-0 flex items-center gap-1 sm:gap-2">
-              {!hasAudio && (
-                <span className="hidden sm:inline text-[9px] text-yellow-500/60 bg-yellow-500/10 px-2 py-0.5 rounded-full">sem áudio</span>
-              )}
-              <div className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full" style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                <span className="text-[10px] sm:text-xs font-black text-white/50">{effectiveSpeed}x</span>
-              </div>
+            {/* Progress bar integrada */}
+            <div className="h-0.5 sm:h-1 w-full" style={{ background: "rgba(255,255,255,0.04)" }}>
+              <div className="h-full transition-all duration-300"
+                style={{
+                  width: `${progress * 100}%`,
+                  background: "linear-gradient(90deg,#be123c,#e11d48,#f97316)",
+                  boxShadow: "0 0 8px rgba(225,29,72,0.8)",
+                }} />
             </div>
-          </div>
-
-          {/* Progress bar integrada */}
-          <div className="h-0.5 sm:h-1 w-full" style={{ background: "rgba(255,255,255,0.04)" }}>
-            <div className="h-full transition-all duration-300"
-              style={{
-                width: `${progress * 100}%`,
-                background: "linear-gradient(90deg,#be123c,#e11d48,#f97316)",
-                boxShadow: "0 0 8px rgba(225,29,72,0.8)",
-              }} />
           </div>
         </div>
-      </div>
-      )}
+        )
+      })()}
 
       {gameState === "playing" && (
         <div className="absolute top-[72px] right-4 z-10 pointer-events-none">

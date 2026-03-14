@@ -1321,7 +1321,88 @@ export function renderFrame(state: RenderState): void {
   }
   ctx.restore()
 
-  // 3 – Star Power lightning (hit line + bordas da tela)
+  // 3 – Star Power efeitos visuais completos
+  if (starPower) {
+    const intensity = Math.min(1, (stats.combo - STAR_POWER_COMBO) / 25)
+    const t = now * 0.001
+    const sp = spPal
+
+    ctx.save()
+
+    // ── Vinheta pulsante nas bordas da tela ─────────────────────────────
+    const vPulse = 0.18 + Math.sin(t * 2.8) * 0.06
+    const vL = ctx.createLinearGradient(0, 0, w * 0.22, 0)
+    vL.addColorStop(0, `rgba(${sp.primaryRgb},${vPulse * intensity})`)
+    vL.addColorStop(1, "transparent")
+    ctx.fillStyle = vL; ctx.fillRect(0, 0, w * 0.22, h)
+    const vR = ctx.createLinearGradient(w, 0, w * 0.78, 0)
+    vR.addColorStop(0, `rgba(${sp.primaryRgb},${vPulse * intensity})`)
+    vR.addColorStop(1, "transparent")
+    ctx.fillStyle = vR; ctx.fillRect(w * 0.78, 0, w * 0.22, h)
+    const vT = ctx.createLinearGradient(0, 0, 0, h * 0.15)
+    vT.addColorStop(0, `rgba(${sp.primaryRgb},${vPulse * 0.5 * intensity})`)
+    vT.addColorStop(1, "transparent")
+    ctx.fillStyle = vT; ctx.fillRect(0, 0, w, h * 0.15)
+    const vB = ctx.createLinearGradient(0, h, 0, h * 0.82)
+    vB.addColorStop(0, `rgba(${sp.primaryRgb},${vPulse * 0.4 * intensity})`)
+    vB.addColorStop(1, "transparent")
+    ctx.fillStyle = vB; ctx.fillRect(0, h * 0.82, w, h * 0.18)
+
+    // ── Flash periódico de energia ───────────────────────────────────────
+    const flashCycle = Math.sin(t * 4.5)
+    if (flashCycle > 0.88) {
+      const flashAlpha = (flashCycle - 0.88) / 0.12 * 0.08 * intensity
+      ctx.fillStyle = `rgba(${sp.primaryRgb},${flashAlpha})`
+      ctx.fillRect(0, 0, w, h)
+    }
+
+    // ── Partículas de energia voando pela tela ───────────────────────────
+    for (let p = 0; p < 18; p++) {
+      const seed = p * 137.5
+      const px = (Math.sin(seed + t * (0.3 + p * 0.04)) * 0.5 + 0.5) * w
+      const py = ((t * (0.08 + p * 0.012) + seed * 0.01) % 1.0) * h
+      const pr = (1.2 + Math.abs(Math.sin(t * 2 + p)) * 2.5) * intensity
+      const pa = (0.3 + Math.abs(Math.sin(t * 3 + p * 0.7)) * 0.55) * intensity
+      ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2)
+      ctx.fillStyle = `rgba(${sp.primaryRgb},${pa})`
+      ctx.shadowColor = sp.primary; ctx.shadowBlur = pr * 3
+      ctx.fill()
+    }
+    ctx.shadowBlur = 0
+
+    // ── Ondas de energia horizontais varrendo a tela ─────────────────────
+    for (let w2 = 0; w2 < 3; w2++) {
+      const waveY = h * ((t * 0.35 + w2 * 0.33) % 1.0)
+      const wAlpha = (0.04 + Math.sin(t * 2 + w2) * 0.02) * intensity
+      const wG = ctx.createLinearGradient(0, waveY - 30, 0, waveY + 30)
+      wG.addColorStop(0, "transparent")
+      wG.addColorStop(0.5, `rgba(${sp.primaryRgb},${wAlpha})`)
+      wG.addColorStop(1, "transparent")
+      ctx.fillStyle = wG
+      ctx.fillRect(0, waveY - 30, w, 60)
+    }
+
+    // ── Anéis de expansão (pulso de energia) ────────────────────────────
+    const ringPhase = (t * 1.2) % 1.0
+    const ringR = ringPhase * Math.min(w, h) * 0.6
+    const ringAlpha = (1 - ringPhase) * 0.12 * intensity
+    ctx.beginPath(); ctx.arc(w / 2, h * 0.5, ringR, 0, Math.PI * 2)
+    ctx.strokeStyle = `rgba(${sp.primaryRgb},${ringAlpha})`
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    const ring2Phase = ((t * 1.2) + 0.5) % 1.0
+    const ring2R = ring2Phase * Math.min(w, h) * 0.6
+    const ring2Alpha = (1 - ring2Phase) * 0.10 * intensity
+    ctx.beginPath(); ctx.arc(w / 2, h * 0.5, ring2R, 0, Math.PI * 2)
+    ctx.strokeStyle = `rgba(${sp.secondaryRgb},${ring2Alpha})`
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+
+    ctx.restore()
+  }
+
+  // 3b – Star Power lightning (hit line + raios nas bordas)
   drawStarPowerLightning(ctx,w,h,now,stats.combo,highwayTheme)
 
   // 4 – Sustain tails
@@ -1645,22 +1726,24 @@ export function renderFrame(state: RenderState): void {
     drawDiffLabel(ctx, gx + gSize*0.38, gy + gSize + 2, difficulty)
   }
 
-  // 10 – Efeitos de borda por tema (decoração ambiente nas bordas da tela)
+  // 10 – Efeitos de borda por tema (decoração ambiente + intensificação em star power)
   if (highwayTheme !== "default") {
     ctx.save()
     const t = now * 0.001
+    const spMult = starPower ? (2.5 + Math.sin(t * 3) * 0.5) : 1  // 2.5x mais intenso em SP
 
     if (highwayTheme === "fire") {
-      // Chamas nas bordas laterais
+      // Chamas nas bordas laterais — mais altas e numerosas em SP
+      const flameCount = starPower ? 10 : 6
       for (let side = 0; side < 2; side++) {
         const bx = side === 0 ? 0 : w
-        for (let f = 0; f < 6; f++) {
-          const fy   = h * (0.3 + f * 0.12) + Math.sin(t * 2.1 + f) * 18
-          const fh   = 60 + Math.sin(t * 3 + f * 1.4) * 20
-          const fw   = 22 + Math.sin(t * 2 + f) * 8
+        for (let f = 0; f < flameCount; f++) {
+          const fy   = h * (0.1 + f * (starPower ? 0.08 : 0.12)) + Math.sin(t * 2.1 + f) * 18
+          const fh   = (60 + Math.sin(t * 3 + f * 1.4) * 20) * spMult
+          const fw   = (22 + Math.sin(t * 2 + f) * 8) * (starPower ? 1.8 : 1)
           const flG  = ctx.createLinearGradient(bx, fy + fh, bx, fy)
-          flG.addColorStop(0, "rgba(255,80,0,0.30)")
-          flG.addColorStop(0.5, "rgba(255,160,0,0.15)")
+          flG.addColorStop(0, `rgba(255,80,0,${0.30 * spMult})`)
+          flG.addColorStop(0.4, `rgba(255,200,0,${0.18 * spMult})`)
           flG.addColorStop(1, "transparent")
           ctx.fillStyle = flG
           ctx.beginPath()
@@ -1671,96 +1754,160 @@ export function renderFrame(state: RenderState): void {
           ctx.fill()
         }
       }
+      // Chamas no topo em SP
+      if (starPower) {
+        for (let f = 0; f < 8; f++) {
+          const fx = w * (0.1 + f * 0.1) + Math.sin(t * 2 + f) * 15
+          const fh2 = (40 + Math.sin(t * 3 + f) * 15) * spMult * 0.5
+          const flG2 = ctx.createLinearGradient(fx, 0, fx, fh2)
+          flG2.addColorStop(0, `rgba(255,80,0,${0.25 * spMult})`)
+          flG2.addColorStop(1, "transparent")
+          ctx.fillStyle = flG2; ctx.fillRect(fx - 8, 0, 16, fh2)
+        }
+      }
     }
 
     if (highwayTheme === "neon") {
-      // Scan lines neon pulsando
+      // Scan lines neon + brilho nas bordas
       const scanY = (t * 120) % h
-      const neonG = ctx.createLinearGradient(0, scanY - 40, 0, scanY + 40)
+      const neonAlpha = 0.06 * spMult
+      const neonG = ctx.createLinearGradient(0, scanY - 60, 0, scanY + 60)
       neonG.addColorStop(0, "transparent")
-      neonG.addColorStop(0.5, "rgba(0,255,180,0.06)")
+      neonG.addColorStop(0.5, `rgba(0,255,180,${neonAlpha})`)
       neonG.addColorStop(1, "transparent")
-      ctx.fillStyle = neonG
-      ctx.fillRect(0, 0, w, h)
-      // Brilho nas bordas
-      const edgeG = ctx.createLinearGradient(0, 0, 30, 0)
-      edgeG.addColorStop(0, `rgba(0,255,180,${0.04 + Math.sin(t*2)*0.02})`)
-      edgeG.addColorStop(1, "transparent")
-      ctx.fillStyle = edgeG; ctx.fillRect(0, 0, 30, h)
-      const edgeG2 = ctx.createLinearGradient(w, 0, w-30, 0)
-      edgeG2.addColorStop(0, `rgba(180,0,255,${0.04 + Math.sin(t*2+1)*0.02})`)
-      edgeG2.addColorStop(1, "transparent")
-      ctx.fillStyle = edgeG2; ctx.fillRect(w-30, 0, 30, h)
+      ctx.fillStyle = neonG; ctx.fillRect(0, 0, w, h)
+      if (starPower) {
+        // Segunda scan line em SP
+        const scan2Y = ((t * 120) + h * 0.5) % h
+        const neonG2 = ctx.createLinearGradient(0, scan2Y - 40, 0, scan2Y + 40)
+        neonG2.addColorStop(0, "transparent")
+        neonG2.addColorStop(0.5, `rgba(255,0,204,${neonAlpha * 0.7})`)
+        neonG2.addColorStop(1, "transparent")
+        ctx.fillStyle = neonG2; ctx.fillRect(0, 0, w, h)
+      }
+      // Brilho intenso nas bordas
+      const edgeW = starPower ? 50 : 30
+      const edgeAlpha = (0.04 + Math.sin(t * 2) * 0.02) * spMult
+      const edgeG = ctx.createLinearGradient(0, 0, edgeW, 0)
+      edgeG.addColorStop(0, `rgba(0,255,180,${edgeAlpha})`); edgeG.addColorStop(1, "transparent")
+      ctx.fillStyle = edgeG; ctx.fillRect(0, 0, edgeW, h)
+      const edgeG2 = ctx.createLinearGradient(w, 0, w - edgeW, 0)
+      edgeG2.addColorStop(0, `rgba(180,0,255,${edgeAlpha})`); edgeG2.addColorStop(1, "transparent")
+      ctx.fillStyle = edgeG2; ctx.fillRect(w - edgeW, 0, edgeW, h)
     }
 
     if (highwayTheme === "space") {
-      // Estrelas caindo nas bordas
-      for (let s = 0; s < 8; s++) {
-        const sx = (s < 4 ? s * 18 + 4 : w - (s-4)*18 - 12)
+      // Estrelas caindo nas bordas — mais em SP
+      const starCount = starPower ? 18 : 8
+      for (let s = 0; s < starCount; s++) {
+        const sx = s < starCount / 2
+          ? s * (w * 0.05) + 4
+          : w - (s - starCount / 2) * (w * 0.05) - 12
         const sy = ((t * 40 * (0.5 + s * 0.15) + s * 97) % h)
-        const sr = 1 + (s % 3) * 0.8
-        const sa = 0.3 + Math.sin(t * 3 + s) * 0.2
-        ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2)
+        const sr = (1 + (s % 3) * 0.8) * (starPower ? 1.5 : 1)
+        const sa = (0.3 + Math.sin(t * 3 + s) * 0.2) * spMult * 0.6
+        ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2)
         ctx.fillStyle = `rgba(150,100,255,${sa})`
-        ctx.fill()
+        if (starPower) { ctx.shadowColor = "#aa44ff"; ctx.shadowBlur = sr * 4 }
+        ctx.fill(); ctx.shadowBlur = 0
       }
-      // Vinheta roxa nas bordas
-      const spG = ctx.createLinearGradient(0, 0, 50, 0)
-      spG.addColorStop(0, "rgba(60,0,180,0.08)"); spG.addColorStop(1, "transparent")
-      ctx.fillStyle = spG; ctx.fillRect(0, 0, 50, h)
-      const spG2 = ctx.createLinearGradient(w, 0, w-50, 0)
-      spG2.addColorStop(0, "rgba(60,0,180,0.08)"); spG2.addColorStop(1, "transparent")
-      ctx.fillStyle = spG2; ctx.fillRect(w-50, 0, 50, h)
+      // Nebulosa pulsante em SP
+      if (starPower) {
+        const nebPulse = 0.06 + Math.sin(t * 1.5) * 0.03
+        const nebG = ctx.createRadialGradient(w * 0.1, h * 0.3, 0, w * 0.1, h * 0.3, w * 0.3)
+        nebG.addColorStop(0, `rgba(100,0,255,${nebPulse})`); nebG.addColorStop(1, "transparent")
+        ctx.fillStyle = nebG; ctx.fillRect(0, 0, w * 0.4, h * 0.6)
+        const nebG2 = ctx.createRadialGradient(w * 0.9, h * 0.7, 0, w * 0.9, h * 0.7, w * 0.3)
+        nebG2.addColorStop(0, `rgba(60,0,200,${nebPulse * 0.8})`); nebG2.addColorStop(1, "transparent")
+        ctx.fillStyle = nebG2; ctx.fillRect(w * 0.6, h * 0.4, w * 0.4, h * 0.6)
+      }
+      const spG = ctx.createLinearGradient(0, 0, 50 * spMult, 0)
+      spG.addColorStop(0, `rgba(60,0,180,${0.08 * spMult})`); spG.addColorStop(1, "transparent")
+      ctx.fillStyle = spG; ctx.fillRect(0, 0, 50 * spMult, h)
+      const spG2 = ctx.createLinearGradient(w, 0, w - 50 * spMult, 0)
+      spG2.addColorStop(0, `rgba(60,0,180,${0.08 * spMult})`); spG2.addColorStop(1, "transparent")
+      ctx.fillStyle = spG2; ctx.fillRect(w - 50 * spMult, 0, 50 * spMult, h)
     }
 
     if (highwayTheme === "ice") {
-      // Cristais cintilando nas bordas
-      for (let c = 0; c < 6; c++) {
-        const cx2 = c < 3 ? c * 14 + 5 : w - (c-3)*14 - 12
-        const cy2 = h * (0.2 + c * 0.14) + Math.sin(t + c * 1.7) * 10
-        const ca  = 0.15 + Math.sin(t * 2.5 + c) * 0.10
+      // Cristais cintilando — mais em SP
+      const crystalCount = starPower ? 14 : 6
+      for (let c = 0; c < crystalCount; c++) {
+        const cx2 = c < crystalCount / 2 ? c * 20 + 5 : w - (c - crystalCount / 2) * 20 - 12
+        const cy2 = h * (0.1 + ((c * 0.08) % 0.85)) + Math.sin(t + c * 1.7) * 10
+        const ca  = (0.15 + Math.sin(t * 2.5 + c) * 0.10) * spMult * 0.7
+        const hexSize = starPower ? 9 : 5
         ctx.save()
         ctx.translate(cx2, cy2)
         ctx.rotate(t * 0.5 + c)
         ctx.fillStyle = `rgba(160,230,255,${ca})`
-        // Cristal hexagonal simples
+        if (starPower) { ctx.shadowColor = "#88eeff"; ctx.shadowBlur = 12 }
         ctx.beginPath()
         for (let i = 0; i < 6; i++) {
           const a = (i / 6) * Math.PI * 2
-          const r = 5 + Math.sin(t * 3 + c + i) * 2
+          const r = hexSize + Math.sin(t * 3 + c + i) * 2
           i === 0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r)
                   : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r)
         }
         ctx.closePath(); ctx.fill()
+        ctx.shadowBlur = 0
         ctx.restore()
+      }
+      // Geada no topo em SP
+      if (starPower) {
+        const iceG = ctx.createLinearGradient(0, 0, 0, h * 0.12)
+        iceG.addColorStop(0, `rgba(136,238,255,${0.12 * spMult})`)
+        iceG.addColorStop(1, "transparent")
+        ctx.fillStyle = iceG; ctx.fillRect(0, 0, w, h * 0.12)
       }
     }
 
     if (highwayTheme === "retro") {
-      // Grade de scanlines estilo CRT
+      // Scanlines CRT + brilho nas bordas
+      const scanOpacity = starPower ? 0.10 : 0.06
       for (let y = 0; y < h; y += 4) {
-        ctx.fillStyle = "rgba(0,0,0,0.06)"
+        ctx.fillStyle = `rgba(0,0,0,${scanOpacity})`
         ctx.fillRect(0, y, w, 1)
       }
-      // Brilho nas bordas colorido
-      const rG1 = ctx.createLinearGradient(0, 0, 20, 0)
-      rG1.addColorStop(0, `rgba(255,20,150,${0.06 + Math.sin(t*1.5)*0.03})`)
-      rG1.addColorStop(1, "transparent")
-      ctx.fillStyle = rG1; ctx.fillRect(0, 0, 20, h)
-      const rG2 = ctx.createLinearGradient(w, 0, w-20, 0)
-      rG2.addColorStop(0, `rgba(0,255,200,${0.06 + Math.sin(t*1.5+1)*0.03})`)
-      rG2.addColorStop(1, "transparent")
-      ctx.fillStyle = rG2; ctx.fillRect(w-20, 0, 20, h)
+      const retW = starPower ? 35 : 20
+      const retAlpha = (0.06 + Math.sin(t * 1.5) * 0.03) * spMult
+      const rG1 = ctx.createLinearGradient(0, 0, retW, 0)
+      rG1.addColorStop(0, `rgba(255,20,150,${retAlpha})`); rG1.addColorStop(1, "transparent")
+      ctx.fillStyle = rG1; ctx.fillRect(0, 0, retW, h)
+      const rG2 = ctx.createLinearGradient(w, 0, w - retW, 0)
+      rG2.addColorStop(0, `rgba(0,255,200,${retAlpha})`); rG2.addColorStop(1, "transparent")
+      ctx.fillStyle = rG2; ctx.fillRect(w - retW, 0, retW, h)
+      // Glitch horizontal em SP
+      if (starPower && Math.sin(t * 7) > 0.75) {
+        const glitchY = Math.random() * h
+        const glitchAlpha = 0.06
+        ctx.fillStyle = `rgba(255,20,150,${glitchAlpha})`
+        ctx.fillRect(0, glitchY, w, 3)
+      }
     }
 
     if (highwayTheme === "wood") {
       // Vinheta quente nas bordas
-      const wG = ctx.createLinearGradient(0, 0, 40, 0)
-      wG.addColorStop(0, "rgba(80,30,0,0.10)"); wG.addColorStop(1, "transparent")
-      ctx.fillStyle = wG; ctx.fillRect(0, 0, 40, h)
-      const wG2 = ctx.createLinearGradient(w, 0, w-40, 0)
-      wG2.addColorStop(0, "rgba(80,30,0,0.10)"); wG2.addColorStop(1, "transparent")
-      ctx.fillStyle = wG2; ctx.fillRect(w-40, 0, 40, h)
+      const woodW = starPower ? 70 : 40
+      const woodAlpha = (0.10 + Math.sin(t * 1.2) * 0.03) * spMult * 0.6
+      const wG = ctx.createLinearGradient(0, 0, woodW, 0)
+      wG.addColorStop(0, `rgba(120,50,0,${woodAlpha})`); wG.addColorStop(1, "transparent")
+      ctx.fillStyle = wG; ctx.fillRect(0, 0, woodW, h)
+      const wG2 = ctx.createLinearGradient(w, 0, w - woodW, 0)
+      wG2.addColorStop(0, `rgba(120,50,0,${woodAlpha})`); wG2.addColorStop(1, "transparent")
+      ctx.fillStyle = wG2; ctx.fillRect(w - woodW, 0, woodW, h)
+      // Veios de madeira pulsantes em SP
+      if (starPower) {
+        for (let v = 0; v < 4; v++) {
+          const vx = w * (0.05 + v * 0.05) + Math.sin(t + v) * 8
+          const va = (0.04 + Math.sin(t * 2 + v) * 0.02) * spMult
+          ctx.strokeStyle = `rgba(200,120,40,${va})`
+          ctx.lineWidth = 1.5
+          ctx.beginPath(); ctx.moveTo(vx, 0); ctx.lineTo(vx + 20, h); ctx.stroke()
+          const vx2 = w - w * (0.05 + v * 0.05) - Math.sin(t + v) * 8
+          ctx.beginPath(); ctx.moveTo(vx2, 0); ctx.lineTo(vx2 - 20, h); ctx.stroke()
+        }
+      }
     }
 
     ctx.restore()
