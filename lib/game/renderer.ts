@@ -203,7 +203,9 @@ interface RenderState {
   cameraShake?: boolean
   topBarH?: number
   songMeta?: { artist?: string; name?: string }
-  songProgress?: number  // 0-1, progresso da música para a barra
+  songProgress?: number
+  lastMissTime?: number       // timestamp do último miss para flash vermelho
+  displayScore?: number       // score animado (contador suave)
 }
 
 export function getHitLineY(h: number) { return h * HIT_LINE_Y_RATIO }
@@ -1099,29 +1101,30 @@ function drawHitExplosion(
     ctx.shadowBlur = 0
   }
 
-  // ── Sparks voando para os lados (WoR signature) ───────────────────────
-  const numSparks = isPerfect ? 18 : isGreat ? 13 : 9
-  const speed     = isPerfect ? 4.2 : isGreat ? 3.4 : 2.6
+  // ── Sparks voando radialmente (mais partículas, cor da lane) ─────────
+  const numSparks = isPerfect ? 28 : isGreat ? 20 : 14
+  const sparkSpeed = isPerfect ? 5.5 : isGreat ? 4.2 : 3.2
   for (let p = 0; p < numSparks; p++) {
-    const angle = (p / numSparks) * Math.PI * 2 + progress * 0.25
-    const dist  = rx * (0.8 + progress * speed)
+    const angle = (p / numSparks) * Math.PI * 2 + progress * 0.3
+    const dist  = rx * (0.6 + progress * sparkSpeed)
     const px    = x + Math.cos(angle) * dist
-    const py    = hitY + Math.sin(angle) * dist * 0.48
+    const py    = hitY + Math.sin(angle) * dist * 0.45
     // Trail
-    if (progress > 0.06) {
-      const pd  = rx * (0.8 + (progress - 0.06) * speed)
+    if (progress > 0.04) {
+      const pd  = rx * (0.6 + (progress - 0.04) * sparkSpeed)
       const ppx = x + Math.cos(angle) * pd
-      const ppy = hitY + Math.sin(angle) * pd * 0.48
+      const ppy = hitY + Math.sin(angle) * pd * 0.45
       ctx.beginPath(); ctx.moveTo(ppx, ppy); ctx.lineTo(px, py)
-      ctx.strokeStyle = `rgba(${burstRgb},${alpha*0.55})`
-      ctx.lineWidth = 1.5; ctx.stroke()
+      ctx.strokeStyle = `rgba(${burstRgb},${alpha * 0.6})`
+      ctx.lineWidth = 1.8; ctx.stroke()
     }
-    // Dot
-    const pr = Math.max(0, (isPerfect ? 5.5 : isGreat ? 4.5 : 3.5) * (1-progress) * alpha)
+    // Dot com cor da lane para variedade
+    const pr = Math.max(0, (isPerfect ? 6.5 : isGreat ? 5.0 : 3.8) * (1 - progress) * alpha)
     if (pr < 0.3) continue
-    ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI*2)
-    ctx.fillStyle = isPerfect ? "#ffffff" : burstCol
-    ctx.shadowColor = burstCol; ctx.shadowBlur = 10
+    ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2)
+    // Alterna entre cor da lane e burst
+    ctx.fillStyle = p % 3 === 0 ? color : (isPerfect ? "#ffffff" : burstCol)
+    ctx.shadowColor = p % 3 === 0 ? color : burstCol; ctx.shadowBlur = 12
     ctx.fill(); ctx.shadowBlur = 0
   }
 
@@ -1273,7 +1276,7 @@ function drawDiffLabel(ctx: CanvasRenderingContext2D, x: number, y: number, diff
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────────────────────
 export function renderFrame(state: RenderState): void {
-  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true, topBarH = 0 } = state
+  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true, topBarH = 0, lastMissTime = 0, displayScore } = state
   // Usar dimensões CSS (não físicas) para que as coords batam com o ctx já escalado pelo dpr
   const dpr = (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1
   const w = canvas.width / dpr
@@ -1291,6 +1294,16 @@ export function renderFrame(state: RenderState): void {
   const spPal = getSPPalette(highwayTheme)  // paleta SP do tema ativo
   // Limpa o canvas (bordas ficam transparentes — mostra o background da música)
   ctx.clearRect(0, 0, w, h)
+
+  // ── Miss flash: tela fica vermelha por 300ms ──────────────────────────
+  if (lastMissTime > 0) {
+    const missAge = now - lastMissTime
+    if (missAge < 300) {
+      const flashAlpha = (1 - missAge / 300) * 0.18
+      ctx.fillStyle = `rgba(239,68,68,${flashAlpha})`
+      ctx.fillRect(0, 0, w, h)
+    }
+  }
 
   // Qualidade de renderização
   ctx.imageSmoothingEnabled = true
@@ -1310,18 +1323,74 @@ export function renderFrame(state: RenderState): void {
   ctx.shadowBlur = 0
   ctx.drawImage(getFretboard(w,h,starPower,difficulty,LC,highwayTheme),0,0)
 
-  // 2 – Beat lines dinâmicas
+  // 2 – Beat lines dinâmicas com glow pulsante
   const visMs=2200/ns
   ctx.save()
+  const beatPulse = 0.5 + Math.sin(now * 0.006) * 0.5  // pulso sincronizado
+  const beatColor = starPower ? spPal.primaryRgb : "0,200,255"
   for (let ms=500; ms<visMs; ms+=500) {
     const p0=project(0,ms,canvas,ns,LC), p4=project(LC-1,ms,canvas,ns,LC)
     const hw0=laneWidthAt(w,1-p0.scale)*0.5, hw4=laneWidthAt(w,1-p4.scale)*0.5
-    const al=(1-ms/visMs)*(starPower?0.32:0.18)
+    const distFrac = 1 - ms/visMs
+    // Linhas próximas (perto da hit line) têm glow mais forte
+    const glowBoost = ms < 500 ? beatPulse * 0.3 : 0
+    const al = distFrac * (starPower ? 0.45 : 0.22) + glowBoost
     ctx.beginPath(); ctx.moveTo(p0.x-hw0,p0.y); ctx.lineTo(p4.x+hw4,p4.y)
-    ctx.strokeStyle=`rgba(0,200,255,${al})`
-    ctx.lineWidth=Math.max(0.4,p0.scale*1.2); ctx.stroke()
+    ctx.strokeStyle=`rgba(${beatColor},${al})`
+    ctx.lineWidth=Math.max(0.4, p0.scale * (ms < 600 ? 2.0 : 1.2))
+    if (ms < 600) {
+      ctx.shadowColor = `rgba(${beatColor},0.8)`
+      ctx.shadowBlur = 8 * beatPulse * distFrac
+    }
+    ctx.stroke()
+    ctx.shadowBlur = 0
   }
   ctx.restore()
+
+  // 2b – Streak de combo: flash de energia subindo pela highway a cada 10 combos
+  {
+    const combo = stats.combo
+    if (combo > 0 && combo % 10 === 0) {
+      // Procurar no hitEffects o efeito mais recente para calcular "há quanto tempo bateu o milestone"
+      const recentHit = hitEffects.filter(fx => fx.rating !== "miss" && (now - fx.time) < 800)
+        .sort((a, b) => b.time - a.time)[0]
+      if (recentHit) {
+        const age = now - recentHit.time
+        const streakProg = age / 800
+        if (streakProg < 1) {
+          ctx.save()
+          const streakAlpha = (1 - streakProg) * 0.65
+          const streakH = hitY * (0.15 + streakProg * 0.85)
+          // Coluna de luz subindo pela highway
+          for (let lane = 0; lane < LC; lane++) {
+            const { x: lx } = project(lane, 0, canvas, ns, LC)
+            const lw = laneWidthAt(w, 1) * 0.4
+            const lG = ctx.createLinearGradient(lx, hitY, lx, hitY - streakH)
+            const milestoneColor = combo >= 100 ? "255,200,0" : combo >= 50 ? "200,100,255" : "0,200,255"
+            lG.addColorStop(0, `rgba(${milestoneColor},${streakAlpha})`)
+            lG.addColorStop(0.4, `rgba(${milestoneColor},${streakAlpha * 0.4})`)
+            lG.addColorStop(1, "transparent")
+            ctx.fillStyle = lG
+            ctx.fillRect(lx - lw, hitY - streakH, lw * 2, streakH)
+          }
+          // Texto do milestone no centro
+          if (streakProg < 0.6) {
+            const textAlpha = (1 - streakProg / 0.6)
+            const textY = hitY - streakProg * hitY * 0.4
+            const milestoneColor = combo >= 100 ? "#ffd700" : combo >= 50 ? "#c864ff" : "#00c8ff"
+            ctx.globalAlpha = textAlpha
+            ctx.fillStyle = milestoneColor
+            ctx.font = `900 ${Math.round(22 * uiScale)}px 'Arial Black',Arial,sans-serif`
+            ctx.textAlign = "center"; ctx.textBaseline = "middle"
+            ctx.shadowColor = milestoneColor; ctx.shadowBlur = 20
+            ctx.fillText(`${combo} COMBO!`, w / 2, textY)
+            ctx.shadowBlur = 0; ctx.globalAlpha = 1
+          }
+          ctx.restore()
+        }
+      }
+    }
+  }
 
   // 3 – Star Power efeitos visuais completos
   if (starPower) {
@@ -1683,7 +1752,6 @@ export function renderFrame(state: RenderState): void {
 
   // 7 – Notas (estilo GH:WT — disco achatado + chama)
   const maxV=2200/ns
-  // Sem sort por frame — notas já vêm em ordem do chart parser, custo O(n) apenas
   const visible=notes
     .filter(n=>!n.hit&&!n.missed&&(n.time-currentTime)>=-TIMING_MISS*2&&(n.time-currentTime)<=maxV)
 
@@ -1694,6 +1762,21 @@ export function renderFrame(state: RenderState): void {
     if (y>hitY+NRY*4) continue
     const rx=NRX*scale, ry=NRY*scale
     drawNoteGH(ctx,x,y,rx,ry,lane,starPower,now,noteShape,spPal.primary,spPal.primaryRgb)
+
+    // Reflexo especular na hit line (espelho vertical, rápido esmaece por distância)
+    if (y > hitY - NRY * 3) {
+      const reflectDist = y - hitY
+      const reflectAlpha = Math.max(0, 0.22 - reflectDist / (NRY * 40)) * (starPower ? 1.5 : 1)
+      if (reflectAlpha > 0.01) {
+        ctx.save()
+        ctx.globalAlpha = reflectAlpha
+        ctx.scale(1, -1)
+        ctx.translate(0, -(hitY * 2))
+        const reflY = -(y - hitY * 2)
+        drawNoteGH(ctx, x, reflY, rx * 0.85, ry * 0.5, lane, starPower, now, noteShape, spPal.primary, spPal.primaryRgb)
+        ctx.restore()
+      }
+    }
   }
 
   // 8 – Hit effects (explosão + feixe de luz vertical)
@@ -1863,7 +1946,7 @@ export function renderFrame(state: RenderState): void {
       ctx.fillText("PONTUAÇÃO", padX, cY)
       cY += Math.round(11 * uS)
 
-      const sc = stats.score.toLocaleString()
+      const sc = (displayScore ?? stats.score).toLocaleString()
       ctx.fillStyle = "#ffffff"
       ctx.font = `900 ${Math.round(30*uS)}px 'Arial Black',Arial,sans-serif`
       ctx.shadowColor = sp ? spPal.primary : "rgba(255,255,255,0.3)"; ctx.shadowBlur = sp ? 16 : 3
@@ -1891,6 +1974,63 @@ export function renderFrame(state: RenderState): void {
       const midX = padX + mw / 2
       ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1
       ctx.beginPath(); ctx.moveTo(midX, cY-2); ctx.lineTo(midX, cY+mh+2); ctx.stroke()
+      cY += mh + Math.round(10 * uS)
+    }
+
+    // ── Star Power meter (orbs enchendo até 30 combos) ─────────────────
+    {
+      const spProgress = Math.min(1, stats.combo / STAR_POWER_COMBO)
+      const orbCount   = 6
+      const orbR       = Math.round(7 * uS)
+      const orbGap     = Math.round(18 * uS)
+      const orbsW      = orbCount * orbGap
+      const ox0        = pX + (pW - orbsW) / 2
+      const orbY2      = cY + orbR
+
+      // Label
+      ctx.textAlign = "left"; ctx.textBaseline = "top"
+      ctx.fillStyle = "rgba(255,255,255,0.28)"
+      ctx.font = `600 ${Math.round(7*uS)}px 'Inter',Arial,sans-serif`
+      ctx.fillText(sp ? "⚡ STAR POWER ATIVO" : "STAR POWER", padX, cY - Math.round(2*uS))
+      cY += Math.round(9 * uS)
+
+      for (let o = 0; o < orbCount; o++) {
+        const ox = ox0 + o * orbGap + orbR
+        const oy = cY + orbR
+        const filled = (o / orbCount) < spProgress
+        const partialFill = Math.max(0, Math.min(1, (spProgress * orbCount) - o))
+
+        ctx.beginPath(); ctx.arc(ox, oy, orbR, 0, Math.PI * 2)
+        ctx.fillStyle = filled || sp
+          ? "transparent"
+          : "rgba(255,255,255,0.05)"
+        ctx.fill()
+
+        if (partialFill > 0 || sp) {
+          const orbFill = sp ? 1 : partialFill
+          ctx.beginPath()
+          ctx.arc(ox, oy, orbR, -Math.PI/2, -Math.PI/2 + orbFill * Math.PI * 2)
+          ctx.lineTo(ox, oy)
+          ctx.closePath()
+          const oG = ctx.createRadialGradient(ox, oy - orbR*0.2, 0, ox, oy, orbR)
+          oG.addColorStop(0, sp ? spPal.starFill1 : "#ffffff")
+          oG.addColorStop(0.5, sp ? spPal.primary : "#60a5fa")
+          oG.addColorStop(1, sp ? spPal.secondary : "#1d4ed8")
+          ctx.fillStyle = oG
+          ctx.shadowColor = sp ? spPal.primary : "#60a5fa"
+          ctx.shadowBlur = sp ? (8 + Math.sin(now * 0.008 + o) * 4) : 6
+          ctx.fill()
+          ctx.shadowBlur = 0
+        }
+
+        // Borda do orb
+        ctx.beginPath(); ctx.arc(ox, oy, orbR, 0, Math.PI * 2)
+        ctx.strokeStyle = sp ? spPal.primary : (filled ? "#60a5fa" : "rgba(255,255,255,0.15)")
+        ctx.lineWidth = sp ? 1.5 : 1
+        ctx.stroke()
+      }
+
+      cY += orbR * 2 + Math.round(4 * uS)
     }
 
     ctx.restore()

@@ -93,6 +93,8 @@ export function useGameEngine({
   const animFrameRef    = useRef<number>(0)
   const gameTimeRef     = useRef(0)
   const gameStartWallRef = useRef(0)
+  const displayScoreRef = useRef(0)    // score animado suave
+  const lastMissTimeRef = useRef(0)    // timestamp do último miss para flash vermelho
 
   // Mantém refs de speed/showGuide/calibration para o game loop sem re-criar callbacks
   const speedRef          = useRef(speed)
@@ -231,6 +233,7 @@ export function useGameEngine({
           statsRef.current = newStats
           setStats(newStats)
           onScoreUpdate?.(newStats)
+          lastMissTimeRef.current = performance.now()  // para flash vermelho
 
           hitEffectsRef.current.push({
             lane: note.lane,
@@ -311,6 +314,15 @@ export function useGameEngine({
     // Estimamos pela proporção da tela: ~60px em mobile, ~72px em desktop
     const topBarH = Math.round(Math.max(52, Math.min(80, canvas.clientHeight * 0.072)))
 
+    // Score animado: contador suave que segue o score real (acelera se estiver muito atrás)
+    const targetScore = statsRef.current.score
+    const diff = targetScore - displayScoreRef.current
+    if (Math.abs(diff) > 1) {
+      displayScoreRef.current += diff * 0.18  // 18% por frame → chega rápido
+    } else {
+      displayScoreRef.current = targetScore
+    }
+
     renderFrame({
       canvas, ctx,
       notes: notesRef.current,
@@ -328,6 +340,8 @@ export function useGameEngine({
       cameraShake: cameraShakeRef.current,
       topBarH,
       songMeta: { artist: meta.artist, name: meta.name },
+      lastMissTime: lastMissTimeRef.current,
+      displayScore: Math.round(displayScoreRef.current),
       songProgress: (() => {
         const audio = audioRef.current
         if (audio && isFinite(audio.duration) && audio.duration > 0)

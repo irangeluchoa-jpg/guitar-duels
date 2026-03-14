@@ -44,6 +44,7 @@ export function GameOverScreen({
   const [newRecord, setNewRecord] = useState(false)
   const [prevBest, setPrevBest] = useState<number | null>(null)
   const [starsShown, setStarsShown] = useState(0)
+  const [betterThanPct, setBetterThanPct] = useState<number | null>(null)
   const animRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Salva score + detecta novo recorde
@@ -77,6 +78,16 @@ export function GameOverScreen({
       scores.push(entry)
       scores.sort((a, b) => b.score - a.score)
       localStorage.setItem("guitar-duels-scores", JSON.stringify(scores.slice(0, 100)))
+
+      // Cálculo de percentil: quantas partidas desta música este score supera
+      const songScores = scores
+        .filter((s: { trackId: string; score: number }) => s.trackId === (meta.id || "unknown"))
+        .map((s: { score: number }) => s.score)
+      if (songScores.length >= 2) {
+        const beaten = songScores.filter((s: number) => stats.score > s).length
+        const pct = Math.round((beaten / (songScores.length - 1)) * 100)
+        setBetterThanPct(Math.min(99, pct))
+      }
 
       // Melhor score pessoal por música (usado na song-select)
       const bestRaw = localStorage.getItem("guitar-duels-scores")
@@ -309,6 +320,37 @@ export function GameOverScreen({
             <HitRow label="Good"    value={stats.good}    total={totalNotes} color="#3b82f6" />
             <HitRow label="Miss"    value={stats.miss}    total={totalNotes} color="#ef4444" bad />
           </div>
+
+          {/* Comparison bar */}
+          {betterThanPct !== null && phase === "buttons" && (
+            <div className="px-3 pb-3">
+              <div className="rounded-xl p-3"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.35)" }}>
+                    Melhor que
+                  </span>
+                  <span className="text-sm font-black" style={{ color: betterThanPct >= 80 ? "#fbbf24" : betterThanPct >= 50 ? "#22c55e" : "#60a5fa" }}>
+                    {betterThanPct}% das suas partidas
+                  </span>
+                </div>
+                <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                  <div
+                    className="h-full rounded-full transition-all duration-1000 ease-out"
+                    style={{
+                      width: `${betterThanPct}%`,
+                      background: betterThanPct >= 80
+                        ? "linear-gradient(90deg,#f59e0b,#fbbf24)"
+                        : betterThanPct >= 50
+                        ? "linear-gradient(90deg,#16a34a,#22c55e)"
+                        : "linear-gradient(90deg,#1d4ed8,#60a5fa)",
+                      boxShadow: `0 0 8px ${betterThanPct >= 80 ? "#fbbf24" : betterThanPct >= 50 ? "#22c55e" : "#60a5fa"}60`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Botões */}
@@ -406,16 +448,44 @@ function FailOverlay() {
 }
 
 function GoldParticles() {
+  // Confete para S e S+ — múltiplas cores, formas variadas, cai de cima
+  const pieces = Array.from({ length: 60 }, (_, i) => ({
+    id: i,
+    x: Math.random() * 100,
+    delay: Math.random() * 2.5,
+    dur: 2.5 + Math.random() * 2,
+    size: 4 + Math.random() * 8,
+    color: ["#fbbf24","#f59e0b","#ffd700","#ef4444","#22c55e","#60a5fa","#a855f7","#fff"][Math.floor(Math.random()*8)],
+    shape: Math.random() > 0.5 ? "circle" : "rect",
+    rotate: Math.random() * 360,
+    spin: (Math.random() - 0.5) * 720,
+    drift: (Math.random() - 0.5) * 60,
+  }))
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
-      {Array.from({ length: 20 }).map((_, i) => (
-        <div key={i} className="absolute rounded-full"
+      <style>{`
+        @keyframes confetti-fall {
+          0%   { transform: translateY(-20px) rotate(0deg) translateX(0); opacity: 1; }
+          80%  { opacity: 1; }
+          100% { transform: translateY(110vh) rotate(var(--spin)) translateX(var(--drift)); opacity: 0; }
+        }
+      `}</style>
+      {pieces.map(p => (
+        <div key={p.id}
           style={{
-            width: `${3 + Math.random() * 6}px`, height: `${3 + Math.random() * 6}px`,
-            background: `rgba(251,191,36,${0.5 + Math.random() * 0.5})`,
-            left: `${Math.random() * 100}%`, top: `${50 + Math.random() * 50}%`,
-            animation: `float-up ${2 + Math.random() * 2}s ease-out ${Math.random() * 3}s infinite`,
-          }} />
+            position: "absolute",
+            left: `${p.x}%`,
+            top: 0,
+            width: p.shape === "circle" ? p.size : p.size * 0.6,
+            height: p.shape === "circle" ? p.size : p.size * 1.4,
+            background: p.color,
+            borderRadius: p.shape === "circle" ? "50%" : "2px",
+            "--spin": `${p.spin}deg`,
+            "--drift": `${p.drift}px`,
+            animation: `confetti-fall ${p.dur}s ease-in ${p.delay}s forwards`,
+            boxShadow: `0 0 4px ${p.color}88`,
+          } as React.CSSProperties}
+        />
       ))}
     </div>
   )

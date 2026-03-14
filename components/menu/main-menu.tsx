@@ -78,8 +78,9 @@ export function MainMenu() {
       const dt = ts - timeRef.current
       timeRef.current = ts
       const w = canvas.width, h = canvas.height
+      const t = ts * 0.001
 
-      // Fundo — gradiente escuro dramático
+      // Fundo escuro
       const bg = ctx.createLinearGradient(0, 0, 0, h)
       bg.addColorStop(0,   "#000000")
       bg.addColorStop(0.5, "#0a0005")
@@ -87,47 +88,95 @@ export function MainMenu() {
       ctx.fillStyle = bg
       ctx.fillRect(0, 0, w, h)
 
-      // Grades de fundo estilo fretboard (sutis)
+      // ── Highway em perspectiva animada (marca d'água) ─────────────────
       ctx.save()
-      ctx.globalAlpha = 0.04
-      for (let i = 0; i < 7; i++) {
-        const x = (w / 6) * i
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h)
-        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke()
+      ctx.globalAlpha = 0.18
+
+      // Ponto de fuga animado
+      const vpX = w / 2 + Math.sin(t * 0.25) * w * 0.04
+      const vpY = h * 0.38
+      const baseW = w * 0.55
+      const LANES = 5
+
+      // Fundo da highway
+      const hwBg = ctx.createLinearGradient(0, vpY, 0, h)
+      hwBg.addColorStop(0, "rgba(40,0,60,0.0)")
+      hwBg.addColorStop(0.3, "rgba(40,0,60,0.6)")
+      hwBg.addColorStop(1, "rgba(80,0,100,0.9)")
+      ctx.fillStyle = hwBg
+      ctx.beginPath()
+      ctx.moveTo(vpX - 20, vpY)
+      ctx.lineTo(vpX + 20, vpY)
+      ctx.lineTo(w/2 + baseW/2, h)
+      ctx.lineTo(w/2 - baseW/2, h)
+      ctx.closePath()
+      ctx.fill()
+
+      // Linhas verticais das lanes
+      for (let i = 0; i <= LANES; i++) {
+        const frac = i / LANES
+        const bx = w/2 - baseW/2 + baseW * frac
+        ctx.beginPath()
+        ctx.moveTo(vpX + (bx - vpX) * 0.0, vpY)
+        ctx.lineTo(bx, h)
+        const isEdge = i === 0 || i === LANES
+        ctx.strokeStyle = isEdge ? "rgba(225,29,72,0.7)" : "rgba(180,0,220,0.3)"
+        ctx.lineWidth = isEdge ? 2 : 1
+        ctx.shadowColor = isEdge ? "#e11d48" : "#aa00ff"
+        ctx.shadowBlur = isEdge ? 8 : 3
+        ctx.stroke()
+        ctx.shadowBlur = 0
       }
-      for (let i = 0; i < 5; i++) {
-        const y = (h / 4) * i
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y)
-        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke()
+
+      // Linhas horizontais se movendo (simulam scroll)
+      const lineSpeed = 0.35
+      for (let r = 0; r < 12; r++) {
+        const phase = ((r / 12) + t * lineSpeed) % 1
+        const y = vpY + (h - vpY) * Math.pow(phase, 0.7)
+        const xScale = (y - vpY) / (h - vpY)
+        const lx = w/2 - baseW/2 * xScale
+        const rx2 = w/2 + baseW/2 * xScale
+        const alpha = phase * (1 - phase * 0.3) * 0.5
+        ctx.beginPath()
+        ctx.moveTo(lx, y); ctx.lineTo(rx2, y)
+        ctx.strokeStyle = `rgba(180,0,220,${alpha})`
+        ctx.lineWidth = 1; ctx.stroke()
       }
+
+      // Notas fantasma descendo pela highway
+      for (let n = 0; n < 8; n++) {
+        const seed = n * 47.3
+        const phase = ((n / 8) + t * lineSpeed * 0.8 + seed * 0.07) % 1
+        const noteY = vpY + (h - vpY) * Math.pow(phase, 0.7)
+        const xScale = (noteY - vpY) / (h - vpY)
+        const lane = Math.floor(((Math.sin(seed) + 1) / 2) * LANES)
+        const laneW = baseW / LANES
+        const noteX = w/2 - baseW/2 * xScale + laneW * xScale * (lane + 0.5)
+        const noteRx = laneW * xScale * 0.38
+        const noteRy = noteRx * 0.35
+        const alpha = phase * (1 - phase * 0.5) * 0.6
+        const laneColors = ["#ef4444","#f97316","#eab308","#3b82f6","#22c55e"]
+        ctx.beginPath()
+        ctx.ellipse(noteX, noteY, noteRx, noteRy, 0, 0, Math.PI * 2)
+        ctx.strokeStyle = (laneColors[lane % 5] ?? "#fff") + Math.round(alpha * 255).toString(16).padStart(2,"0")
+        ctx.lineWidth = 2 * xScale
+        ctx.shadowColor = laneColors[lane % 5] ?? "#fff"
+        ctx.shadowBlur = 8 * alpha
+        ctx.stroke(); ctx.shadowBlur = 0
+      }
+
       ctx.restore()
 
-      // Glow central vermelho-laranja estilo logo GH
-      const t = ts * 0.001
+      // Glow central vermelho-laranja
       const pulse = 0.85 + Math.sin(t * 1.2) * 0.15
       const glow = ctx.createRadialGradient(w/2, h*0.42, 0, w/2, h*0.42, w * 0.55 * pulse)
-      glow.addColorStop(0,   `rgba(200,20,30,${0.12 * pulse})`)
-      glow.addColorStop(0.4, `rgba(160,15,20,${0.07 * pulse})`)
-      glow.addColorStop(0.8, `rgba(100,5,10,${0.03})`)
+      glow.addColorStop(0,   `rgba(200,20,30,${0.10 * pulse})`)
+      glow.addColorStop(0.4, `rgba(160,15,20,${0.05 * pulse})`)
       glow.addColorStop(1,   "transparent")
       ctx.fillStyle = glow
       ctx.fillRect(0, 0, w, h)
 
-      // Raios de luz saindo do centro (efeito spotlight)
-      ctx.save()
-      ctx.globalAlpha = 0.025 + Math.sin(t * 0.7) * 0.01
-      for (let i = 0; i < 8; i++) {
-        const angle = (i / 8) * Math.PI * 2 + t * 0.08
-        ctx.beginPath()
-        ctx.moveTo(w/2, h * 0.42)
-        ctx.lineTo(w/2 + Math.cos(angle) * w, h * 0.42 + Math.sin(angle) * h)
-        ctx.strokeStyle = "#ff4400"
-        ctx.lineWidth = 30
-        ctx.stroke()
-      }
-      ctx.restore()
-
-      // Spawn partículas
+      // Spawn partículas de chama
       if (Math.random() < 0.35) spawnFlame()
 
       // Atualiza e desenha partículas
@@ -135,23 +184,20 @@ export function MainMenu() {
         const p = particles[i]
         p.life += 1
         if (p.life >= p.maxLife) { particles.splice(i, 1); continue }
-
         const lifeRatio = p.life / p.maxLife
         p.x += p.vx + Math.sin(p.life * 0.15) * 0.3
         p.y += p.vy
-        p.vy *= 0.992  // diminui velocidade
+        p.vy *= 0.992
         p.size *= (p.type === "smoke" ? 1.008 : 0.997)
-
         ctx.save()
         if (p.type === "flame") {
           const fade = 1 - lifeRatio
-          const r = Math.round(255)
-          const g = Math.round(Math.max(0, 160 * (1 - lifeRatio * 1.2)))
-          const b = 0
+          const r2 = 255
+          const g2 = Math.round(Math.max(0, 160 * (1 - lifeRatio * 1.2)))
           ctx.globalAlpha = p.alpha * fade * fade
           const fg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size)
           fg.addColorStop(0,   `rgba(255,255,200,${p.alpha})`)
-          fg.addColorStop(0.3, `rgba(${r},${g},${b},${p.alpha * 0.8})`)
+          fg.addColorStop(0.3, `rgba(${r2},${g2},0,${p.alpha * 0.8})`)
           fg.addColorStop(1,   "transparent")
           ctx.fillStyle = fg
           ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill()
@@ -166,7 +212,7 @@ export function MainMenu() {
         ctx.restore()
       }
 
-      // Fumaça acima das chamas
+      // Névoa superior
       ctx.save()
       const smokeGrad = ctx.createLinearGradient(0, h * 0.6, 0, 0)
       smokeGrad.addColorStop(0, "rgba(0,0,0,0)")
