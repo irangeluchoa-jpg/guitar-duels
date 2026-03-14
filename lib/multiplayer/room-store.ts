@@ -9,7 +9,8 @@ export interface RoomPlayer {
   combo: number
   rockMeter: number
   ready: boolean
-  instrument?: string  // instrumento escolhido (guitar, rhythm, vocals, etc)
+  instrument?: string
+  lastSeen: number   // timestamp do último heartbeat (ms)
 }
 
 export interface Room {
@@ -56,7 +57,7 @@ export function createRoom(hostId: string, hostName: string, maxPlayers = 4): Ro
   while (rooms.has(code)) code = generateCode()
   const room: Room = {
     code, hostId, songId: null, maxPlayers,
-    players: new Map([[hostId, { id: hostId, name: hostName, score: 0, combo: 0, rockMeter: 50, ready: false }]]),
+    players: new Map([[hostId, { id: hostId, name: hostName, score: 0, combo: 0, rockMeter: 50, ready: false, lastSeen: Date.now() }]]),
     state: "waiting", pausedBy: null, startTime: null, createdAt: Date.now(),
   }
   rooms.set(code, room)
@@ -70,7 +71,7 @@ export function getRoom(code: string): Room | undefined {
 export function joinRoom(code: string, playerId: string, playerName: string): Room | null {
   const room = rooms.get(code.toUpperCase())
   if (!room || room.players.size >= room.maxPlayers || room.state !== "waiting") return null
-  room.players.set(playerId, { id: playerId, name: playerName, score: 0, combo: 0, rockMeter: 50, ready: false })
+  room.players.set(playerId, { id: playerId, name: playerName, score: 0, combo: 0, rockMeter: 50, ready: false, lastSeen: Date.now() })
   return room
 }
 
@@ -116,4 +117,59 @@ export function listRooms() {
   return Array.from(rooms.values())
     .filter(r => r.state === "waiting")
     .map(serializeRoom)
+}
+
+/** Heartbeat: atualiza lastSeen do jogador */
+export function heartbeat(code: string, playerId: string): boolean {
+  const room = rooms.get(code.toUpperCase())
+  if (!room) return false
+  const p = room.players.get(playerId)
+  if (!p) return false
+  p.lastSeen = Date.now()
+  return true
+}
+
+/** Remove jogador que saiu explicitamente ou ficou sem heartbeat */
+export function removePlayer(code: string, playerId: string): Room | null {
+  const room = rooms.get(code.toUpperCase())
+  if (!room) return null
+  room.players.delete(playerId)
+  // Se host saiu, promover próximo jogador como host
+  if (room.hostId === playerId && room.players.size > 0) {
+    room.hostId = room.players.keys().next().value as string
+  }
+  // Sala vazia → deletar
+  if (room.players.size === 0) {
+    rooms.delete(code.toUpperCase())
+    return null
+  }
+  // Se estava pausado pelo jogador que saiu, retomar
+  if (room.pausedBy === playerId) {
+    room.state = "playing"
+    room.pausedBy = null
+  }
+  return room
+}
+
+/** Remove jogadores sem heartbeat há mais de TIMEOUT_MS */
+export function evictStalePlayers(code: string, timeoutMs = 8000): string[] {
+  const room = rooms.get(code.toUpperCase())
+  if (!room || room.state === "waiting") return []
+  const now = Date.now()
+  const evicted: string[] = []
+  for (const [id, p] of room.players.entries()) {
+    if (now - p.lastSeen > timeoutMs) {
+      room.players.delete(id)
+      if (room.hostId === id && room.players.size > 0) {
+        room.hostId = room.players.keys().next().value as string
+      }
+      if (room.pausedBy === id) {
+        room.state = "playing"
+        room.pausedBy = null
+      }
+      evicted.push(id)
+    }
+  }
+  if (room.players.size === 0) rooms.delete(code.toUpperCase())
+  return evicted
 }

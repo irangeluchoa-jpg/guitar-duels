@@ -35,11 +35,10 @@ interface RoomSnapshot {
 }
 
 // ── MultiplayerHUD ────────────────────────────────────────────────────────────
-function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResume, canResume }:
+function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResume, canResume, leftPlayers = [] }:
   { players: RoomPlayer[]; myId: string; isPaused: boolean; pausedByName: string
-    onPause: () => void; onResume: () => void; canResume: boolean }) {
+    onPause: () => void; onResume: () => void; canResume: boolean; leftPlayers?: string[] }) {
 
-  // Ordenar: eu primeiro, depois outros por score desc
   const sorted = [...players].sort((a, b) => {
     if (a.id === myId) return -1
     if (b.id === myId) return 1
@@ -48,7 +47,7 @@ function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResu
 
   return (
     <>
-      {/* HUD topo — substitui o top bar do GameCanvas */}
+      {/* HUD topo */}
       <div className="fixed top-0 left-0 right-0 z-30 pointer-events-none">
         <div className="flex gap-1.5 mx-2 mt-2">
           {sorted.map((p, i) => {
@@ -62,9 +61,7 @@ function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResu
                   border: `1px solid ${isMe ? color + "55" : "rgba(255,255,255,0.07)"}`,
                   boxShadow: isMe ? `0 0 12px ${color}22` : "none",
                 }}>
-                {/* Barra de cor no topo */}
                 <div className="h-0.5 w-full" style={{ background: color }} />
-
                 <div className="flex items-center gap-2 px-3 py-1.5">
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
                   <span className="text-[11px] font-bold truncate flex-1"
@@ -79,8 +76,6 @@ function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResu
                     {p.score.toLocaleString()}
                   </span>
                 </div>
-
-                {/* Rock meter */}
                 <div className="h-1 w-full" style={{ background: "rgba(255,255,255,0.06)" }}>
                   <div className="h-full transition-all duration-300"
                     style={{
@@ -92,6 +87,22 @@ function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResu
             )
           })}
         </div>
+
+        {/* Notificação de jogador que saiu */}
+        {leftPlayers.length > 0 && (
+          <div className="flex justify-center mt-2">
+            <div className="px-4 py-1.5 rounded-full text-xs font-bold"
+              style={{
+                background: "rgba(239,68,68,0.15)",
+                border: "1px solid rgba(239,68,68,0.4)",
+                color: "#fca5a5",
+                backdropFilter: "blur(8px)",
+                animation: "fade-in 0.3s ease",
+              }}>
+              👋 {leftPlayers.join(", ")} saiu da sala
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Pausa multiplayer */}
@@ -141,6 +152,7 @@ function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResu
           </div>
         </div>
       )}
+      <style>{`@keyframes fade-in { from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)} }`}</style>
     </>
   )
 }
@@ -260,6 +272,8 @@ function PlayInner() {
   const [gamePaused, setGamePaused]     = useState(false)
   const [gameStarted, setGameStarted]   = useState(false)
   const [iAmReady, setIAmReady]         = useState(false)
+  const [leftPlayers, setLeftPlayers]   = useState<string[]>([])  // nomes de jogadores que saíram
+  const prevPlayersRef = useRef<string[]>([])  // IDs dos jogadores no último poll
   const latestStatsRef = useRef<GameStats | null>(null)
   const gameEndedRef   = useRef(false)
   const isLeavingRef   = useRef(false)
@@ -298,10 +312,16 @@ function PlayInner() {
   useEffect(() => {
     if (!roomCode || !playerId) return
 
+    // Inicializar lista de jogadores conhecidos
+    if (roomSnapshot) {
+      prevPlayersRef.current = roomSnapshot.players.map((p: RoomPlayer) => p.id)
+    }
+
     const pushScore = setInterval(async () => {
       if (!gameStarted) return
       const s = latestStatsRef.current; if (!s) return
       try {
+        // Envia score + heartbeat junto para economizar requests
         await fetch(`/api/rooms/${roomCode}`, {
           method: "PATCH", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "score", playerId, score: s.score, combo: s.combo, rockMeter: s.rockMeter }),
@@ -309,19 +329,54 @@ function PlayInner() {
       } catch {}
     }, 1500)
 
+    // Heartbeat separado a cada 3s para detectar desconexão
+    const heartbeatInterval = setInterval(async () => {
+      if (gameEndedRef.current || isLeavingRef.current) return
+      try {
+        await fetch(`/api/rooms/${roomCode}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "heartbeat", playerId }),
+        })
+      } catch {}
+    }, 3000)
+
     const pollRoom = setInterval(async () => {
       if (gameEndedRef.current || isLeavingRef.current) return
       try {
         const res = await fetch(`/api/rooms/${roomCode}`)
         if (!res.ok) return
         const room: RoomSnapshot = await res.json()
+
+        // Detectar jogadores que saíram
+        const currentIds = room.players.map((p: RoomPlayer) => p.id)
+        const prev = prevPlayersRef.current
+        if (prev.length > 0) {
+          const saíram = prev.filter(id => id !== playerId && !currentIds.includes(id))
+          if (saíram.length > 0) {
+            // Buscar nomes dos que saíram pelo snapshot anterior
+            const prevSnap = roomSnapshot
+            const names = saíram.map(id => {
+              const p = prevSnap?.players.find((pl: RoomPlayer) => pl.id === id)
+              return p?.name ?? "Jogador"
+            })
+            setLeftPlayers(prev2 => [...prev2, ...names])
+            // Auto-limpar notificação após 4s
+            setTimeout(() => setLeftPlayers([]), 4000)
+          }
+        }
+        prevPlayersRef.current = currentIds
+
         setRoomSnapshot(room)
         setGamePaused(room.state === "paused")
         if (room.state === "playing" && !gameStarted) setGameStarted(true)
       } catch {}
     }, 800)
 
-    return () => { clearInterval(pushScore); clearInterval(pollRoom) }
+    return () => {
+      clearInterval(pushScore)
+      clearInterval(heartbeatInterval)
+      clearInterval(pollRoom)
+    }
   }, [roomCode, playerId, gameStarted])
 
   // ESC pausa para todos no multiplayer
@@ -468,9 +523,10 @@ function PlayInner() {
     isLeavingRef.current = true
     if (roomCode && playerId) {
       try {
+        // Notifica o servidor que este jogador saiu voluntariamente
         await fetch(`/api/rooms/${roomCode}`, {
           method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "setState", state: "ended" }),
+          body: JSON.stringify({ action: "leave", playerId }),
         })
       } catch {}
     }
@@ -554,6 +610,7 @@ function PlayInner() {
           onPause={handlePause}
           onResume={handleResume}
           canResume={canResume}
+          leftPlayers={leftPlayers}
         />
       )}
     </>

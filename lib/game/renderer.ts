@@ -20,6 +20,76 @@ const NOTE_RY_BASE      = 11
 const SUSTAIN_WIDTH     = 16
 const STAR_POWER_COMBO  = 30
 
+// ── Paletas de Star Power por tema ──────────────────────────────────────────
+// Cada tema tem sua cor primária de SP que substitui o cyan padrão
+interface SPPalette {
+  primary: string      // cor principal (hex)
+  primaryRgb: string   // rgb da cor principal "r,g,b"
+  secondary: string    // cor secundária para raios alternados
+  secondaryRgb: string
+  sustainColor: string // cor dos sustains em SP
+  glowColor: string    // cor do glow ambiente
+  starFill1: string    // gradiente estrela sp (topo)
+  starFill2: string    // gradiente estrela sp (meio)
+  starFill3: string    // gradiente estrela sp (base)
+}
+
+const SP_PALETTES: Record<string, SPPalette> = {
+  default: {
+    primary: "#00ffff", primaryRgb: "0,255,255",
+    secondary: "#6040ff", secondaryRgb: "96,64,255",
+    sustainColor: "#EF6DF7",
+    glowColor: "rgba(0,180,255,0.14)",
+    starFill1: "#aaffff", starFill2: "#00ddff", starFill3: "#007799",
+  },
+  neon: {
+    primary: "#00ff88", primaryRgb: "0,255,136",
+    secondary: "#ff00cc", secondaryRgb: "255,0,204",
+    sustainColor: "#88ffcc",
+    glowColor: "rgba(0,255,136,0.14)",
+    starFill1: "#ccffee", starFill2: "#00ff88", starFill3: "#007744",
+  },
+  fire: {
+    primary: "#ff6600", primaryRgb: "255,102,0",
+    secondary: "#ffcc00", secondaryRgb: "255,204,0",
+    sustainColor: "#ffaa44",
+    glowColor: "rgba(255,100,0,0.18)",
+    starFill1: "#ffeeaa", starFill2: "#ff8800", starFill3: "#aa3300",
+  },
+  space: {
+    primary: "#aa44ff", primaryRgb: "170,68,255",
+    secondary: "#4488ff", secondaryRgb: "68,136,255",
+    sustainColor: "#cc88ff",
+    glowColor: "rgba(120,60,255,0.18)",
+    starFill1: "#eeccff", starFill2: "#aa44ff", starFill3: "#440099",
+  },
+  wood: {
+    primary: "#ffcc66", primaryRgb: "255,204,102",
+    secondary: "#cc8833", secondaryRgb: "204,136,51",
+    sustainColor: "#ddaa55",
+    glowColor: "rgba(200,140,50,0.14)",
+    starFill1: "#fff2cc", starFill2: "#ffcc66", starFill3: "#886622",
+  },
+  retro: {
+    primary: "#ff1493", primaryRgb: "255,20,147",
+    secondary: "#00ffcc", secondaryRgb: "0,255,204",
+    sustainColor: "#ff88cc",
+    glowColor: "rgba(255,20,147,0.16)",
+    starFill1: "#ffccee", starFill2: "#ff1493", starFill3: "#880055",
+  },
+  ice: {
+    primary: "#88eeff", primaryRgb: "136,238,255",
+    secondary: "#ffffff", secondaryRgb: "255,255,255",
+    sustainColor: "#ccf4ff",
+    glowColor: "rgba(136,238,255,0.16)",
+    starFill1: "#ffffff", starFill2: "#88eeff", starFill3: "#2299bb",
+  },
+}
+
+function getSPPalette(theme: string): SPPalette {
+  return SP_PALETTES[theme] ?? SP_PALETTES.default
+}
+
 // ── Cores do tema — extraídas do guitar.ini fornecido ───────────────────────
 // [guitar] note_green/red/yellow/blue/orange
 const NOTE_COLORS = [
@@ -328,6 +398,7 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
   const tLT = (w-trackTop)/2, tRT = tLT+trackTop
 
   const tc = HIGHWAY_THEME_CONFIG[theme] ?? HIGHWAY_THEME_CONFIG.default
+  const sp = getSPPalette(theme)
 
   // Recorte do fretboard
   ctx.save()
@@ -335,13 +406,15 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
   ctx.moveTo(tLB,hitY); ctx.lineTo(tRB,hitY); ctx.lineTo(tRT,vanishY); ctx.lineTo(tLT,vanishY)
   ctx.closePath(); ctx.clip()
 
-  // ── Fundo base (escuro, cor varia com tema) ────────────────────────────
+  // ── Fundo base (cor do SP varia com tema) ─────────────────────────────
   {
     const bg = ctx.createLinearGradient(0, vanishY, 0, hitY)
     if (starPower) {
-      bg.addColorStop(0,   "rgba(0,15,28,1.0)")
-      bg.addColorStop(0.5, "rgba(0,22,36,1.0)")
-      bg.addColorStop(1,   "rgba(0,28,42,1.0)")
+      // Fundo tintado com a cor SP do tema
+      const [r,g,b] = sp.primaryRgb.split(",").map(Number)
+      bg.addColorStop(0,   `rgba(${Math.min(r*0.08,20)},${Math.min(g*0.08,20)},${Math.min(b*0.08,28)},1.0)`)
+      bg.addColorStop(0.5, `rgba(${Math.min(r*0.10,25)},${Math.min(g*0.10,25)},${Math.min(b*0.10,36)},1.0)`)
+      bg.addColorStop(1,   `rgba(${Math.min(r*0.12,30)},${Math.min(g*0.12,30)},${Math.min(b*0.12,42)},1.0)`)
     } else {
       bg.addColorStop(0,   "rgba(4,6,10,1.0)")
       bg.addColorStop(0.5, "rgba(6,8,14,1.0)")
@@ -383,18 +456,47 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
     ctx.restore()
 
     // ── Overlay colorido do tema SOBRE a imagem ───────────────────────
-    if (tc.overlayStops.length > 0) {
+    if (tc.overlayStops.length > 0 || starPower) {
       ctx.save()
       ctx.beginPath()
       ctx.moveTo(tLB,hitY); ctx.lineTo(tRB,hitY); ctx.lineTo(tRT,vanishY); ctx.lineTo(tLT,vanishY)
       ctx.closePath(); ctx.clip()
 
-      const grad = ctx.createLinearGradient(0, vanishY, 0, hitY)
-      tc.overlayStops.forEach(([color, pos]) => grad.addColorStop(pos, color))
-      ctx.fillStyle = grad
-      ctx.globalCompositeOperation = "screen"
-      ctx.fillRect(tLB, vanishY, trackBot, hitY - vanishY)
-      ctx.globalCompositeOperation = "source-over"
+      // Overlay base do tema
+      if (tc.overlayStops.length > 0) {
+        const grad = ctx.createLinearGradient(0, vanishY, 0, hitY)
+        tc.overlayStops.forEach(([color, pos]) => grad.addColorStop(pos, color))
+        ctx.fillStyle = grad
+        ctx.globalCompositeOperation = "screen"
+        ctx.fillRect(tLB, vanishY, trackBot, hitY - vanishY)
+        ctx.globalCompositeOperation = "source-over"
+      }
+
+      // Overlay adicional de Star Power na cor do tema
+      if (starPower) {
+        const spGrad = ctx.createLinearGradient(0, vanishY, 0, hitY)
+        spGrad.addColorStop(0,   `rgba(${sp.primaryRgb},0.18)`)
+        spGrad.addColorStop(0.4, `rgba(${sp.primaryRgb},0.10)`)
+        spGrad.addColorStop(1,   `rgba(${sp.secondaryRgb},0.08)`)
+        ctx.fillStyle = spGrad
+        ctx.globalCompositeOperation = "screen"
+        ctx.fillRect(tLB, vanishY, trackBot, hitY - vanishY)
+        ctx.globalCompositeOperation = "source-over"
+
+        // Brilho pulsante nas bordas da highway em SP
+        const t0 = Date.now() * 0.001
+        const pulse = 0.06 + Math.sin(t0 * 2.5) * 0.03
+        const leftG = ctx.createLinearGradient(tLB, 0, tLB + trackBot * 0.15, 0)
+        leftG.addColorStop(0, `rgba(${sp.primaryRgb},${pulse})`)
+        leftG.addColorStop(1, "transparent")
+        ctx.fillStyle = leftG; ctx.fillRect(tLB, vanishY, trackBot * 0.15, hitY - vanishY)
+
+        const rightG = ctx.createLinearGradient(tRB, 0, tRB - trackBot * 0.15, 0)
+        rightG.addColorStop(0, `rgba(${sp.primaryRgb},${pulse})`)
+        rightG.addColorStop(1, "transparent")
+        ctx.fillStyle = rightG; ctx.fillRect(tRB - trackBot * 0.15, vanishY, trackBot * 0.15, hitY - vanishY)
+      }
+
       ctx.restore()
     }
   }
@@ -402,7 +504,7 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
   // Reflexo central
   {
     const cg = ctx.createRadialGradient(w/2, hitY, 0, w/2, vanishY, trackBot*0.7)
-    cg.addColorStop(0, starPower ? "rgba(0,180,220,0.08)" : "rgba(0,160,200,0.04)")
+    cg.addColorStop(0, starPower ? `rgba(${sp.primaryRgb},0.10)` : "rgba(0,160,200,0.04)")
     cg.addColorStop(1, "transparent")
     ctx.fillStyle = cg; ctx.fillRect(0,0,w,h)
   }
@@ -412,7 +514,7 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
     const prog = (hitY-y)/(hitY-vanishY), tw = trackBot+(trackTop-trackBot)*prog
     return (w-tw)/2+tw*frac
   }
-  const gridColor = starPower ? "0,255,255" : tc.gridColor
+  const gridColor = starPower ? sp.primaryRgb : tc.gridColor
   for (let r = 1; r < 9; r++) {
     const t = r/9
     const y = hitY-(hitY-vanishY)*Math.pow(t,0.74)
@@ -422,8 +524,8 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
   }
 
   // ── Divisores de lane ──────────────────────────────────────────────────
-  const divColor   = starPower ? "rgba(0,220,255,0.35)" : tc.divColor
-  const borderColor= starPower ? "rgba(0,240,255,0.85)" : tc.borderColor
+  const divColor   = starPower ? `rgba(${sp.primaryRgb},0.35)` : tc.divColor
+  const borderColor= starPower ? `rgba(${sp.primaryRgb},0.85)` : tc.borderColor
   for (let i = 0; i <= lc; i++) {
     const bx = tLB+(trackBot/lc)*i, tx = tLT+(trackTop/lc)*i
     const border = i===0||i===lc
@@ -434,11 +536,11 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
 
   // ── Bordas com glow ────────────────────────────────────────────────────
   ctx.save()
-  ctx.shadowColor = starPower ? "rgba(0,255,255,0.95)" : tc.borderGlow
+  ctx.shadowColor = starPower ? sp.primary : tc.borderGlow
   ctx.shadowBlur = 22
   for (const [bx,tx] of [[tLB,tLT],[tRB,tRT]] as [number,number][]) {
     ctx.beginPath(); ctx.moveTo(bx,hitY); ctx.lineTo(tx,vanishY)
-    ctx.strokeStyle = starPower ? "rgba(0,255,255,0.90)" : tc.borderColor
+    ctx.strokeStyle = starPower ? `rgba(${sp.primaryRgb},0.90)` : tc.borderColor
     ctx.lineWidth=2.5; ctx.stroke()
   }
   ctx.shadowBlur=0; ctx.restore()
@@ -469,29 +571,30 @@ function getFretboard(w: number, h: number, starPower: boolean, diff: number, lc
 }
 
 // ── Star Power: raios na hit line + bordas laterais da TELA ─────────────────
-function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: number, now: number, combo: number) {
+function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: number, now: number, combo: number, theme = "default") {
   if (combo < STAR_POWER_COMBO) return
   const intensity = Math.min(1, (combo-STAR_POWER_COMBO)/25)
   const hitY = h*HIT_LINE_Y_RATIO
   const tBot = w*TRACK_WIDTH_RATIO, tL=(w-tBot)/2, tR=tL+tBot
   const t = now*0.001
+  const sp = getSPPalette(theme)
   ctx.save()
 
-  // ── Glow cyano na hit line ─────────────────────────────────────────────
+  // ── Glow na hit line ───────────────────────────────────────────────────
   const hGlow=ctx.createLinearGradient(tL,0,tR,0)
   hGlow.addColorStop(0,"transparent")
-  hGlow.addColorStop(0.08,`rgba(0,220,255,${0.25*intensity})`)
-  hGlow.addColorStop(0.5,`rgba(0,255,255,${0.65*intensity})`)
-  hGlow.addColorStop(0.92,`rgba(0,220,255,${0.25*intensity})`)
+  hGlow.addColorStop(0.08,`rgba(${sp.primaryRgb},${0.25*intensity})`)
+  hGlow.addColorStop(0.5,`rgba(${sp.primaryRgb},${0.65*intensity})`)
+  hGlow.addColorStop(0.92,`rgba(${sp.primaryRgb},${0.25*intensity})`)
   hGlow.addColorStop(1,"transparent")
   ctx.fillStyle=hGlow; ctx.fillRect(tL,hitY-6,tBot,12)
 
   ctx.beginPath(); ctx.moveTo(tL,hitY); ctx.lineTo(tR,hitY)
-  ctx.strokeStyle=`rgba(0,255,255,${0.75*intensity})`; ctx.lineWidth=2.5
-  ctx.shadowColor="rgba(0,220,255,0.95)"; ctx.shadowBlur=16*intensity
+  ctx.strokeStyle=`rgba(${sp.primaryRgb},${0.75*intensity})`; ctx.lineWidth=2.5
+  ctx.shadowColor=sp.primary; ctx.shadowBlur=16*intensity
   ctx.stroke(); ctx.shadowBlur=0
 
-  // ── Raios pequenos nas bordas do fretboard (hit line) ─────────────────
+  // ── Raios nas bordas do fretboard ─────────────────────────────────────
   const numBolts = 3+Math.floor(intensity*5)
   for (let b=0; b<numBolts; b++) {
     const side=b%2===0, phase=t*2.8+b*1.7
@@ -507,7 +610,8 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
         ctx.moveTo(bx,by); ctx.lineTo(bx+sDir*7+Math.sin(phase)*5,by-10); ctx.moveTo(bx,by)
       }
     }
-    const bc=side?"0,200,255":"120,80,255"
+    const useSecondary = ((b + (side ? 1 : 0)) % 2) === 0
+    const bc = useSecondary ? sp.secondaryRgb : sp.primaryRgb
     ctx.strokeStyle=`rgba(${bc},${0.75*intensity})`
     ctx.lineWidth=0.8+Math.abs(Math.sin(phase))*1.5
     ctx.shadowColor=`rgba(${bc},0.9)`; ctx.shadowBlur=10*intensity; ctx.stroke(); ctx.shadowBlur=0
@@ -519,11 +623,11 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
     const py=hitY+Math.cos(t*2+p*1.1)*4-2
     const pr=(1+Math.abs(Math.sin(t*3+p))*2)*intensity
     ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2)
-    ctx.fillStyle=`rgba(0,220,255,${(0.5+Math.abs(Math.sin(t*2+p*0.7))*0.4)*intensity})`
-    ctx.shadowColor="rgba(0,220,255,0.9)"; ctx.shadowBlur=8; ctx.fill(); ctx.shadowBlur=0
+    ctx.fillStyle=`rgba(${sp.primaryRgb},${(0.5+Math.abs(Math.sin(t*2+p*0.7))*0.4)*intensity})`
+    ctx.shadowColor=sp.primary; ctx.shadowBlur=8; ctx.fill(); ctx.shadowBlur=0
   }
 
-  // ── RAIOS VERTICAIS NAS BORDAS DA TELA (direita e esquerda) ───────────
+  // ── RAIOS VERTICAIS NAS BORDAS DA TELA ────────────────────────────────
   const sideCount = 2+Math.floor(intensity*3)
   for (let side=0; side<2; side++) {
     const isLeft=side===0, edgeX=isLeft?0:w
@@ -545,7 +649,8 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
           ctx.moveTo(bx,by)
         }
       }
-      const bc=(b+side)%2===0?"0,220,255":"100,60,255"
+      const useSecondary=(b+side)%2===0
+      const bc=useSecondary ? sp.secondaryRgb : sp.primaryRgb
       ctx.strokeStyle=`rgba(${bc},${(0.55+Math.abs(Math.sin(phase))*0.35)*intensity})`
       ctx.lineWidth=0.7+Math.abs(Math.sin(phase+b))*1.8
       ctx.shadowColor=`rgba(${bc},0.95)`; ctx.shadowBlur=14*intensity; ctx.stroke(); ctx.shadowBlur=0
@@ -561,17 +666,17 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
       const py=h*(0.10+((p*0.19+Math.sin(phase*0.6))%0.85))
       const pr=(1.5+Math.abs(Math.sin(phase*1.8))*3)*intensity
       ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2)
-      ctx.fillStyle=`rgba(0,230,255,${(0.5+Math.abs(Math.sin(phase*2.5))*0.45)*intensity})`
-      ctx.shadowColor="rgba(0,200,255,0.9)"; ctx.shadowBlur=10*intensity; ctx.fill(); ctx.shadowBlur=0
+      ctx.fillStyle=`rgba(${sp.primaryRgb},${(0.5+Math.abs(Math.sin(phase*2.5))*0.45)*intensity})`
+      ctx.shadowColor=sp.primary; ctx.shadowBlur=10*intensity; ctx.fill(); ctx.shadowBlur=0
     }
   }
 
-  // Glow ambiente lateral
+  // Glow ambiente lateral com cor do tema
   const lG=ctx.createLinearGradient(0,0,w*0.18,0)
-  lG.addColorStop(0,`rgba(0,180,255,${0.14*intensity})`); lG.addColorStop(1,"transparent")
+  lG.addColorStop(0,sp.glowColor.replace("0.14", String(0.14*intensity))); lG.addColorStop(1,"transparent")
   ctx.fillStyle=lG; ctx.fillRect(0,0,w*0.18,h)
   const rG=ctx.createLinearGradient(w*0.82,0,w,0)
-  rG.addColorStop(0,"transparent"); rG.addColorStop(1,`rgba(0,180,255,${0.14*intensity})`)
+  rG.addColorStop(0,"transparent"); rG.addColorStop(1,sp.glowColor.replace("0.14", String(0.14*intensity)))
   ctx.fillStyle=rG; ctx.fillRect(w*0.82,0,w*0.18,h)
 
   ctx.restore()
@@ -615,12 +720,15 @@ function drawNoteGH(
   laneIdx: number,
   starPower: boolean,
   now: number,
-  shape: "circle" | "square" | "diamond" = "circle"
+  shape: "circle" | "square" | "diamond" = "circle",
+  spColor = "#00ffff",
+  spColorRgb = "0,255,255"
 ) {
   const sp  = starPower
   const rxR = Math.round(rx * 2) / 2
   const ryR = Math.round(ry * 2) / 2
-  const cacheKey = `n:${laneIdx}:${rxR}:${ryR}:${sp?1:0}:${shape}`
+  // spColor faz parte do cache key — temas diferentes geram notas diferentes
+  const cacheKey = `n:${laneIdx}:${rxR}:${ryR}:${sp?1:0}:${shape}:${sp?spColor:"def"}`
 
   let cached = _noteCache.get(cacheKey)
   if (!cached) {
@@ -632,7 +740,7 @@ function drawNoteGH(
     const ow  = Math.ceil(rxR * 2 + pad * 2)
     const oh  = Math.ceil(ryR * 2 + pad * 2)
     const oc  = new OffscreenCanvas(ow, oh)
-    _drawNoteGHInner(oc.getContext('2d')!, ow / 2, oh / 2, rxR, ryR, laneIdx, sp, shape)
+    _drawNoteGHInner(oc.getContext('2d')!, ow / 2, oh / 2, rxR, ryR, laneIdx, sp, shape, spColor)
     cached = oc
     _noteCache.set(cacheKey, cached)
   }
@@ -643,7 +751,7 @@ function drawNoteGH(
   // Corona pulsante animada (só 1 ellipse fill por nota — custo mínimo)
   const t      = now * 0.003
   const anim   = NOTE_ANIM_COLORS[laneIdx] ?? "#ffffff"
-  const rgb    = hexToRgb(sp ? "#00ffff" : anim)
+  const rgb    = hexToRgb(sp ? spColor : anim)
   const flick  = 0.82 + Math.sin(t * 2.4 + x * 0.03) * 0.18
   ctx.globalAlpha = sp ? 0.45 : 0.28
   ctx.beginPath()
@@ -661,12 +769,13 @@ function _drawNoteGHInner(
   rx: number, ry: number,
   laneIdx: number,
   sp: boolean,
-  shape: "circle" | "square" | "diamond"
+  shape: "circle" | "square" | "diamond",
+  spColor = "#00ffff"
 ) {
   const laneCol  = NOTE_COLORS[laneIdx]  ?? "#00e5ff"
   const laneAnim = NOTE_ANIM_COLORS[laneIdx] ?? laneCol
-  const rimCol   = sp ? "#00ffff" : laneCol
-  const rimAnim  = sp ? "#00ffff" : laneAnim
+  const rimCol   = sp ? spColor : laneCol
+  const rimAnim  = sp ? spColor : laneAnim
   const rimRgb   = hexToRgb(rimCol)
   const rimAnimRgb = hexToRgb(rimAnim)
   const glowInt  = sp ? 28 : 20
@@ -740,14 +849,16 @@ function drawHitTarget(
   laneIdx: number, pressed: boolean,
   starPower: boolean, now: number,
   jumpY: number = 0, scaleX: number = 1, scaleY: number = 1,
-  baseRX: number = NOTE_RX_BASE, baseRY: number = NOTE_RY_BASE
+  baseRX: number = NOTE_RX_BASE, baseRY: number = NOTE_RY_BASE,
+  spColor = "#00ffff",
+  spColorRgb = "0,255,255"
 ) {
   const hitY  = baseHitY - jumpY
   const sp    = starPower
   const laneColor = STRIKER_COVER[laneIdx] ?? "#ffffff"
   const headLight = STRIKER_HEAD_LIGHT[laneIdx] ?? laneColor
-  const c     = sp ? "#00ffff" : laneColor
-  const cRgb  = sp ? "0,255,255" : hexToRgb(laneColor)
+  const c     = sp ? spColor : laneColor
+  const cRgb  = sp ? spColorRgb : hexToRgb(laneColor)
   const rx    = (baseRX + 8) * scaleX
   const ry    = (baseRY + 8) * scaleY
   const t     = now * 0.003
@@ -768,7 +879,7 @@ function drawHitTarget(
   ctx.beginPath(); ctx.ellipse(x, hitY, rx + 12, ry + 12, 0, 0, Math.PI*2)
   ctx.strokeStyle = pressed
     ? `rgba(${cRgb},0.70)`
-    : sp ? "rgba(0,220,255,0.40)" : "rgba(255,255,255,0.08)"
+    : sp ? `rgba(${spColorRgb},0.40)` : "rgba(255,255,255,0.08)"
   ctx.lineWidth = 1.2; ctx.stroke()
 
   // ── Anel externo (outer ring) — prata escuro ───────────────────────────
@@ -798,7 +909,7 @@ function drawHitTarget(
   const innerG = ctx.createRadialGradient(x - rx*0.18, hitY - ry*0.30, 0, x, hitY, rx)
   if (pressed) {
     innerG.addColorStop(0,    "#ffffff")
-    innerG.addColorStop(0.15, sp ? "#00ffff" : headLight)
+    innerG.addColorStop(0.15, sp ? spColor : headLight)
     innerG.addColorStop(0.50, c)
     innerG.addColorStop(1,    `rgba(${cRgb},0.15)`)
   } else {
@@ -814,7 +925,7 @@ function drawHitTarget(
   ctx.lineWidth = 1.5; ctx.stroke()
 
   // ── Aro do head light (círculo interno médio) ─────────────────────────
-  const hlRgb = sp ? "0,255,255" : hexToRgb(headLight)
+  const hlRgb = sp ? spColorRgb : hexToRgb(headLight)
   ctx.beginPath(); ctx.ellipse(x, hitY, rx*0.62, ry*0.62, 0, 0, Math.PI*2)
   ctx.strokeStyle = pressed
     ? `rgba(${hlRgb},0.95)`
@@ -844,7 +955,7 @@ function drawHitTarget(
 
   // ── Chamas ao pressionar — estilo WoR: energia lateral ────────────────
   if (pressed || sp) {
-    const flameRgb   = sp ? "0,255,255" : hexToRgb(HIT_FLAME_COLOR)
+    const flameRgb   = sp ? spColorRgb : hexToRgb(HIT_FLAME_COLOR)
     const flameAlpha = pressed ? 1.0 : 0.4 + Math.sin(t + x*0.01)*0.15
     const flicker    = 0.70 + Math.sin(t*2.5 + x*0.02)*0.30
 
@@ -871,7 +982,7 @@ function drawHitTarget(
 
     // Faíscas orbitando
     if (pressed) {
-      const sparkRgb = sp ? "0,255,255" : hexToRgb(HIT_PARTICLE_COLOR)
+      const sparkRgb = sp ? spColorRgb : hexToRgb(HIT_PARTICLE_COLOR)
       for (let s = 0; s < 6; s++) {
         const ang  = (s/6)*Math.PI*2 + t*4
         const dist = rx*(0.85 + Math.abs(Math.sin(t*5+s))*0.7)
@@ -918,15 +1029,15 @@ function drawHitExplosion(
   ctx: CanvasRenderingContext2D, x: number, hitY: number,
   color: string, progress: number, alpha: number, rating: string,
   rx: number, ry: number,
-  starPower: boolean = false
+  starPower: boolean = false,
+  spColor = "#00ffff", spColorRgb = "0,255,255"
 ) {
   const isPerfect = rating === "perfect"
   const isGreat   = rating === "great"
-  // WoR: cor principal é sempre cyan/energia — não usa a cor da nota
   const burstCol  = starPower ? "#ffffff" : "#00e5ff"
   const burstRgb  = starPower ? "255,255,255" : "0,229,255"
-  const sparkCol  = starPower ? SP_PARTICLE_COLOR : HIT_PARTICLE_COLOR
-  const sparkRgb  = hexToRgb(sparkCol)
+  const sparkCol  = starPower ? spColor : HIT_PARTICLE_COLOR
+  const sparkRgb  = starPower ? spColorRgb : hexToRgb(HIT_PARTICLE_COLOR)
   ctx.save()
 
   // ── Flash inicial expansivo ───────────────────────────────────────────
@@ -1175,6 +1286,7 @@ export function renderFrame(state: RenderState): void {
   const uiScale = Math.max(0.5, Math.min(1.6, w / 1200))
   const now=performance.now()
   const starPower=stats.combo>=STAR_POWER_COMBO
+  const spPal = getSPPalette(highwayTheme)  // paleta SP do tema ativo
   // Limpa o canvas (bordas ficam transparentes — mostra o background da música)
   ctx.clearRect(0, 0, w, h)
 
@@ -1210,7 +1322,7 @@ export function renderFrame(state: RenderState): void {
   ctx.restore()
 
   // 3 – Star Power lightning (hit line + bordas da tela)
-  drawStarPowerLightning(ctx,w,h,now,stats.combo)
+  drawStarPowerLightning(ctx,w,h,now,stats.combo,highwayTheme)
 
   // 4 – Sustain tails
   for (const note of notes) {
@@ -1218,7 +1330,7 @@ export function renderFrame(state: RenderState): void {
     const nA=note.time-currentTime, tE=note.time+note.duration-currentTime
     if (tE<-TIMING_MISS) continue
     const ca=Math.max(nA,0), cb=Math.max(tE,0)
-    const color=starPower?SP_SUSTAIN_COLOR:(SUSTAIN_COLORS[note.lane]??NOTE_COLORS[note.lane]??LANE_COLORS[note.lane])
+    const color=starPower?spPal.sustainColor:(SUSTAIN_COLORS[note.lane]??NOTE_COLORS[note.lane]??LANE_COLORS[note.lane])
     const isHeld = note.hit && keysDown.has(note.lane)  // sendo segurado agora
     const pulse  = isHeld ? (0.75 + Math.sin(now * 0.012) * 0.25) : 1  // pulsa enquanto segura
 
@@ -1243,7 +1355,7 @@ export function renderFrame(state: RenderState): void {
     if (starPower) {
       ctx.beginPath()
       const steps = 20
-      ctx.shadowColor="#00ffff"; ctx.shadowBlur=10
+      ctx.shadowColor=spPal.primary; ctx.shadowBlur=10
       ctx.strokeStyle=color+"cc"; ctx.lineWidth=2.5*ps.scale
       for (let i=0; i<=steps; i++) {
         const t2=i/steps
@@ -1255,7 +1367,7 @@ export function renderFrame(state: RenderState): void {
     } else {
       ctx.beginPath(); ctx.moveTo(ps.x,ps.y); ctx.lineTo(pe.x,pe.y)
       if (isHeld) {
-        ctx.shadowColor = color; ctx.shadowBlur = 12 * pulse
+        ctx.shadowColor = starPower ? spPal.primary : color; ctx.shadowBlur = 12 * pulse
         ctx.strokeStyle=color+"ee"; ctx.lineWidth=3.0*ps.scale
       } else {
         ctx.strokeStyle=color+"99"; ctx.lineWidth=2.2*ps.scale
@@ -1265,8 +1377,8 @@ export function renderFrame(state: RenderState): void {
   }
 
   // 5 – Hit line glow
-  const hlColor="0,210,255"
-  const hlAlpha=starPower?0.70:0.32
+  const hlColor = starPower ? spPal.primaryRgb : "0,210,255"
+  const hlAlpha = starPower ? 0.70 : 0.32
   const hl=ctx.createLinearGradient(tLB,0,tRB,0)
   hl.addColorStop(0,"transparent"); hl.addColorStop(0.08,`rgba(${hlColor},${hlAlpha*0.5})`)
   hl.addColorStop(0.5,`rgba(${hlColor},${hlAlpha})`); hl.addColorStop(0.92,`rgba(${hlColor},${hlAlpha*0.5})`)
@@ -1302,7 +1414,7 @@ export function renderFrame(state: RenderState): void {
       scaleY = 1 + bounce * 0.18              // estica verticalmente (stretch)
     }
 
-    const {rx,ry}=drawHitTarget(ctx,x,hitY,i,pressed,starPower,now,jumpY,scaleX,scaleY,NRX,NRY)
+    const {rx,ry}=drawHitTarget(ctx,x,hitY,i,pressed,starPower,now,jumpY,scaleX,scaleY,NRX,NRY,spPal.primary,spPal.primaryRgb)
     if (showGuide) {
       const label=(keyLabels?.[i]??LANE_LABELS[i]).toUpperCase()
       ctx.fillStyle=pressed?"#fff":"rgba(200,230,210,0.45)"
@@ -1324,7 +1436,7 @@ export function renderFrame(state: RenderState): void {
     const {x,y,scale}=project(lane,Math.max(ahead,0),canvas,ns,LC)
     if (y>hitY+NRY*4) continue
     const rx=NRX*scale, ry=NRY*scale
-    drawNoteGH(ctx,x,y,rx,ry,lane,starPower,now,noteShape)
+    drawNoteGH(ctx,x,y,rx,ry,lane,starPower,now,noteShape,spPal.primary,spPal.primaryRgb)
   }
 
   // 8 – Hit effects (explosão + feixe de luz vertical)
@@ -1340,7 +1452,7 @@ export function renderFrame(state: RenderState): void {
     if (!isMiss) {
       // Feixe de luz vertical (como imagem 3)
       if (prog < 0.6) drawLightBeam(ctx,x,hitY,h,color,prog,alpha)
-      drawHitExplosion(ctx,x,hitY,color,prog,alpha,fx.rating,NRX,NRY,starPower)
+      drawHitExplosion(ctx,x,hitY,color,prog,alpha,fx.rating,NRX,NRY,starPower,spPal.primary,spPal.primaryRgb)
     } else {
       const xs=NRX*(1.1+prog*0.35)
       ctx.strokeStyle="#ef4444"+Math.round(alpha*180).toString(16).padStart(2,"0")
@@ -1390,18 +1502,18 @@ export function renderFrame(state: RenderState): void {
     ctx.closePath()
     if (filled) {
       const sg = ctx.createRadialGradient(cx, cy - r*0.2, 0, cx, cy, r)
-      sg.addColorStop(0, sp2 ? "#aaffff" : "#fff7aa")
-      sg.addColorStop(0.5, sp2 ? "#00ddff" : "#f59e0b")
-      sg.addColorStop(1,   sp2 ? "#007799" : "#92400e")
+      sg.addColorStop(0, sp2 ? spPal.starFill1 : "#fff7aa")
+      sg.addColorStop(0.5, sp2 ? spPal.starFill2 : "#f59e0b")
+      sg.addColorStop(1,   sp2 ? spPal.starFill3 : "#92400e")
       ctx.fillStyle = sg
-      ctx.shadowColor = sp2 ? "#00ffff" : "#fbbf24"
+      ctx.shadowColor = sp2 ? spPal.primary : "#fbbf24"
       ctx.shadowBlur = 18
     } else {
       ctx.fillStyle = "rgba(255,255,255,0.12)"
       ctx.shadowBlur = 0
     }
     ctx.fill()
-    ctx.strokeStyle = filled ? (sp2 ? "#00ffff" : "#fbbf24") : "rgba(255,255,255,0.25)"
+    ctx.strokeStyle = filled ? (sp2 ? spPal.primary : "#fbbf24") : "rgba(255,255,255,0.25)"
     ctx.lineWidth = filled ? 1.5 : 1
     ctx.stroke()
     ctx.shadowBlur = 0
@@ -1414,7 +1526,7 @@ export function renderFrame(state: RenderState): void {
     const scoreFontSize = Math.round(28 * uiScale)
     ctx.font = `bold ${scoreFontSize}px 'Arial Black', Arial, sans-serif`
     ctx.textAlign = "right"; ctx.textBaseline = "top"
-    ctx.shadowColor = starPower ? "#00ffff" : "rgba(255,255,255,0.6)"
+    ctx.shadowColor = starPower ? spPal.primary : "rgba(255,255,255,0.6)"
     ctx.shadowBlur = starPower ? 16 : 6
     ctx.fillStyle = "#ffffff"
     const scoreY = topBarH + Math.round(10 * uiScale)
@@ -1455,12 +1567,12 @@ export function renderFrame(state: RenderState): void {
     ctx.beginPath(); ctx.arc(mulX, mulY, mulR, 0, Math.PI*2)
     ctx.fillStyle = mg; ctx.fill()
     // Borda brilhante
-    ctx.strokeStyle = starPower ? "#00ffff" : "#5599ff"
+    ctx.strokeStyle = starPower ? spPal.primary : "#5599ff"
     ctx.lineWidth = 2.2
     ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 16
     ctx.stroke(); ctx.shadowBlur = 0
     // Texto
-    ctx.fillStyle = starPower ? "#00ffff" : "#ffffff"
+    ctx.fillStyle = starPower ? spPal.primary : "#ffffff"
     ctx.font = `bold ${Math.round(15 * uiScale)}px 'Arial Black', Arial, sans-serif`
     ctx.textAlign = "center"; ctx.textBaseline = "middle"
     ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10

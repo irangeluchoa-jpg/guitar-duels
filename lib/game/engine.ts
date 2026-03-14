@@ -127,7 +127,7 @@ export function applyHit(stats: GameStats, rating: HitRating): GameStats {
 }
 
 export function prepareNotes(chart: Chart, laneCount = 5): ActiveNote[] {
-  const DEDUP_MS = 25  // janela de deduplicação: notas na mesma lane dentro de 25ms viram uma só
+  const DEDUP_MS = 60  // janela de deduplicação: notas na mesma lane dentro de 60ms viram uma só
 
   if (laneCount === 4) {
     // G(0)→0  R(1)→1  Y(2)→2  B(3)→3  O(4)→3

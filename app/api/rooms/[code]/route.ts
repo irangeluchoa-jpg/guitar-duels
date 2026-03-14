@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server"
-import { getRoom, serializeRoom, updatePlayer, setRoomSong, setRoomState } from "@/lib/multiplayer/room-store"
+import { getRoom, serializeRoom, updatePlayer, setRoomSong, setRoomState, heartbeat, removePlayer, evictStalePlayers } from "@/lib/multiplayer/room-store"
 
-export async function GET(_req: Request, { params }: { params: Promise<{ code: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
+  // Evict jogadores sem heartbeat antes de retornar o estado da sala
+  evictStalePlayers(code, 8000)
   const room = getRoom(code)
   if (!room) return NextResponse.json({ error: "Sala não encontrada" }, { status: 404 })
   return NextResponse.json(serializeRoom(room))
@@ -47,6 +49,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ code: 
     }
   }
 
-  const updated = getRoom(code)!
+  // Heartbeat: atualiza lastSeen sem mudar estado
+  if (body.action === "heartbeat" && body.playerId) {
+    heartbeat(code, body.playerId)
+  }
+
+  // Leave: jogador saiu voluntariamente
+  if (body.action === "leave" && body.playerId) {
+    const after = removePlayer(code, body.playerId)
+    if (!after) return NextResponse.json({ left: true })
+    return NextResponse.json(serializeRoom(after))
+  }
+
+  const updated = getRoom(code)
+  if (!updated) return NextResponse.json({ error: "Sala não encontrada" }, { status: 404 })
   return NextResponse.json(serializeRoom(updated))
 }
