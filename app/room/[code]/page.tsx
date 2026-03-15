@@ -115,8 +115,19 @@ export default function RoomPage() {
   useEffect(() => {
     fetchRoom()
     pollRef.current=setInterval(fetchRoom,1500)
-    return () => { if(pollRef.current) clearInterval(pollRef.current) }
-  }, [fetchRoom])
+    // Heartbeat na sala de espera — mantém lastSeen atualizado para não ser removido ao iniciar
+    const hbRef = setInterval(async () => {
+      const pid = sessionStorage.getItem("playerId")
+      if (!pid) return
+      try {
+        await fetch(`/api/rooms/${code}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "heartbeat", playerId: pid }),
+        })
+      } catch {}
+    }, 4000)
+    return () => { if(pollRef.current) clearInterval(pollRef.current); clearInterval(hbRef) }
+  }, [fetchRoom, code])
 
   useEffect(() => {
     const filtered = songs.filter(s => !search || s.name.toLowerCase().includes(search.toLowerCase()) || s.artist.toLowerCase().includes(search.toLowerCase()))

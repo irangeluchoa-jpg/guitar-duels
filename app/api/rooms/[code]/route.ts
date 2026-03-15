@@ -3,7 +3,7 @@ import { getRoom, serializeRoom, updatePlayer, setRoomSong, setRoomState, heartb
 
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
-  await evictStalePlayers(code, 8000)
+  await evictStalePlayers(code, 15000)
   const room = await getRoom(code)
   if (!room) return NextResponse.json({ error: "Sala não encontrada" }, { status: 404 })
   return NextResponse.json(serializeRoom(room))

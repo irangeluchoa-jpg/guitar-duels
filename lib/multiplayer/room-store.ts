@@ -211,6 +211,9 @@ export async function removePlayer(code: string, playerId: string): Promise<Room
 export async function evictStalePlayers(code: string, timeoutMs = 8000): Promise<string[]> {
   const room = await getRoom(code)
   if (!room || room.state === "waiting") return []
+  // Se a sala acabou de iniciar (menos de 30s), não remover ninguém — 
+  // os jogadores ainda não tiveram chance de enviar heartbeat
+  if (room.startTime && Date.now() - room.startTime < 30000) return []
   const now = Date.now()
   const evicted: string[] = []
   const newPlayers = room.players.filter(p => {
