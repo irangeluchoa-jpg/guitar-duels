@@ -32,6 +32,7 @@ interface GameCanvasProps {
   onScoreUpdate?: (stats: GameStats) => void
   onSongEnd?: (stats: GameStats) => void
   externalPaused?: boolean
+  frozen?: boolean  // multiplayer: impede o startGame até o jogo começar
   laneCount?: number
   isDaily?: boolean
   onNextSong?: () => void
@@ -40,7 +41,7 @@ interface GameCanvasProps {
   hideTopBar?: boolean
 }
 
-export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused, laneCount = 5, isDaily = false, onNextSong, playlistCount = 0, playlistPosition = 0, hideTopBar = false }: GameCanvasProps) {
+export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused, frozen = false, laneCount = 5, isDaily = false, onNextSong, playlistCount = 0, playlistPosition = 0, hideTopBar = false }: GameCanvasProps) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const isLeavingRef = useRef(false)   // impede startGame após navegar para fora
@@ -200,7 +201,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
   }, [resizeCanvas])
 
   useEffect(() => {
-    if (gameState === "idle" && !isLeavingRef.current) {
+    if (gameState === "idle" && !isLeavingRef.current && !frozen) {
       const t = setTimeout(startGame, 500)
       return () => clearTimeout(t)
     }
@@ -212,14 +213,18 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
   }, [gameState, startGame])
 
   // Pause externo (multiplayer): quando externalPaused muda, pausa/retoma o jogo
+  const gameStateRef2 = useRef(gameState)
+  useEffect(() => { gameStateRef2.current = gameState }, [gameState])
+
   useEffect(() => {
     if (externalPaused === undefined) return
-    if (externalPaused && gameState === "playing") {
+    const gs = gameStateRef2.current
+    if (externalPaused && (gs === "playing" || gs === "countdown")) {
       pause()
       for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef]) {
         if (ref.current) ref.current.pause()
       }
-    } else if (!externalPaused && gameState === "paused") {
+    } else if (!externalPaused && gs === "paused") {
       resume()
       for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef]) {
         if (ref.current) ref.current.play().catch(() => {})

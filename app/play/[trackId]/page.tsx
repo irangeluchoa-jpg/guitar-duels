@@ -353,6 +353,7 @@ function PlayInner() {
   // Multiplayer
   const [roomSnapshot, setRoomSnapshot] = useState<RoomSnapshot | null>(null)
   const [gamePaused, setGamePaused]     = useState(false)
+  const gamePausedRef                   = useRef(false)
   const [gameStarted, setGameStarted]   = useState(false)
   const [iAmReady, setIAmReady]         = useState(false)
   const [leftPlayers, setLeftPlayers]   = useState<string[]>([])  // nomes de jogadores que saíram
@@ -450,7 +451,9 @@ function PlayInner() {
         prevPlayersRef.current = currentIds
 
         setRoomSnapshot(room)
-        setGamePaused(room.state === "paused")
+        const nowPaused = room.state === "paused"
+        gamePausedRef.current = nowPaused
+        setGamePaused(nowPaused)
         if (room.state === "playing" && !gameStarted) setGameStarted(true)
       } catch {}
     }, 800)
@@ -631,29 +634,6 @@ function PlayInner() {
     </div>
   )
 
-  // Multiplayer: aguardar roomSnapshot
-  if (roomCode && !gameStarted && !roomSnapshot) return (
-    <div className="flex items-center justify-center h-screen flex-col gap-3" style={{ background: "#060608" }}>
-      <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
-      <p className="text-white/40 text-sm">Conectando à sala...</p>
-    </div>
-  )
-
-  // Multiplayer: tela de espera
-  if (roomCode && !gameStarted && roomSnapshot) return (
-    <WaitingRoom
-      players={roomSnapshot.players ?? []}
-      myId={playerId ?? ""}
-      hostId={roomSnapshot.hostId ?? ""}
-      myLaneCount={laneCount}
-      iAmReady={iAmReady}
-      onReady={handleReady}
-      onStart={handleStart}
-      onBack={handleBack}
-      onLaneChange={handleLaneChange}
-    />
-  )
-
   const isMultiplayer = !!roomCode
   const isPaused      = gamePaused
   const pausedByName  = (roomSnapshot?.players ?? []).find(p => p.id === roomSnapshot?.pausedBy)?.name ?? "alguém"
@@ -667,24 +647,58 @@ function PlayInner() {
     router.push(`/play/${encodeURIComponent(next)}?lanes=${laneCount}&playlist=${encodeURIComponent(JSON.stringify(remaining))}`)
   } : undefined
 
+  // Multiplayer: aguardar roomSnapshot (GameCanvas já monta invisível para precarregar áudio)
+  const showWaitingRoom = roomCode && !gameStarted
+
   return (
     <>
-      <GameCanvas
-        chart={chart}
-        meta={meta}
-        audioUrls={audioUrls}
-        backgroundUrl={backgroundUrl || albumArt}
-        onBack={handleBack}
-        onScoreUpdate={handleScoreUpdate}
-        onSongEnd={handleSongEnd}
-        externalPaused={isMultiplayer ? isPaused : undefined}
-        laneCount={laneCount}
-        onNextSong={handleNextSong}
-        playlistCount={playlist.length}
-        playlistPosition={playlist.indexOf(trackId) + 1}
-        hideTopBar={isMultiplayer}
-      />
-      {isMultiplayer && roomSnapshot && (
+      {/* GameCanvas sempre montado em multiplayer para precarregar o áudio enquanto espera */}
+      {(!roomCode || (roomCode && chart && meta)) && (
+        <div style={{ visibility: showWaitingRoom ? "hidden" : "visible", position: "absolute", inset: 0 }}>
+          <GameCanvas
+            chart={chart!}
+            meta={meta!}
+            audioUrls={audioUrls}
+            backgroundUrl={backgroundUrl || albumArt}
+            onBack={handleBack}
+            onScoreUpdate={handleScoreUpdate}
+            onSongEnd={handleSongEnd}
+            externalPaused={isMultiplayer ? isPaused : undefined}
+            frozen={showWaitingRoom}
+            laneCount={laneCount}
+            onNextSong={handleNextSong}
+            playlistCount={playlist.length}
+            playlistPosition={playlist.indexOf(trackId) + 1}
+            hideTopBar={isMultiplayer}
+          />
+        </div>
+      )}
+
+      {/* Tela de espera por cima — some quando gameStarted */}
+      {showWaitingRoom && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 50 }}>
+          {!roomSnapshot ? (
+            <div className="flex items-center justify-center h-screen flex-col gap-3" style={{ background: "#060608" }}>
+              <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-white/40 text-sm">Conectando à sala...</p>
+            </div>
+          ) : (
+            <WaitingRoom
+              players={roomSnapshot.players ?? []}
+              myId={playerId ?? ""}
+              hostId={roomSnapshot.hostId ?? ""}
+              myLaneCount={laneCount}
+              iAmReady={iAmReady}
+              onReady={handleReady}
+              onStart={handleStart}
+              onBack={handleBack}
+              onLaneChange={handleLaneChange}
+            />
+          )}
+        </div>
+      )}
+
+      {isMultiplayer && roomSnapshot && gameStarted && (
         <MultiplayerHUD
           players={roomSnapshot.players ?? []}
           myId={playerId ?? ""}
