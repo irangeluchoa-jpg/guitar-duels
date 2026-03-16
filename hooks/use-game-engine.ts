@@ -368,9 +368,9 @@ export function useGameEngine({
 
     setGameState("countdown")
     gameStateRef.current = "countdown"
-    setCountdown(3)
+    setCountdown(1)
 
-    let count = 3
+    let count = 1
     const interval = setInterval(() => {
       count -= 1
       setCountdown(count)
@@ -389,7 +389,7 @@ export function useGameEngine({
 
         animFrameRef.current = requestAnimationFrame(gameLoop)
       }
-    }, 1000)
+    }, 800)
   }, [chart, audioRef, gameLoop])
 
   const pause = useCallback(() => {

@@ -411,7 +411,7 @@ function PlayInner() {
           body: JSON.stringify({ action: "score", playerId, score: s.score, combo: s.combo, rockMeter: s.rockMeter }),
         })
       } catch {}
-    }, 1500)
+    }, 2000)
 
     // Heartbeat separado a cada 3s para detectar desconexão
     const heartbeatInterval = setInterval(async () => {
@@ -422,7 +422,7 @@ function PlayInner() {
           body: JSON.stringify({ action: "heartbeat", playerId }),
         })
       } catch {}
-    }, 3000)
+    }, 5000)
 
     const pollRoom = setInterval(async () => {
       if (gameEndedRef.current || isLeavingRef.current) return
@@ -456,7 +456,7 @@ function PlayInner() {
         setGamePaused(nowPaused)
         if (room.state === "playing" && !gameStarted) setGameStarted(true)
       } catch {}
-    }, 800)
+    }, 400)
 
     return () => {
       clearInterval(pushScore)
@@ -545,6 +545,13 @@ function PlayInner() {
   const handleScoreUpdate = useCallback((stats: GameStats) => { latestStatsRef.current = stats }, [])
   const handleSongEnd = useCallback((_stats?: GameStats) => {
     gameEndedRef.current = true
+    // Marca a sala como encerrada no Supabase
+    if (roomCode && playerId) {
+      fetch(`/api/rooms/${roomCode}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "setState", state: "ended" }),
+      }).catch(() => {})
+    }
     const stats = latestStatsRef.current
     if (stats && meta) {
       const settings = loadSettings()
@@ -616,7 +623,7 @@ function PlayInner() {
         })
       } catch {}
     }
-    router.push(roomCode ? `/room/${roomCode}` : "/songs")
+    router.push(roomCode ? "/lobby" : "/songs")
   }, [roomCode, playerId, router])
 
   // ── Renders ──────────────────────────────────────────────────────────────

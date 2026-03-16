@@ -114,7 +114,7 @@ export default function RoomPage() {
 
   useEffect(() => {
     fetchRoom()
-    pollRef.current=setInterval(fetchRoom,1500)
+    pollRef.current=setInterval(fetchRoom,500)
     // Heartbeat na sala de espera — mantém lastSeen atualizado para não ser removido ao iniciar
     const hbRef = setInterval(async () => {
       const pid = sessionStorage.getItem("playerId")
@@ -125,7 +125,7 @@ export default function RoomPage() {
           body: JSON.stringify({ action: "heartbeat", playerId: pid }),
         })
       } catch {}
-    }, 4000)
+    }, 6000)
     return () => { if(pollRef.current) clearInterval(pollRef.current); clearInterval(hbRef) }
   }, [fetchRoom, code])
 

@@ -202,8 +202,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
 
   useEffect(() => {
     if (gameState === "idle" && !isLeavingRef.current && !frozen) {
-      const t = setTimeout(startGame, 500)
-      return () => clearTimeout(t)
+      startGame()
     }
     if (gameState === "ended") {
       for (const ref of [primaryAudioRef, guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef]) {
