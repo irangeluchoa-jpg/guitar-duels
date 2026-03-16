@@ -85,7 +85,7 @@ function PlayerCard(props: { key?: React.Key; p: RoomPlayer; color: string; isMe
           <div style={{
             height: "100%", width: `${p.rockMeter}%`,
             background: p.rockMeter > 60 ? "linear-gradient(90deg,#22c55e,#4ade80)" : p.rockMeter > 30 ? "#f59e0b" : "#ef4444",
-            transition: "width 0.3s", borderRadius: 2,
+            borderRadius: 2,
             boxShadow: `0 0 4px ${p.rockMeter > 60 ? "#22c55e" : p.rockMeter > 30 ? "#f59e0b" : "#ef4444"}`,
           }} />
         </div>
@@ -163,7 +163,7 @@ function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResu
                   <div style={{
                     height: "100%", width: `${p.rockMeter}%`,
                     background: p.rockMeter > 60 ? "#22c55e" : p.rockMeter > 30 ? "#f59e0b" : "#ef4444",
-                    transition: "width 0.3s", borderRadius: 2,
+                    borderRadius: 2,
                   }} />
                 </div>
               </div>
@@ -623,7 +623,9 @@ function PlayInner() {
         })
       } catch {}
     }
-    router.push(roomCode ? "/lobby" : "/songs")
+    // Se tinha sala, volta para a sala (que mostrará estado ended ou waiting para nova partida)
+    // Se a sala foi deletada, o /room vai redirecionar para /lobby automaticamente
+    router.push(roomCode ? `/room/${roomCode}` : "/songs")
   }, [roomCode, playerId, router])
 
   // ── Renders ──────────────────────────────────────────────────────────────

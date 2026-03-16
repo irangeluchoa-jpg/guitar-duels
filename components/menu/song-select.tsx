@@ -171,8 +171,8 @@ export function SongSelect() {
     // Fade out antes de trocar
     const fadeOut = () => {
       if (previewAudio.volume > 0.02) {
-        previewAudio.volume = Math.max(0, previewAudio.volume - 0.05)
-        setTimeout(fadeOut, 30)
+        previewAudio.volume = Math.max(0, previewAudio.volume - 0.12)
+        setTimeout(fadeOut, 20)
       } else {
         previewAudio.pause()
         previewAudio.volume = 0
@@ -196,14 +196,14 @@ export function SongSelect() {
           // Fade in
           const fadeIn = () => {
             if (previewAudio.volume < 0.38) {
-              previewAudio.volume = Math.min(0.4, previewAudio.volume + 0.04)
-              setTimeout(fadeIn, 30)
+              previewAudio.volume = Math.min(0.4, previewAudio.volume + 0.10)
+              setTimeout(fadeIn, 20)
             }
           }
           fadeIn()
         }).catch(() => {})
         previewAudio.onended = () => setIsPlaying(false)
-      }, 500)
+      }, 150)
     }
     return () => { if (prevTimeout.current) clearTimeout(prevTimeout.current) }
   }, [sel, songs, previewAudio])

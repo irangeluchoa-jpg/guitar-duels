@@ -290,7 +290,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       } else {
         setTimeInfo((t: {current:number;total:number}) => ({ ...t, current: cur }))
       }
-    }, 250)
+    }, 100)
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState])
@@ -366,14 +366,14 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
         const isStarPower = stats.combo >= 30
         return (
         <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none"
-          style={{ transition: "opacity 0.5s ease" }}>
+          style={{ transition: "opacity 0.15s ease" }}>
           <div className="mx-1 sm:mx-3 mt-1 sm:mt-3 rounded-xl sm:rounded-2xl overflow-hidden"
             style={{
               background: isStarPower ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.55)",
               backdropFilter: "blur(16px)",
               border: isStarPower ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(255,255,255,0.07)",
               boxShadow: isStarPower ? "0 4px 24px rgba(0,0,0,0.3)" : "0 4px 24px rgba(0,0,0,0.5)",
-              transition: "all 0.5s ease",
+              transition: "all 0.15s ease",
             }}>
 
             {/* Timer + velocidade (info da música está no painel lateral esquerdo do canvas) */}
@@ -399,7 +399,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
 
             {/* Progress bar integrada */}
             <div className="h-0.5 sm:h-1 w-full" style={{ background: "rgba(255,255,255,0.04)" }}>
-              <div className="h-full transition-all duration-300"
+              <div className="h-full"
                 style={{
                   width: `${progress * 100}%`,
                   background: "linear-gradient(90deg,#be123c,#e11d48,#f97316)",

@@ -124,9 +124,9 @@ export function GameOverScreen({
 
   // Sequência de aparecimento
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase("grade"), 150)
-    const t2 = setTimeout(() => setPhase("stats"), 700)
-    const t3 = setTimeout(() => setPhase("buttons"), 1200)
+    const t1 = setTimeout(() => setPhase("grade"), 0)
+    const t2 = setTimeout(() => setPhase("stats"), 250)
+    const t3 = setTimeout(() => setPhase("buttons"), 500)
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [])
 
@@ -134,7 +134,7 @@ export function GameOverScreen({
   useEffect(() => {
     if (phase !== "stats") return
     const target = stats.score
-    const duration = 1000
+    const duration = 400
     const steps = 60
     const step = target / steps
     let current = 0
@@ -155,7 +155,7 @@ export function GameOverScreen({
       i++
       setStarsShown(i)
       if (i >= stars) clearInterval(iv)
-    }, 180)
+    }, 80)
     return () => clearInterval(iv)
   }, [phase, accuracy])
 
@@ -225,7 +225,7 @@ export function GameOverScreen({
 
         {/* Grade + Título */}
         <div
-          className="text-center transition-all duration-500"
+          className="text-center transition-all duration-150"
           style={{
             opacity: phase !== "hidden" ? 1 : 0,
             transform: phase !== "hidden" ? "translateY(0) scale(1)" : "translateY(-30px) scale(0.8)",
@@ -275,7 +275,7 @@ export function GameOverScreen({
 
         {/* Stats card */}
         <div
-          className="rounded-2xl overflow-hidden transition-all duration-500"
+          className="rounded-2xl overflow-hidden transition-all duration-150"
           style={{
             background: "rgba(255,255,255,0.03)",
             border: newRecord ? `1px solid rgba(251,191,36,0.35)` : "1px solid rgba(255,255,255,0.07)",
@@ -336,7 +336,7 @@ export function GameOverScreen({
                 </div>
                 <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
                   <div
-                    className="h-full rounded-full transition-all duration-1000 ease-out"
+                    className="h-full rounded-full transition-all duration-300 ease-out"
                     style={{
                       width: `${betterThanPct}%`,
                       background: betterThanPct >= 80
@@ -354,7 +354,7 @@ export function GameOverScreen({
         </div>
 
         {/* Botões */}
-        <div className="flex gap-3 transition-all duration-500"
+        <div className="flex gap-3 transition-all duration-150"
           style={{ opacity: phase === "buttons" ? 1 : 0, transform: phase === "buttons" ? "translateY(0)" : "translateY(10px)" }}>
           <button
             onClick={() => { playClickSound(vol); onBack?.() }}

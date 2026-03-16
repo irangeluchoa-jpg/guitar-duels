@@ -109,6 +109,10 @@ export default function RoomPage() {
         router.push(`/play/${encodeURIComponent(data.songId!)}?room=${code}&player=${pid}&lanes=${laneCountRef.current}`)
       }
       if (data.state==="ended"||data.state==="waiting") startedRef.current=false
+      // Se a sala terminou, resetar para waiting para jogar de novo
+      if (data.state==="ended") {
+        fetch(`/api/rooms/${code}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"setState",state:"waiting"}) }).catch(()=>{})
+      }
     } catch { setError("Erro de conexão") }
   }, [code, router])
 
@@ -144,8 +148,9 @@ export default function RoomPage() {
   const dc = DCOLS[selectedSong?.difficulty ?? 0]
 
   async function handleSetSong(songId: string) {
-    await fetch(`/api/rooms/${code}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"setSong",songId}) })
-    fetchRoom()
+    // Atualiza local imediatamente (otimista) sem esperar o servidor
+    setRoom(prev => prev ? { ...prev, songId } : prev)
+    fetch(`/api/rooms/${code}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"setSong",songId}) }).catch(() => {})
   }
   async function handleStart() {
     if (!room?.songId) return
@@ -264,12 +269,12 @@ export default function RoomPage() {
         <div className="absolute inset-0 z-0 overflow-hidden">
           {selectedSong?.albumArt
             ? <img src={selectedSong.albumArt} alt="" className="absolute inset-0 w-full h-full object-cover"
-                style={{ filter:"blur(80px) saturate(2) brightness(0.18)", transform:"scale(1.2)", transition:"all 0.8s" }}/>
-            : <div className="absolute inset-0 transition-all duration-1000"
+                style={{ filter:"blur(80px) saturate(2) brightness(0.18)", transform:"scale(1.2)", transition:"all 0.2s" }}/>
+            : <div className="absolute inset-0 transition-all duration-150"
                 style={{ background:`radial-gradient(ellipse 70% 60% at 50% 20%, ${dc}18, transparent 70%)` }}/>}
           <div className="absolute inset-0" style={{ background:"linear-gradient(180deg, rgba(6,6,8,0.4) 0%, rgba(6,6,8,0.7) 50%, rgba(6,6,8,0.95) 100%)" }}/>
           {/* Top accent line */}
-          <div className="absolute top-0 inset-x-0 h-px transition-all duration-700"
+          <div className="absolute top-0 inset-x-0 h-px transition-all duration-150"
             style={{ background:`linear-gradient(90deg, transparent, ${dc}99, ${dc}99, transparent)`, opacity:0.6 }}/>
         </div>
 
@@ -360,7 +365,7 @@ export default function RoomPage() {
                 {/* Diff bar */}
                 <div className="flex items-center gap-3 max-w-xs">
                   <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background:"rgba(255,255,255,0.07)" }}>
-                    <div className="h-full rounded-full transition-all duration-700"
+                    <div className="h-full rounded-full transition-all duration-150"
                       style={{ width:`${((selectedSong.difficulty??1)/6)*100}%`, background:`linear-gradient(90deg,${DCOLS[Math.max(0,(selectedSong.difficulty??1)-1)]},${dc})` }}/>
                   </div>
                   <span className="text-xs" style={{ color:`${dc}99` }}>
@@ -423,7 +428,7 @@ export default function RoomPage() {
           {isHost ? (
             <button onClick={()=>{playClickSound(getVol()); handleStart()}}
               disabled={!canStart}
-              className="w-full h-16 rounded-2xl flex items-center justify-center gap-3 transition-all duration-200"
+              className="w-full h-16 rounded-2xl flex items-center justify-center gap-3 transition-all duration-100"
               style={{
                 background: canStart
                   ? `linear-gradient(135deg, #7f1d1d, #dc2626 35%, #ef4444 65%, #b91c1c)`
