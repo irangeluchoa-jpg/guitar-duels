@@ -36,7 +36,16 @@ export default function RankingPage() {
   useEffect(() => {
     try {
       const s = localStorage.getItem("guitar-duels-scores")
-      if (s) setLocalScores(JSON.parse(s).sort((a: LocalScore, b: LocalScore) => b.score - a.score))
+      if (s) {
+        const all: LocalScore[] = JSON.parse(s)
+        // Manter apenas o melhor score por música (por trackId)
+        const bestMap = new Map<string, LocalScore>()
+        for (const r of all) {
+          const existing = bestMap.get(r.trackId)
+          if (!existing || r.score > existing.score) bestMap.set(r.trackId, r)
+        }
+        setLocalScores(Array.from(bestMap.values()).sort((a, b) => b.score - a.score))
+      }
     } catch {}
   }, [])
 
@@ -101,7 +110,7 @@ export default function RankingPage() {
         {/* Abas */}
         <div className="flex gap-2 px-6 pb-3">
           {([
-            { key: "local" as Tab,  label: "📱 Local",  sub: `${localScores.length} scores` },
+            { key: "local" as Tab,  label: "📱 Local",  sub: `${localScores.length} músicas` },
             { key: "global" as Tab, label: "🌍 Global",  sub: "Top 10" },
             { key: "daily" as Tab,  label: "⚡ Diário",  sub: "Hoje" },
           ]).map(t => (

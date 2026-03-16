@@ -99,6 +99,13 @@ export default function RoomPage() {
   useEffect(() => { const id=sessionStorage.getItem("playerId"); if(!id){router.push("/lobby");return}; setPlayerId(id) }, [router])
   useEffect(() => { fetch("/api/songs").then(r=>r.json()).then(setSongs).catch(()=>{}) }, [])
 
+  // Não-host: sincronizar selIdx quando o host trocar a música
+  useEffect(() => {
+    if (!room?.songId || room?.hostId === playerId) return
+    const idx = songs.findIndex(s => s.id === room.songId)
+    if (idx !== -1) setSelIdx(idx)
+  }, [room?.songId, room?.hostId, playerId, songs])
+
   const fetchRoom = useCallback(async () => {
     try {
       const res=await fetch(`/api/rooms/${code}`); if(!res.ok){setError("Sala não encontrada");return}
@@ -144,12 +151,13 @@ export default function RoomPage() {
   }, [songs, search])
 
   const filtered   = songs.filter(s => !search || s.name.toLowerCase().includes(search.toLowerCase()) || s.artist.toLowerCase().includes(search.toLowerCase()))
-  const selectedSong = songs.find(s => s.id===room?.songId) ?? filtered[selIdx]
+  const isHostLocal = room?.hostId === playerId
+  // Host: usa selIdx para o painel (instantâneo). Não-host: usa room.songId (sincronizado)
+  const selectedSong = isHostLocal ? filtered[selIdx] : (songs.find(s => s.id===room?.songId) ?? filtered[selIdx])
   const dc = DCOLS[selectedSong?.difficulty ?? 0]
 
   async function handleSetSong(songId: string) {
-    // Atualiza local imediatamente (otimista) sem esperar o servidor
-    setRoom(prev => prev ? { ...prev, songId } : prev)
+    // Só envia para o servidor — o painel já atualizou via selIdx
     fetch(`/api/rooms/${code}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"setSong",songId}) }).catch(() => {})
   }
   async function handleStart() {
@@ -230,7 +238,7 @@ export default function RoomPage() {
         {/* List */}
         <div ref={listRef} className="flex-1 overflow-y-auto py-1">
           {filtered.map((song, i) => {
-            const isActive = room.songId===song.id || (!room.songId && i===selIdx)
+            const isActive = isHostLocal ? i===selIdx : (room.songId===song.id || (!room.songId && i===selIdx))
             const songDc   = DCOLS[song.difficulty??0]
             return (
               <button key={song.id}

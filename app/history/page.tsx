@@ -23,8 +23,16 @@ export function saveRecord(record: Omit<GameRecord, "id">) {
   if (typeof window === "undefined") return
   try {
     const history: GameRecord[] = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]")
-    history.unshift({ ...record, id: `${Date.now()}-${Math.random().toString(36).slice(2,7)}` })
-    if (history.length > 50) history.splice(50)
+    const newRecord = { ...record, id: `${Date.now()}-${Math.random().toString(36).slice(2,7)}` }
+    // Substituir se o novo score for melhor para a mesma música, senão ignorar
+    const existingIdx = history.findIndex(r => r.songId === record.songId)
+    if (existingIdx === -1) {
+      history.unshift(newRecord)
+    } else if (record.score > history[existingIdx].score) {
+      history.splice(existingIdx, 1)
+      history.unshift(newRecord)
+    }
+    if (history.length > 200) history.splice(200)
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
   } catch {}
 }
@@ -52,7 +60,16 @@ export default function HistoryPage() {
   const [filter, setFilter] = useState<"all"|"s"|"fc">("all")
 
   useEffect(() => {
-    try { setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]")) } catch {}
+    try {
+      const all: GameRecord[] = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]")
+      // Manter apenas o melhor score por música (por songId)
+      const bestMap = new Map<string, GameRecord>()
+      for (const r of all) {
+        const existing = bestMap.get(r.songId)
+        if (!existing || r.score > existing.score) bestMap.set(r.songId, r)
+      }
+      setHistory(Array.from(bestMap.values()).sort((a, b) => b.score - a.score))
+    } catch {}
   }, [])
 
   const filtered = history.filter((r: GameRecord) => {

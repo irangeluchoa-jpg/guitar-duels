@@ -75,9 +75,16 @@ export function GameOverScreen({
         good: stats.good, miss: stats.miss,
         isFC, date: new Date().toISOString(),
       }
-      scores.push(entry)
+      // Só salvar se for o melhor score desta música
+      const existingIdx = scores.findIndex(s => s.trackId === (meta.id || "unknown"))
+      if (existingIdx === -1) {
+        scores.push(entry)
+      } else if (stats.score > (scores[existingIdx].score as number)) {
+        scores.splice(existingIdx, 1)
+        scores.push(entry)
+      }
       scores.sort((a, b) => b.score - a.score)
-      localStorage.setItem("guitar-duels-scores", JSON.stringify(scores.slice(0, 100)))
+      localStorage.setItem("guitar-duels-scores", JSON.stringify(scores.slice(0, 200)))
 
       // Cálculo de percentil: quantas partidas desta música este score supera
       const songScores = scores
