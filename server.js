@@ -107,12 +107,34 @@ app.prepare().then(() => {
       io.to(code).emit("room-update", serializeRoom(room))
     })
 
-    // ── START GAME ───────────────────────────────────────────────────────────
+    // ── PLAYER READY ─────────────────────────────────────────────────────────
+    socket.on("player-ready", ({ code, playerId, laneCount }) => {
+      const room = rooms.get(code)
+      if (!room) return
+      const player = room.players.get(playerId)
+      if (!player) return
+      player.ready = true
+      if (laneCount) player.laneCount = laneCount
+      const serialized = serializeRoom(room)
+      io.to(code).emit("room-update", serialized)
+
+      // Auto-start when ALL players are ready (minimum 2)
+      const players = Array.from(room.players.values())
+      if (players.length >= 2 && players.every(p => p.ready) && room.state === "waiting") {
+        room.state = "playing"
+        room.startTime = Date.now()
+        io.to(code).emit("game-start", serializeRoom(room))
+      }
+    })
+
+    // ── START GAME (manual by host) ───────────────────────────────────────────
     socket.on("start-game", ({ code }) => {
       const room = rooms.get(code)
       if (!room) return
       room.state = "playing"
       room.startTime = Date.now()
+      // Reset ready states
+      for (const p of room.players.values()) p.ready = false
       io.to(code).emit("game-start", serializeRoom(room))
     })
 

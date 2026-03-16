@@ -242,82 +242,151 @@ function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResu
 }
 
 // ── Tela de espera multiplayer ────────────────────────────────────────────────
-function WaitingRoom({ players, myId, hostId, myLaneCount, iAmReady, onReady, onStart, onBack, onLaneChange }:
+function WaitingRoom({ players, myId, hostId, myLaneCount, iAmReady, onReady, onBack, onLaneChange }:
   { players: RoomPlayer[]; myId: string; hostId: string; myLaneCount: 4|5|6
-    iAmReady: boolean; onReady: () => void; onStart: () => void; onBack: () => void
+    iAmReady: boolean; onReady: () => void; onBack: () => void
     onLaneChange: (n: 4|5|6) => void }) {
 
-  const isHost   = myId === hostId
-  const allReady = players.length > 0 && players.every(p => p.ready)
+  const readyCount = players.filter(p => p.ready).length
+  const totalCount = players.length
+  const allReady   = totalCount >= 2 && readyCount === totalCount
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center flex-col gap-4" style={{ background: "#060608" }}>
-      <p className="text-2xl font-black text-white tracking-wider">SALA DE ESPERA</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center flex-col gap-4"
+      style={{ background: "#060608", fontFamily: "'Impact','Arial Black',sans-serif" }}>
 
-      {/* Seletor de lanes */}
-      <div className="flex flex-col gap-2 w-80">
-        <p className="text-xs text-center mb-1" style={{ color: "rgba(255,255,255,0.3)" }}>Escolha sua dificuldade</p>
-        <div className="flex gap-2">
+      {/* Title */}
+      <div style={{ textAlign: "center", marginBottom: "4px" }}>
+        <p style={{ fontSize: "clamp(1.4rem,4vw,2.2rem)", fontWeight: 900, color: "#e8c060",
+          textShadow: "0 0 20px rgba(220,160,20,0.5)", letterSpacing: "0.15em" }}>
+          SALA DE ESPERA
+        </p>
+        <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.3)", fontFamily: "Arial,sans-serif", marginTop: "2px" }}>
+          O jogo começa quando todos estiverem prontos
+        </p>
+      </div>
+
+      {/* Difficulty selector */}
+      <div style={{ width: "min(340px,85vw)" }}>
+        <p style={{ fontSize: "10px", textAlign: "center", marginBottom: "8px", letterSpacing: "0.3em",
+          color: "rgba(255,180,60,0.5)", fontFamily: "Arial,sans-serif" }}>ESCOLHA SUA DIFICULDADE</p>
+        <div style={{ display: "flex", gap: "8px" }}>
           {LANE_OPTIONS.map(opt => (
-            <button key={opt.count} onClick={() => !iAmReady && onLaneChange(opt.count)}
+            <button key={opt.count}
+              onClick={() => !iAmReady && onLaneChange(opt.count)}
               disabled={iAmReady}
-              className="flex-1 flex flex-col items-center py-3 px-2 rounded-xl transition-all"
               style={{
+                flex: 1, padding: "10px 4px", borderRadius: "10px", cursor: iAmReady ? "default" : "pointer",
                 background: myLaneCount === opt.count ? `${opt.color}22` : "rgba(255,255,255,0.04)",
-                border: myLaneCount === opt.count ? `1px solid ${opt.color}66` : "1px solid rgba(255,255,255,0.08)",
-                opacity: iAmReady ? 0.5 : 1,
-                cursor: iAmReady ? "default" : "pointer",
+                border: myLaneCount === opt.count ? `2px solid ${opt.color}88` : "1px solid rgba(255,255,255,0.08)",
+                boxShadow: myLaneCount === opt.count ? `0 0 12px ${opt.color}44` : "none",
+                opacity: iAmReady ? 0.6 : 1, transition: "all 0.1s",
               }}>
-              <span className="text-sm font-black" style={{ color: myLaneCount === opt.count ? opt.color : "rgba(255,255,255,0.5)" }}>{opt.label}</span>
-              <span className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>{opt.keys}</span>
+              <div style={{ fontSize: "14px", fontWeight: 900, color: myLaneCount === opt.count ? opt.color : "rgba(255,255,255,0.5)" }}>{opt.label}</div>
+              <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", fontFamily: "Arial,sans-serif", marginTop: "2px" }}>{opt.keys}</div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Lista de jogadores */}
-      <div className="flex flex-col gap-2 w-80">
+      {/* Players list */}
+      <div style={{ width: "min(340px,85vw)", display: "flex", flexDirection: "column", gap: "6px" }}>
         {players.map((p) => {
-          const laneOpt = LANE_OPTIONS.find(o => o.count === (p.laneCount ?? 5))
+          const laneOpt = LANE_OPTIONS.find(o => o.count === ((p as any).laneCount ?? 5))
+          const isMe = p.id === myId
           return (
-            <div key={p.id} className="flex items-center justify-between px-4 py-3 rounded-xl"
-              style={{ background: p.ready ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.04)",
-                border: p.ready ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,255,255,0.08)" }}>
+            <div key={p.id} style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "10px 14px", borderRadius: "10px",
+              background: p.ready ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.03)",
+              border: p.ready ? "1px solid rgba(34,197,94,0.35)" : "1px solid rgba(255,255,255,0.07)",
+              transition: "all 0.2s",
+            }}>
               <div>
-                <p className="text-sm font-bold text-white">{p.name}{p.id === myId ? " (você)" : ""}</p>
-                <p className="text-[10px]" style={{ color: laneOpt ? laneOpt.color + "aa" : "rgba(255,255,255,0.3)" }}>
-                  {p.id === hostId ? "👑 " : ""}{laneOpt?.label ?? "Normal"} — {laneOpt?.desc ?? "5 lanes"}
+                <p style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: isMe ? "#fff" : "rgba(255,255,255,0.75)",
+                  fontFamily: "Arial,sans-serif" }}>
+                  {p.id === hostId ? "👑 " : ""}{isMe ? `${p.name} (você)` : p.name}
+                </p>
+                <p style={{ margin: 0, fontSize: "10px", color: laneOpt ? laneOpt.color + "99" : "rgba(255,255,255,0.3)",
+                  fontFamily: "Arial,sans-serif" }}>
+                  {laneOpt?.label ?? "Normal"} — {laneOpt?.desc ?? "5 lanes"}
                 </p>
               </div>
               {p.ready
-                ? <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ background: "rgba(34,197,94,0.2)", color: "#4ade80" }}>✓ Pronto</span>
-                : <span className="text-xs animate-pulse" style={{ color: "rgba(255,255,255,0.3)" }}>aguardando...</span>}
+                ? <span style={{ fontSize: "11px", fontWeight: 900, padding: "3px 10px", borderRadius: "20px",
+                    background: "rgba(34,197,94,0.2)", color: "#4ade80", fontFamily: "Impact,sans-serif", letterSpacing: "0.05em" }}>
+                    ✓ PRONTO
+                  </span>
+                : <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", fontFamily: "Arial,sans-serif",
+                    animation: "pulse 1.5s ease-in-out infinite" }}>
+                    aguardando...
+                  </span>}
             </div>
           )
         })}
       </div>
 
-      {!iAmReady && (
-        <button onClick={onReady} className="w-80 h-12 rounded-2xl font-black text-sm tracking-wide transition-all hover:scale-[1.02] active:scale-[0.98]"
-          style={{ background: "linear-gradient(135deg,#22c55e,#16a34a)", color: "#fff", boxShadow: "0 0 24px rgba(34,197,94,0.3)" }}>
+      {/* Ready progress bar */}
+      <div style={{ width: "min(340px,85vw)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+          <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", fontFamily: "Arial,sans-serif" }}>
+            Prontos
+          </span>
+          <span style={{ fontSize: "10px", color: allReady ? "#4ade80" : "rgba(255,255,255,0.3)", fontFamily: "Arial,sans-serif", fontWeight: 700 }}>
+            {readyCount}/{totalCount}
+          </span>
+        </div>
+        <div style={{ height: "4px", background: "rgba(255,255,255,0.07)", borderRadius: "2px", overflow: "hidden" }}>
+          <div style={{
+            height: "100%", borderRadius: "2px", transition: "width 0.3s ease",
+            width: totalCount > 0 ? `${(readyCount/totalCount)*100}%` : "0%",
+            background: allReady ? "linear-gradient(90deg,#22c55e,#4ade80)" : "linear-gradient(90deg,#e8b840,#f97316)",
+            boxShadow: allReady ? "0 0 8px #22c55e" : "none",
+          }}/>
+        </div>
+      </div>
+
+      {/* Ready / waiting buttons */}
+      {!iAmReady ? (
+        <button onClick={onReady}
+          style={{
+            width: "min(340px,85vw)", height: "52px", borderRadius: "12px", cursor: "pointer",
+            background: "linear-gradient(135deg,#22c55e,#16a34a)", color: "#fff", border: "none",
+            fontFamily: "Impact,sans-serif", fontSize: "18px", fontWeight: 900, letterSpacing: "0.1em",
+            boxShadow: "0 0 24px rgba(34,197,94,0.4), inset 0 1px 0 rgba(255,255,255,0.2)",
+            transition: "transform 0.1s",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.transform="scale(1.02)")}
+          onMouseLeave={e => (e.currentTarget.style.transform="scale(1)")}>
           ✓ Estou Pronto
         </button>
+      ) : allReady ? (
+        <div style={{ textAlign: "center", animation: "pulse 0.5s ease-in-out infinite alternate" }}>
+          <p style={{ fontSize: "16px", fontWeight: 900, color: "#4ade80", fontFamily: "Impact,sans-serif",
+            letterSpacing: "0.1em", textShadow: "0 0 20px rgba(74,222,128,0.8)" }}>
+            🎸 INICIANDO...
+          </p>
+        </div>
+      ) : (
+        <div style={{
+          width: "min(340px,85vw)", height: "52px", borderRadius: "12px",
+          background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+        }}>
+          <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#e8c060",
+            animation: "pulse 1s ease-in-out infinite" }}/>
+          <p style={{ margin: 0, fontSize: "13px", color: "rgba(255,255,255,0.4)", fontFamily: "Arial,sans-serif" }}>
+            Aguardando outros jogadores...
+          </p>
+        </div>
       )}
 
-      {isHost && allReady && (
-        <button onClick={onStart} className="w-80 h-14 rounded-2xl font-black text-lg tracking-wide transition-all hover:scale-[1.02] active:scale-[0.98]"
-          style={{ background: "linear-gradient(135deg,#e11d48,#be123c)", color: "#fff", boxShadow: "0 0 30px rgba(225,29,72,0.4)" }}>
-          🎸 Iniciar Batalha!
-        </button>
-      )}
-      {isHost && !allReady && iAmReady && (
-        <p className="text-xs animate-pulse" style={{ color: "rgba(255,255,255,0.25)" }}>Aguardando outros jogadores...</p>
-      )}
-      {!isHost && iAmReady && (
-        <p className="text-xs animate-pulse" style={{ color: "rgba(255,255,255,0.25)" }}>Aguardando o anfitrião iniciar...</p>
-      )}
+      <button onClick={onBack} style={{ fontSize: "11px", color: "rgba(255,255,255,0.2)",
+        background: "none", border: "none", cursor: "pointer", fontFamily: "Arial,sans-serif", marginTop: "4px" }}>
+        ← Voltar
+      </button>
 
-      <button onClick={onBack} className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.2)" }}>← Voltar</button>
+      <style>{`@keyframes pulse { 0%,100%{opacity:0.6} 50%{opacity:1} }`}</style>
     </div>
   )
 }
@@ -384,13 +453,22 @@ function PlayInner() {
     load()
   }, [trackId, roomCode])
 
-  // Busca sala ao montar
+  // Busca sala via WebSocket ao montar
   useEffect(() => {
     if (!roomCode) return
-    fetch(`/api/rooms/${roomCode}`).then(r => r.json()).then(room => {
+    const socket = getSocket()
+    socket.emit("get-room", { code: roomCode }, (room: RoomSnapshot | null) => {
+      if (!room) return
       setRoomSnapshot(room)
       if (room.state === "playing") setGameStarted(true)
-    }).catch(() => {})
+    })
+    // Listen for game-start from host
+    const onGameStart = (room: RoomSnapshot) => {
+      setRoomSnapshot(room)
+      setGameStarted(true)
+    }
+    socket.on("game-start", onGameStart)
+    return () => { socket.off("game-start", onGameStart) }
   }, [roomCode])
 
   // WebSocket multiplayer sync
@@ -430,10 +508,15 @@ function PlayInner() {
       setRoomSnapshot(room)
     }
 
+    const onRoomUpdate = (room: RoomSnapshot) => {
+      setRoomSnapshot(room)
+    }
+
     socket.on("scores-update", onScoresUpdate)
     socket.on("game-paused",   onPaused)
     socket.on("game-resumed",  onResumed)
     socket.on("player-left",   onPlayerLeft)
+    socket.on("room-update",   onRoomUpdate)
 
     return () => {
       clearInterval(pushScore)
@@ -441,6 +524,7 @@ function PlayInner() {
       socket.off("game-paused",   onPaused)
       socket.off("game-resumed",  onResumed)
       socket.off("player-left",   onPlayerLeft)
+      socket.off("room-update",   onRoomUpdate)
     }
   }, [roomCode, playerId, gameStarted])
 
@@ -467,30 +551,21 @@ function PlayInner() {
 
   const handleLaneChange = useCallback((n: 4|5|6) => setLaneCount(n), [])
 
-  const handleReady = useCallback(async () => {
+  const handleReady = useCallback(() => {
     if (!roomCode || !playerId) return
     setIAmReady(true)
+    // Update local state optimistically
     setRoomSnapshot(prev => prev ? {
       ...prev,
       players: prev.players.map(p => p.id === playerId ? { ...p, ready: true, laneCount } : p)
     } : prev)
-    try {
-      await fetch(`/api/rooms/${roomCode}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "instrument", playerId, instrument: `lanes_${laneCount}` }),
-      })
-    } catch {}
+    // Tell server via WebSocket
+    getSocket().emit("player-ready", { code: roomCode, playerId, laneCount })
   }, [roomCode, playerId, laneCount])
 
-  const handleStart = useCallback(async () => {
+  const handleStart = useCallback(() => {
     if (!roomCode || !playerId) return
-    try {
-      await fetch(`/api/rooms/${roomCode}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "setState", state: "playing" }),
-      })
-      setGameStarted(true)
-    } catch {}
+    getSocket().emit("start-game", { code: roomCode })
   }, [roomCode, playerId])
 
   const handlePause = useCallback(() => {
@@ -651,7 +726,6 @@ function PlayInner() {
               myLaneCount={laneCount}
               iAmReady={iAmReady}
               onReady={handleReady}
-              onStart={handleStart}
               onBack={handleBack}
               onLaneChange={handleLaneChange}
             />
