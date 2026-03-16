@@ -2,113 +2,131 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Plus, LogIn } from "lucide-react"
-import { GHBackground, GHLogo, GHBackButton, GHCard, GHSectionTitle, GHInput, GHButton } from "@/components/ui/gh-layout"
+import { GHBackground, GHLogo, GHBackButton, GHCard, GHSectionTitle, GHInput, GHButton, GHBottomBar } from "@/components/ui/gh-layout"
+import { getSocket } from "@/lib/multiplayer/socket-client"
+import { playClickSound } from "@/lib/game/sounds"
+import { loadSettings } from "@/lib/settings"
+
+function getVol() { try { const s=loadSettings(); return (s.masterVolume/100)*(s.sfxVolume/100) } catch { return .5 } }
 
 export default function LobbyPage() {
   const router = useRouter()
   const [playerName, setPlayerName] = useState(() => typeof window!=="undefined" ? sessionStorage.getItem("playerName")||"" : "")
-  const [joinCode, setJoinCode] = useState("")
-  const [maxPlayers, setMaxPlayers] = useState<2|3|4>(4)
-  const [loading, setLoading] = useState<"create"|"join"|null>(null)
-  const [error, setError] = useState("")
+  const [joinCode,   setJoinCode]   = useState("")
+  const [maxPlayers, setMaxPlayers] = useState<2|3|4>(2)
+  const [loading,    setLoading]    = useState<"create"|"join"|null>(null)
+  const [error,      setError]      = useState("")
 
-  async function handleCreate() {
+  function handleCreate() {
     if (!playerName.trim()) { setError("Digite seu nome"); return }
     setLoading("create"); setError("")
-    try {
-      const res = await fetch("/api/rooms",{ method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ action:"create", playerName:playerName.trim(), maxPlayers }) })
-      const data = await res.json()
-      if (!data.success) throw new Error(data.error)
-      sessionStorage.setItem("playerId",data.playerId); sessionStorage.setItem("playerName",playerName.trim())
-      router.push(`/room/${data.room.code}`)
-    } catch(e) { setError(e instanceof Error ? e.message : "Erro ao criar sala") }
-    finally { setLoading(null) }
+    const socket = getSocket()
+    socket.emit("create-room", { playerName: playerName.trim(), maxPlayers }, (res: any) => {
+      setLoading(null)
+      if (!res?.success) { setError(res?.error || "Erro ao criar sala"); return }
+      sessionStorage.setItem("playerId", res.playerId)
+      sessionStorage.setItem("playerName", playerName.trim())
+      router.push(`/room/${res.room.code}`)
+    })
   }
 
-  async function handleJoin() {
+  function handleJoin() {
     if (!playerName.trim()) { setError("Digite seu nome"); return }
-    if (!joinCode.trim()) { setError("Digite o código da sala"); return }
+    if (!joinCode.trim())   { setError("Digite o código da sala"); return }
     setLoading("join"); setError("")
-    try {
-      const res = await fetch("/api/rooms",{ method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ action:"join", code:joinCode.trim().toUpperCase(), playerName:playerName.trim() }) })
-      const data = await res.json()
-      if (!data.success) throw new Error(data.error)
-      sessionStorage.setItem("playerId",data.playerId); sessionStorage.setItem("playerName",playerName.trim())
-      router.push(`/room/${data.room.code}`)
-    } catch(e) { setError(e instanceof Error ? e.message : "Sala não encontrada ou cheia") }
-    finally { setLoading(null) }
+    const socket = getSocket()
+    socket.emit("join-room", { code: joinCode.trim().toUpperCase(), playerName: playerName.trim() }, (res: any) => {
+      setLoading(null)
+      if (!res?.success) { setError(res?.error || "Sala não encontrada"); return }
+      sessionStorage.setItem("playerId", res.playerId)
+      sessionStorage.setItem("playerName", playerName.trim())
+      router.push(`/room/${res.room.code}`)
+    })
   }
 
   return (
     <GHBackground>
-      <div className="flex flex-col h-full items-center justify-center px-4">
-
-        {/* Logo + back */}
-        <div className="absolute top-5 left-6"><GHBackButton label="Menu" href="/" /></div>
+      <div style={{padding:"12px 20px 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <GHBackButton label="Menu" href="/" />
         <GHLogo size="sm" />
+        <div style={{width:"80px"}}/>
+      </div>
 
-        <div className="mt-6 w-full max-w-sm">
-          <GHSectionTitle>⚔️ Multiplayer</GHSectionTitle>
+      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 16px"}}>
+        <div style={{width:"min(400px,90vw)",animation:"gh3-in .4s cubic-bezier(.34,1.56,.64,1) .05s both"}}>
+          <GHSectionTitle>⚔️ MULTIPLAYER</GHSectionTitle>
+          <GHCard>
+            <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
+              <GHInput label="Seu Nome" value={playerName}
+                onChange={e=>setPlayerName(e.target.value)}
+                placeholder="Ex: RockStar99" maxLength={16}
+                onKeyDown={e=>e.key==="Enter"&&handleCreate()} />
 
-          <GHCard className="p-5 flex flex-col gap-4">
-            {/* Nome */}
-            <GHInput label="Seu nome" value={playerName} onChange={e=>setPlayerName(e.target.value)}
-              placeholder="Ex: RockStar99" maxLength={16} onKeyDown={e=>e.key==="Enter"&&handleCreate()} />
-
-            {/* Nº jogadores */}
-            <div>
-              <label className="block mb-2 text-[10px] uppercase tracking-[.3em]"
-                style={{ color:"rgba(255,180,100,.6)", fontFamily:"'Arial Black',sans-serif" }}>
-                Jogadores na sala
-              </label>
-              <div className="flex gap-2">
-                {([2,3,4] as const).map(n=>(
-                  <button key={n} onClick={()=>setMaxPlayers(n)}
-                    className="flex-1 h-10 font-black text-sm transition-all hover:scale-105 active:scale-95"
-                    style={{ borderRadius:"4px", fontFamily:"'Impact',sans-serif",
-                      background:maxPlayers===n?"rgba(200,0,20,.35)":"rgba(255,255,255,.05)",
-                      border:`1px solid ${maxPlayers===n?"rgba(255,80,80,.55)":"rgba(255,255,255,.1)"}`,
-                      color:maxPlayers===n?"#ff6060":"rgba(255,255,255,.45)" }}>
-                    {n}v{n}
-                  </button>
-                ))}
+              <div>
+                <label style={{display:"block",marginBottom:"6px",fontSize:"clamp(9px,1.1vw,11px)",
+                  fontWeight:700,letterSpacing:".25em",textTransform:"uppercase",
+                  color:"rgba(205,165,80,.7)",fontFamily:"Arial,sans-serif"}}>
+                  Jogadores na Sala
+                </label>
+                <div style={{display:"flex",gap:"8px"}}>
+                  {([2,3,4] as const).map(n=>(
+                    <button key={n} onClick={()=>setMaxPlayers(n)}
+                      style={{
+                        flex:1,padding:"8px 0",borderRadius:"3px",cursor:"pointer",
+                        background:maxPlayers===n?"linear-gradient(180deg,#cc1010,#8a0808)":"linear-gradient(180deg,#1e1610,#141008)",
+                        border:maxPlayers===n?"1px solid #ff4444":"1px solid #3a2810",
+                        fontFamily:"'Impact',sans-serif",fontWeight:900,
+                        fontSize:"clamp(12px,1.8vw,16px)",letterSpacing:".06em",
+                        color:maxPlayers===n?"#fff":"rgba(180,140,60,.6)",
+                        boxShadow:maxPlayers===n?"0 0 12px rgba(180,0,0,.35),inset 0 1px 0 rgba(255,80,80,.2)":"none",
+                        transition:"all .1s",
+                      }}>{n}v{n}</button>
+                  ))}
+                </div>
               </div>
+
+              <GHButton onClick={handleCreate} disabled={!!loading}>
+                {loading==="create"?"Criando...":"+ Criar Sala"}
+              </GHButton>
+
+              <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                <div style={{flex:1,height:"1px",background:"rgba(120,80,20,.35)"}}/>
+                <span style={{fontSize:"10px",color:"rgba(180,140,60,.5)",fontFamily:"Arial,sans-serif",letterSpacing:".15em"}}>OU</span>
+                <div style={{flex:1,height:"1px",background:"rgba(120,80,20,.35)"}}/>
+              </div>
+
+              <div>
+                <label style={{display:"block",marginBottom:"4px",fontSize:"clamp(9px,1.1vw,11px)",
+                  fontWeight:700,letterSpacing:".25em",textTransform:"uppercase",
+                  color:"rgba(205,165,80,.7)",fontFamily:"Arial,sans-serif"}}>
+                  Código da Sala
+                </label>
+                <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())}
+                  placeholder="EX. ROCK" maxLength={4}
+                  onKeyDown={e=>e.key==="Enter"&&handleJoin()}
+                  style={{
+                    width:"100%",padding:"8px 12px",
+                    background:"#0a0806",border:"1px solid #5a4020",borderRadius:"3px",
+                    color:"#f0e0b0",fontFamily:"'Impact',sans-serif",
+                    fontSize:"clamp(14px,2vw,18px)",letterSpacing:".3em",textTransform:"uppercase",
+                    boxShadow:"inset 0 2px 6px rgba(0,0,0,.5)",outline:"none",textAlign:"center",
+                  }}/>
+              </div>
+
+              <GHButton onClick={handleJoin} disabled={!!loading}>
+                {loading==="join"?"Entrando...":"Entrar na Sala"}
+              </GHButton>
+
+              {error&&(
+                <p style={{textAlign:"center",fontSize:"clamp(10px,1.3vw,13px)",
+                  color:"#ff6060",fontFamily:"Arial,sans-serif",fontWeight:700,
+                  textShadow:"0 0 8px rgba(255,50,50,.5)",margin:0}}>{error}</p>
+              )}
             </div>
-
-            {/* Criar sala */}
-            <GHButton variant="primary" onClick={handleCreate} loading={loading==="create"} disabled={loading!==null}
-              className="w-full">
-              <Plus className="w-4 h-4" /> Criar Sala
-            </GHButton>
-
-            {/* Separador */}
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-px" style={{ background:"rgba(255,255,255,.08)" }} />
-              <span className="text-xs" style={{ color:"rgba(255,255,255,.25)", fontFamily:"'Arial',sans-serif" }}>ou</span>
-              <div className="flex-1 h-px" style={{ background:"rgba(255,255,255,.08)" }} />
-            </div>
-
-            {/* Entrar em sala */}
-            <GHInput label="Código da sala" value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())}
-              placeholder="Ex: ROCK" maxLength={8} onKeyDown={e=>e.key==="Enter"&&handleJoin()} />
-
-            <GHButton variant="secondary" onClick={handleJoin} loading={loading==="join"} disabled={loading!==null}
-              className="w-full">
-              <LogIn className="w-4 h-4" /> Entrar na Sala
-            </GHButton>
-
-            {error && (
-              <p className="text-xs text-center py-2 px-3 rounded"
-                style={{ color:"#ff6060", background:"rgba(255,0,0,.1)", border:"1px solid rgba(255,0,0,.2)", fontFamily:"'Arial',sans-serif" }}>
-                ⚠ {error}
-              </p>
-            )}
           </GHCard>
         </div>
       </div>
+      <GHBottomBar />
     </GHBackground>
   )
 }

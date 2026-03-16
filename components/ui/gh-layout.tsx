@@ -9,231 +9,281 @@ function getVol() {
   try { const s = loadSettings(); return (s.masterVolume/100)*(s.sfxVolume/100) } catch { return 0.5 }
 }
 
-// ── Canvas de fundo animado (chamas + partículas) — compartilhado ─────────────
+// ── GH3-style sepia background ──────────────────────────────────────────────
 export function GHBackground({ children }: { children?: React.ReactNode }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const animRef   = useRef(0)
-  const tsRef     = useRef(0)
+  const cvRef  = useRef<HTMLCanvasElement>(null)
+  const animRef = useRef(0)
 
   useEffect(() => {
-    const canvas = canvasRef.current; if (!canvas) return
-    const ctx = canvas.getContext("2d")!
+    const cv = cvRef.current; if (!cv) return
+    const ctx = cv.getContext("2d")!
+    let W=0, H=0
 
-    const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight }
-    resize(); window.addEventListener("resize", resize)
-
-    type P = { x:number;y:number;vx:number;vy:number;size:number;alpha:number;life:number;maxLife:number;type:"flame"|"ember" }
-    const ps: P[] = []
-
-    function spawn() {
-      const w = canvas.width, h = canvas.height
-      ps.push({ x:Math.random()*w, y:h+8, vx:(Math.random()-.5)*.7, vy:-(1.4+Math.random()*2.2),
-        size:3+Math.random()*10, alpha:.55+Math.random()*.4, life:0, maxLife:70+Math.random()*90,
-        type: Math.random()<.14 ? "ember" : "flame" })
+    const resize = () => {
+      const dpr = window.devicePixelRatio||1
+      W=cv.offsetWidth; H=cv.offsetHeight
+      cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr)
+      ctx.scale(dpr,dpr)
     }
+    resize(); window.addEventListener("resize",resize)
 
-    function draw(ts: number) {
-      tsRef.current = ts
-      const w = canvas.width, h = canvas.height
-      const t = ts * .001
+    type P={x:number;y:number;vx:number;vy:number;r:number;a:number;life:number;max:number;ember:boolean}
+    const ps:P[]=[]
+    const spawn=()=>{ const e=Math.random()<0.28; ps.push({
+      x:W*(0.05+Math.random()*.9), y:H*(0.78+Math.random()*.12),
+      vx:(Math.random()-.5)*(e?1.1:.35), vy:-(e?1.4+Math.random()*2.2:.35+Math.random()*.8),
+      r:e?1.5+Math.random()*2.8:18+Math.random()*48,
+      a:e?.65+Math.random()*.3:.022+Math.random()*.042,
+      life:0, max:e?48+Math.random()*48:155+Math.random()*110, ember:e
+    })}
 
-      // Background
-      const bg = ctx.createLinearGradient(0,0,0,h)
-      bg.addColorStop(0,"#000000"); bg.addColorStop(.5,"#0a0004"); bg.addColorStop(1,"#180008")
-      ctx.fillStyle = bg; ctx.fillRect(0,0,w,h)
-
-      // Subtle grid
-      ctx.save(); ctx.globalAlpha = .025
-      for(let i=0;i<8;i++){ ctx.beginPath(); ctx.moveTo((w/7)*i,0); ctx.lineTo((w/7)*i,h); ctx.strokeStyle="#fff"; ctx.lineWidth=1; ctx.stroke() }
-      for(let i=0;i<5;i++){ ctx.beginPath(); ctx.moveTo(0,(h/4)*i); ctx.lineTo(w,(h/4)*i); ctx.strokeStyle="#fff"; ctx.lineWidth=1; ctx.stroke() }
+    const draw=()=>{
+      ctx.clearRect(0,0,W,H)
+      // BG gradient
+      const bg=ctx.createLinearGradient(0,0,0,H)
+      bg.addColorStop(0,"#190d05"); bg.addColorStop(.45,"#281305"); bg.addColorStop(1,"#0e0703")
+      ctx.fillStyle=bg; ctx.fillRect(0,0,W,H)
+      // Side panels
+      ctx.save(); ctx.globalAlpha=.45
+      ctx.fillStyle="#3a2610"
+      ctx.beginPath(); ctx.moveTo(-W*.04,0); ctx.lineTo(W*.26,0); ctx.lineTo(W*.2,H*.78); ctx.lineTo(-W*.04,H*.9); ctx.closePath(); ctx.fill()
+      ctx.beginPath(); ctx.moveTo(W*1.04,0); ctx.lineTo(W*.74,0); ctx.lineTo(W*.8,H*.78); ctx.lineTo(W*1.04,H*.9); ctx.closePath(); ctx.fill()
       ctx.restore()
-
-      // Central glow
-      const pulse = .88 + Math.sin(t*1.1)*.12
-      const glow = ctx.createRadialGradient(w/2,h*.42,0,w/2,h*.42,w*.52*pulse)
-      glow.addColorStop(0,`rgba(190,18,28,${.13*pulse})`); glow.addColorStop(.45,`rgba(140,12,18,${.07*pulse})`); glow.addColorStop(1,"transparent")
-      ctx.fillStyle=glow; ctx.fillRect(0,0,w,h)
-
-      // Light rays
-      ctx.save(); ctx.globalAlpha=.02+Math.sin(t*.65)*.008
-      for(let i=0;i<8;i++){
-        const a=(i/8)*Math.PI*2+t*.07
-        ctx.beginPath(); ctx.moveTo(w/2,h*.42); ctx.lineTo(w/2+Math.cos(a)*w,h*.42+Math.sin(a)*h)
-        ctx.strokeStyle="#ff4400"; ctx.lineWidth=28; ctx.stroke()
+      // Sketch lines on panels
+      ctx.save(); ctx.globalAlpha=.12; ctx.strokeStyle="#7a5525"; ctx.lineWidth=1.2
+      for(let i=0;i<6;i++){
+        ctx.beginPath(); ctx.moveTo(W*.02+Math.random()*W*.2,H*.08+i*H*.13); ctx.lineTo(W*.04+Math.random()*W*.18,H*.16+i*H*.13); ctx.stroke()
+        ctx.beginPath(); ctx.moveTo(W*.78+Math.random()*W*.18,H*.08+i*H*.13); ctx.lineTo(W*.76+Math.random()*W*.18,H*.16+i*H*.13); ctx.stroke()
       }
       ctx.restore()
-
-      // Embers on floor
-      const emCount = Math.floor(5+Math.sin(t*.3)*3)
-      for(let e=0;e<emCount;e++){
-        const ex = ((e*317+ts*.02)%1000)/1000*w
-        const ey = h-.94*h+((e*53)%100)/100*(h*.12)
-        const ea = .08+Math.sin(t*.5+e)*.05
-        ctx.beginPath(); ctx.arc(ex,ey,1+Math.sin(t+e)*.5,0,Math.PI*2)
-        ctx.fillStyle=`rgba(255,160,30,${ea})`; ctx.fill()
-      }
-
-      // Spawn + draw particles
-      if(Math.random()<.32) spawn()
+      // Vignette
+      const vig=ctx.createRadialGradient(W/2,H*.4,0,W/2,H*.4,W*.65)
+      vig.addColorStop(0,"rgba(0,0,0,0)"); vig.addColorStop(1,"rgba(0,0,0,0.72)")
+      ctx.fillStyle=vig; ctx.fillRect(0,0,W,H)
+      // Red top tint
+      const rt=ctx.createLinearGradient(0,0,0,H*.28)
+      rt.addColorStop(0,"rgba(70,12,4,.28)"); rt.addColorStop(1,"transparent")
+      ctx.fillStyle=rt; ctx.fillRect(0,0,W,H*.28)
+      // Particles
+      if(Math.random()<.12) spawn()
       for(let i=ps.length-1;i>=0;i--){
         const p=ps[i]; p.life++
-        if(p.life>=p.maxLife){ps.splice(i,1);continue}
-        const lr=p.life/p.maxLife
-        p.x+=p.vx+Math.sin(p.life*.14)*.28; p.y+=p.vy; p.vy*=.993
-        ctx.save()
-        if(p.type==="flame"){
-          const r=255,g=Math.round(Math.max(0,155*(1-lr*1.3))),b=0
-          ctx.globalAlpha=p.alpha*(1-lr)*(1-lr)
-          const fg=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size*(1-lr*.5))
-          fg.addColorStop(0,`rgba(255,255,200,${p.alpha})`); fg.addColorStop(.3,`rgba(${r},${g},${b},${p.alpha*.8})`); fg.addColorStop(1,"transparent")
-          ctx.fillStyle=fg; ctx.beginPath(); ctx.arc(p.x,p.y,p.size*(1-lr*.5),0,Math.PI*2); ctx.fill()
+        if(p.life>=p.max){ps.splice(i,1);continue}
+        p.x+=p.vx+Math.sin(p.life*.09+i)*.18; p.y+=p.vy; p.vy*=.993
+        if(!p.ember){p.r*=1.003}
+        const lr=p.life/p.max
+        if(p.ember){
+          const fade=(1-lr)*(1-lr)
+          const gv=Math.round(Math.max(0,110*(1-lr*1.5)))
+          ctx.save(); ctx.globalAlpha=p.a*fade*.75
+          const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r)
+          g.addColorStop(0,"rgba(255,240,140,1)"); g.addColorStop(.45,`rgba(255,${gv},0,1)`); g.addColorStop(1,"transparent")
+          ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.restore()
         } else {
-          ctx.globalAlpha=p.alpha*(1-lr)*.85; ctx.fillStyle=`hsl(25,100%,65%)`
-          ctx.shadowColor="rgba(255,120,0,.8)"; ctx.shadowBlur=6
-          ctx.beginPath(); ctx.arc(p.x,p.y,p.size*.35,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0
+          const fade=lr<.14?lr/.14:1-(lr-.14)/.86
+          ctx.save(); ctx.globalAlpha=p.a*fade
+          const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r)
+          g.addColorStop(0,"rgba(48,30,12,.88)"); g.addColorStop(.5,"rgba(28,16,6,.5)"); g.addColorStop(1,"transparent")
+          ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.restore()
         }
-        ctx.restore()
       }
-
-      // Smoke vignette
-      ctx.save()
-      const sv=ctx.createLinearGradient(0,h*.55,0,0)
-      sv.addColorStop(0,"rgba(0,0,0,0)"); sv.addColorStop(.5,"rgba(0,0,0,.18)"); sv.addColorStop(1,"rgba(0,0,0,.55)")
-      ctx.fillStyle=sv; ctx.fillRect(0,0,w,h); ctx.restore()
-
-      // Edge vignette
-      const ev=ctx.createRadialGradient(w/2,h/2,w*.3,w/2,h/2,w*.8)
-      ev.addColorStop(0,"transparent"); ev.addColorStop(1,"rgba(0,0,0,.82)")
-      ctx.fillStyle=ev; ctx.fillRect(0,0,w,h)
-
       animRef.current=requestAnimationFrame(draw)
     }
     animRef.current=requestAnimationFrame(draw)
-    return ()=>{ cancelAnimationFrame(animRef.current); window.removeEventListener("resize",resize) }
+    return()=>{cancelAnimationFrame(animRef.current);window.removeEventListener("resize",resize)}
   },[])
 
   return (
-    <div className="relative w-full h-screen overflow-hidden select-none" style={{ fontFamily:"'Impact','Arial Black',sans-serif", background:"#000" }}>
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-      {/* Scanlines */}
-      <div className="pointer-events-none absolute inset-0 z-10"
-        style={{ backgroundImage:"repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.17) 3px,rgba(0,0,0,.17) 4px)" }} />
-      <div className="relative z-20 w-full h-full">
+    <div className="relative w-full overflow-hidden" style={{height:"100dvh",background:"#0e0703",fontFamily:"'Impact','Arial Black',sans-serif"}}>
+      <canvas ref={cvRef} className="absolute inset-0 w-full h-full" style={{zIndex:0}}/>
+      <div className="relative h-full flex flex-col" style={{zIndex:2}}>{children}</div>
+      <style>{`
+        @keyframes gh3-in  { from{opacity:0;transform:translateY(-16px) scale(.96)} to{opacity:1;transform:none} }
+        @keyframes gh3-up  { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
+        @keyframes gh3-blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+        @keyframes gh3-shine { from{left:-60%} to{left:120%} }
+      `}</style>
+    </div>
+  )
+}
+
+// ── GH3 Logo ────────────────────────────────────────────────────────────────
+export function GHLogo({ size="md" }: { size?:"sm"|"md" }) {
+  const big = size==="md"
+  return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",animation:"gh3-in .45s cubic-bezier(.34,1.56,.64,1) both"}}>
+      <div style={{display:"flex",alignItems:"center",gap:"7px",marginBottom:"1px"}}>
+        <div style={{height:"1px",width:"28px",background:"linear-gradient(90deg,transparent,#c8902a)"}}/>
+        <span style={{color:"#e8b84a",fontSize:"10px",textShadow:"0 0 7px #e8b84a"}}>★</span>
+        <div style={{height:"1px",width:"28px",background:"linear-gradient(90deg,#c8902a,transparent)"}}/>
+      </div>
+      <h1 style={{
+        margin:0,lineHeight:1,
+        fontSize: big ? "clamp(2.4rem,6.5vw,4.4rem)" : "clamp(1.6rem,4.5vw,3rem)",
+        fontFamily:"'Impact','Arial Black',sans-serif",fontWeight:900,letterSpacing:".06em",
+        color:"#f4e6ca",
+        textShadow:"2px 2px 0 #5a2600,4px 4px 0 #3a1600,0 0 25px rgba(210,130,15,.35)",
+        WebkitTextStroke:"1.5px rgba(80,35,5,.55)",
+      }}>GUITAR</h1>
+      <h1 style={{
+        margin:0,lineHeight:1,marginTop:"-5px",
+        fontSize: big ? "clamp(2.6rem,7vw,4.8rem)" : "clamp(1.8rem,5vw,3.2rem)",
+        fontFamily:"'Impact','Arial Black',sans-serif",fontWeight:900,letterSpacing:".06em",
+        background:"linear-gradient(180deg,#ffe055 0%,#d07808 40%,#883000 100%)",
+        WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",
+        filter:"drop-shadow(2px 3px 0 rgba(55,12,0,.95)) drop-shadow(0 0 18px rgba(200,100,5,.45))",
+      }}>DUELS</h1>
+      <p style={{
+        margin:"4px 0 0",fontSize:"clamp(6px,.85vw,9px)",
+        letterSpacing:".5em",textTransform:"uppercase",
+        color:"rgba(205,165,85,.6)",fontFamily:"Arial,sans-serif",fontWeight:700,
+      }}>Batalhas de Guitarra</p>
+    </div>
+  )
+}
+
+// ── GH3 Metal Panel ─────────────────────────────────────────────────────────
+export function GHCard({ children, className, style }: { children:React.ReactNode; className?:string; style?:React.CSSProperties }) {
+  return (
+    <div className={className} style={{
+      background:"linear-gradient(180deg,#3a3028,#1e1610 40%,#151008)",
+      border:"2px solid #5a4020",borderRadius:"6px",
+      boxShadow:"0 0 0 1px #8a6030,0 0 28px rgba(0,0,0,.75),inset 0 1px 0 rgba(180,140,55,.18)",
+      padding:"5px",
+      ...style,
+    }}>
+      <div style={{
+        background:"linear-gradient(180deg,#0d0906,#120c06)",
+        border:"1px solid #2a1c0c",borderRadius:"3px",
+        padding:"10px 12px",
+      }}>
         {children}
       </div>
     </div>
   )
 }
 
-// ── Logo GH3 compacta (usada em sub-telas) ────────────────────────────────────
-export function GHLogo({ size = "sm" }: { size?: "sm" | "md" | "lg" }) {
-  const sizes = { sm: { title:"text-4xl", duels:"text-[2.6rem]" }, md: { title:"text-5xl", duels:"text-6xl" }, lg: { title:"text-[5.5rem]", duels:"text-[5.8rem]" } }
-  const s = sizes[size]
+// ── GH3 Section Title ────────────────────────────────────────────────────────
+export function GHSectionTitle({ children }: { children:React.ReactNode }) {
   return (
-    <div className="flex flex-col items-center leading-none">
-      <h1 className={`${s.title} font-black tracking-tight leading-none`}
-        style={{ fontFamily:"'Impact','Arial Black',sans-serif", color:"#fff",
-          WebkitTextStroke:"2px rgba(200,30,30,.5)",
-          textShadow:"0 0 30px rgba(255,30,0,.8),0 0 60px rgba(200,10,0,.4),3px 3px 0 rgba(120,0,0,.9),6px 6px 0 rgba(60,0,0,.6)",
-          letterSpacing:"-.02em" }}>
-        GUITAR
-      </h1>
-      <h1 className={`${s.duels} font-black tracking-tight leading-none -mt-1`}
-        style={{ fontFamily:"'Impact','Arial Black',sans-serif",
-          background:"linear-gradient(180deg,#ffdd00 0%,#ff8800 40%,#cc3300 100%)",
-          WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
-          filter:"drop-shadow(0 0 18px rgba(255,100,0,.8)) drop-shadow(3px 3px 0 rgba(100,20,0,.9))",
-          letterSpacing:"-.02em" }}>
-        DUELS
-      </h1>
+    <div style={{textAlign:"center",marginBottom:"12px"}}>
+      <h2 style={{
+        margin:0,
+        fontSize:"clamp(12px,2vw,17px)",
+        fontFamily:"'Impact','Arial Black',sans-serif",
+        fontWeight:900,letterSpacing:".18em",textTransform:"uppercase",
+        color:"#e8c060",
+        textShadow:"0 0 14px rgba(220,155,15,.6),0 2px 0 rgba(0,0,0,.9)",
+      }}>{children}</h2>
+      <div style={{height:"1px",background:"linear-gradient(90deg,transparent,rgba(200,150,40,.5),transparent)",marginTop:"4px"}}/>
     </div>
   )
 }
 
-// ── Botão de voltar GH3 ───────────────────────────────────────────────────────
-export function GHBackButton({ label = "Voltar", href = "/" }: { label?: string; href?: string }) {
-  const router = useRouter()
+// ── GH3 Red Button ───────────────────────────────────────────────────────────
+export function GHButton({ children, onClick, disabled, style }: {
+  children:React.ReactNode; onClick?:()=>void; disabled?:boolean; style?:React.CSSProperties
+}) {
   return (
-    <button
-      onClick={() => { playClickSound(getVol()); router.push(href) }}
-      onMouseEnter={() => playHoverSound(getVol())}
-      className="flex items-center gap-2 px-4 py-2 transition-all hover:scale-105 active:scale-95"
-      style={{ fontFamily:"'Impact','Arial Black',sans-serif",
-        background:"linear-gradient(90deg,rgba(180,0,20,.7),rgba(140,0,15,.5))",
-        border:"1px solid rgba(255,80,80,.4)", borderRadius:"4px",
-        color:"rgba(255,180,180,.9)", letterSpacing:".06em", fontSize:"13px",
-        boxShadow:"0 0 12px rgba(200,0,0,.3)" }}>
-      ‹ {label}
+    <button onClick={onClick} disabled={disabled}
+      style={{
+        position:"relative",overflow:"hidden",
+        width:"100%",padding:"10px 24px",
+        background:disabled
+          ?"linear-gradient(180deg,#2a2018,#1a1208)"
+          :"linear-gradient(180deg,#cc1010 0%,#8a0808 40%,#700606 60%,#8a0808 100%)",
+        border:disabled?"1px solid #3a2810":"1px solid #ff4444",
+        borderRadius:"4px",
+        boxShadow:disabled?"none":"0 0 0 1px #660000,0 4px 0 #440000,0 0 20px rgba(180,0,0,.35),inset 0 1px 0 rgba(255,100,100,.3)",
+        cursor:disabled?"not-allowed":"pointer",
+        transform:"translateY(0)",
+        transition:"transform 60ms,box-shadow 60ms",
+        fontFamily:"'Impact','Arial Black',sans-serif",
+        fontSize:"clamp(14px,2.2vw,20px)",
+        fontWeight:900,letterSpacing:".1em",
+        color:disabled?"rgba(200,170,100,.35)":"#ffffff",
+        textShadow:disabled?"none":"0 0 12px rgba(255,180,180,.7),0 2px 0 rgba(0,0,0,.9)",
+        ...style,
+      }}
+      onMouseDown={e=>{if(!disabled)(e.currentTarget.style.transform="translateY(2px)")}}
+      onMouseUp={e=>{(e.currentTarget.style.transform="translateY(0)")}}
+      onMouseLeave={e=>{(e.currentTarget.style.transform="translateY(0)")}}>
+      {/* Shine sweep */}
+      {!disabled&&<div style={{
+        position:"absolute",top:0,left:"-60%",width:"40%",height:"100%",
+        background:"linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent)",
+        animation:"gh3-shine 2.5s linear infinite",
+      }}/>}
+      {children}
     </button>
   )
 }
 
-// ── Card de conteúdo GH3 ──────────────────────────────────────────────────────
-export function GHCard({ children, className="", style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
-  return (
-    <div className={`relative overflow-hidden ${className}`}
-      style={{ background:"linear-gradient(135deg,rgba(20,8,35,.92),rgba(12,4,22,.95))",
-        border:"1px solid rgba(180,80,255,.18)", borderRadius:"6px",
-        boxShadow:"0 4px 24px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05)",
-        ...style }}>
-      {/* Top colored stripe */}
-      <div className="absolute top-0 left-0 right-0 h-px"
-        style={{ background:"linear-gradient(90deg,transparent,rgba(220,100,255,.5),transparent)" }} />
-      {children}
-    </div>
-  )
-}
-
-// ── Título de seção estilo GH ─────────────────────────────────────────────────
-export function GHSectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-3 mb-4">
-      <div className="h-px flex-1" style={{ background:"linear-gradient(90deg,transparent,rgba(255,60,0,.6))" }} />
-      <h2 className="text-sm tracking-[.3em] uppercase"
-        style={{ fontFamily:"'Arial Black',sans-serif", color:"rgba(255,180,100,.8)", fontWeight:900 }}>
-        {children}
-      </h2>
-      <div className="h-px flex-1" style={{ background:"linear-gradient(90deg,rgba(255,60,0,.6),transparent)" }} />
-    </div>
-  )
-}
-
-// ── Input estilo GH ───────────────────────────────────────────────────────────
-export function GHInput({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+// ── GH3 Input ────────────────────────────────────────────────────────────────
+export function GHInput({ label, value, onChange, placeholder, maxLength, onKeyDown }: {
+  label?:string; value:string; onChange:(e:React.ChangeEvent<HTMLInputElement>)=>void
+  placeholder?:string; maxLength?:number; onKeyDown?:(e:React.KeyboardEvent<HTMLInputElement>)=>void
+}) {
   return (
     <div>
-      <label className="block mb-1.5 text-[10px] uppercase tracking-[.3em]"
-        style={{ color:"rgba(255,180,100,.6)", fontFamily:"'Arial Black',sans-serif" }}>
-        {label}
-      </label>
-      <input {...props}
-        className="w-full h-11 px-4 text-sm font-medium outline-none transition-all"
-        style={{ background:"rgba(255,255,255,.05)", border:"1px solid rgba(255,80,80,.25)",
-          borderRadius:"4px", color:"#fff", fontFamily:"'Arial',sans-serif",
-          ...props.style }} />
+      {label&&<label style={{display:"block",marginBottom:"4px",fontSize:"clamp(9px,1.1vw,11px)",
+        fontWeight:700,letterSpacing:".25em",textTransform:"uppercase",
+        color:"rgba(205,165,80,.7)",fontFamily:"Arial,sans-serif"}}>{label}</label>}
+      <input value={value} onChange={onChange} placeholder={placeholder} maxLength={maxLength} onKeyDown={onKeyDown}
+        style={{
+          width:"100%",padding:"8px 12px",
+          background:"#0a0806",border:"1px solid #5a4020",borderRadius:"3px",
+          color:"#f0e0b0",fontFamily:"Arial,sans-serif",fontSize:"clamp(12px,1.6vw,15px)",
+          boxShadow:"inset 0 2px 6px rgba(0,0,0,.5),0 0 0 1px rgba(200,150,40,.08)",
+          outline:"none",
+        }}/>
     </div>
   )
 }
 
-// ── Botão primário GH (vermelho) ──────────────────────────────────────────────
-export function GHButton({ children, variant="primary", loading=false, ...props }:
-  { children: React.ReactNode; variant?:"primary"|"secondary"|"ghost"; loading?: boolean } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-
-  const base = "flex items-center justify-center gap-2 px-6 h-12 font-black text-sm tracking-wide transition-all hover:scale-[1.02] active:scale-[.97] disabled:opacity-50 relative overflow-hidden"
-
-  const styles = {
-    primary:   { background:"linear-gradient(90deg,#990018,#cc001f,#990018)", border:"2px solid rgba(255,80,80,.55)", color:"#fff", boxShadow:"0 0 20px rgba(200,0,0,.4), inset 0 1px 0 rgba(255,150,150,.2)" },
-    secondary: { background:"linear-gradient(90deg,#111118,#1a1a26,#111118)", border:"1px solid rgba(255,255,255,.12)", color:"rgba(255,255,255,.75)", boxShadow:"0 2px 10px rgba(0,0,0,.5)" },
-    ghost:     { background:"transparent", border:"1px solid rgba(255,80,80,.3)", color:"rgba(255,150,150,.8)" },
-  }
-
+// ── GH3 Back Button ──────────────────────────────────────────────────────────
+export function GHBackButton({ label="Menu", href="/" }: { label?:string; href?:string }) {
+  const router = useRouter()
   return (
-    <button {...props}
-      onMouseEnter={e => { playHoverSound(getVol()); props.onMouseEnter?.(e) }}
-      onClick={e => { playClickSound(getVol()); props.onClick?.(e) }}
-      className={`${base} ${props.className||""}`}
-      style={{ borderRadius:"4px", fontFamily:"'Impact','Arial Black',sans-serif", letterSpacing:".06em", ...styles[variant], ...props.style }}>
-      {loading ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : children}
+    <button onClick={()=>{playClickSound(getVol());router.push(href)}}
+      style={{
+        display:"flex",alignItems:"center",gap:"5px",padding:"5px 10px",
+        background:"rgba(0,0,0,.4)",border:"1px solid rgba(120,80,20,.4)",borderRadius:"3px",
+        color:"rgba(200,165,80,.65)",fontFamily:"'Impact',sans-serif",
+        fontSize:"clamp(10px,1.2vw,13px)",letterSpacing:".08em",cursor:"pointer",
+      }}>
+      ← {label}
     </button>
+  )
+}
+
+// ── GH3 Bottom Controls Bar ──────────────────────────────────────────────────
+export function GHBottomBar() {
+  return (
+    <div style={{
+      display:"flex",flexDirection:"column",alignItems:"center",
+      padding:"4px 0 8px",
+      background:"linear-gradient(180deg,transparent,rgba(5,3,1,.85))",
+    }}>
+      <div style={{display:"flex",alignItems:"center",gap:"clamp(10px,2.5vw,24px)"}}>
+        {[
+          {key:"⬤",color:"#22c55e",label:"SELECT"},
+          {key:"⬤",color:"#ef4444",label:"BACK"},
+          {key:"▬▬",color:"#aaa",label:"UP/DOWN"},
+        ].map((c,i)=>(
+          <div key={i} style={{display:"flex",alignItems:"center",gap:"4px"}}>
+            <span style={{fontSize:i===2?"13px":"9px",color:c.color,textShadow:`0 0 5px ${c.color}`,lineHeight:1}}>{c.key}</span>
+            <span style={{fontSize:"clamp(7px,.85vw,10px)",fontWeight:700,
+              color:"rgba(195,162,100,.65)",fontFamily:"Arial,sans-serif",letterSpacing:".04em"}}>{c.label}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{
+        marginTop:"3px",fontSize:"clamp(9px,1.4vw,13px)",
+        fontFamily:"'Impact','Arial Black',sans-serif",fontWeight:900,letterSpacing:".16em",
+        color:"#e0b840",textShadow:"0 0 14px rgba(215,148,10,.55),0 2px 0 rgba(0,0,0,.9)",
+        animation:"gh3-blink 1.4s ease-in-out infinite",
+      }}>PRESSIONE PARA JOGAR</div>
+    </div>
   )
 }

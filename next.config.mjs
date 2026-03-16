@@ -6,7 +6,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  serverExternalPackages: [],
+  serverExternalPackages: ["socket.io"],
 }
 
 export default nextConfig

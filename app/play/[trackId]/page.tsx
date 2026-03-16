@@ -11,6 +11,7 @@ import { loadSettings } from "@/lib/settings"
 import { saveRecord } from "@/app/history/page"
 import { processGameSession } from "@/lib/progression"
 import { showAchievementToast, showLevelUpToast, showXPToast, ToastContainer } from "@/components/ui/achievement-toast"
+import { getSocket } from "@/lib/multiplayer/socket-client"
 
 function getVol() {
   try { const s = loadSettings(); return (s.masterVolume / 100) * (s.sfxVolume / 100) } catch { return 0.5 }
@@ -392,100 +393,72 @@ function PlayInner() {
     }).catch(() => {})
   }, [roomCode])
 
-  // Polling multiplayer
+  // WebSocket multiplayer sync
   useEffect(() => {
     if (!roomCode || !playerId) return
+    const socket = getSocket()
 
-    // Inicializar lista de jogadores conhecidos
-    if (roomSnapshot) {
-      prevPlayersRef.current = (roomSnapshot.players ?? []).map((p: RoomPlayer) => p.id)
+    // Score push every 500ms via WebSocket (much faster than HTTP polling)
+    const pushScore = setInterval(() => {
+      if (!gameStarted || gameEndedRef.current || isLeavingRef.current) return
+      const s = latestStatsRef.current; if (!s) return
+      socket.emit("score-update", { code: roomCode, playerId, score: s.score, combo: s.combo, rockMeter: s.rockMeter })
+    }, 500)
+
+    // Listen for real-time score updates from other players
+    const onScoresUpdate = ({ players }: { players: RoomPlayer[] }) => {
+      setRoomSnapshot(prev => prev ? { ...prev, players } : prev)
     }
 
-    const pushScore = setInterval(async () => {
-      if (!gameStarted) return
-      const s = latestStatsRef.current; if (!s) return
-      try {
-        // Envia score + heartbeat junto para economizar requests
-        await fetch(`/api/rooms/${roomCode}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "score", playerId, score: s.score, combo: s.combo, rockMeter: s.rockMeter }),
-        })
-      } catch {}
-    }, 2000)
+    // Listen for pause/resume
+    const onPaused = ({ pausedBy, players }: { pausedBy: string; players: RoomPlayer[] }) => {
+      gamePausedRef.current = true
+      setGamePaused(true)
+      setRoomSnapshot(prev => prev ? { ...prev, state: "paused", pausedBy, players } : prev)
+    }
+    const onResumed = () => {
+      gamePausedRef.current = false
+      setGamePaused(false)
+      setRoomSnapshot(prev => prev ? { ...prev, state: "playing", pausedBy: null } : prev)
+    }
 
-    // Heartbeat separado a cada 3s para detectar desconexão
-    const heartbeatInterval = setInterval(async () => {
-      if (gameEndedRef.current || isLeavingRef.current) return
-      try {
-        await fetch(`/api/rooms/${roomCode}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "heartbeat", playerId }),
-        })
-      } catch {}
-    }, 5000)
+    // Player left notification
+    const onPlayerLeft = ({ playerId: leftId, room }: { playerId: string; room: RoomSnapshot }) => {
+      const name = roomSnapshot?.players.find(p => p.id === leftId)?.name ?? "Jogador"
+      setLeftPlayers(prev => [...prev, name])
+      setTimeout(() => setLeftPlayers([]), 4000)
+      setRoomSnapshot(room)
+    }
 
-    const pollRoom = setInterval(async () => {
-      if (gameEndedRef.current || isLeavingRef.current) return
-      try {
-        const res = await fetch(`/api/rooms/${roomCode}`)
-        if (!res.ok) return
-        const room: RoomSnapshot = await res.json()
-
-        // Detectar jogadores que saíram
-        const currentIds = room.players.map((p: RoomPlayer) => p.id)
-        const prev = prevPlayersRef.current
-        if (prev.length > 0) {
-          const saíram = prev.filter(id => id !== playerId && !currentIds.includes(id))
-          if (saíram.length > 0) {
-            // Buscar nomes dos que saíram pelo snapshot anterior
-            const prevSnap = roomSnapshot
-            const names = saíram.map(id => {
-              const p = prevSnap?.players.find((pl: RoomPlayer) => pl.id === id)
-              return p?.name ?? "Jogador"
-            })
-            setLeftPlayers(prev2 => [...prev2, ...names])
-            // Auto-limpar notificação após 4s
-            setTimeout(() => setLeftPlayers([]), 4000)
-          }
-        }
-        prevPlayersRef.current = currentIds
-
-        setRoomSnapshot(room)
-        const nowPaused = room.state === "paused"
-        gamePausedRef.current = nowPaused
-        setGamePaused(nowPaused)
-        if (room.state === "playing" && !gameStarted) setGameStarted(true)
-      } catch {}
-    }, 400)
+    socket.on("scores-update", onScoresUpdate)
+    socket.on("game-paused",   onPaused)
+    socket.on("game-resumed",  onResumed)
+    socket.on("player-left",   onPlayerLeft)
 
     return () => {
       clearInterval(pushScore)
-      clearInterval(heartbeatInterval)
-      clearInterval(pollRoom)
+      socket.off("scores-update", onScoresUpdate)
+      socket.off("game-paused",   onPaused)
+      socket.off("game-resumed",  onResumed)
+      socket.off("player-left",   onPlayerLeft)
     }
   }, [roomCode, playerId, gameStarted])
 
-  // ESC pausa para todos no multiplayer
+  // ESC pausa para todos no multiplayer (via WebSocket)
   useEffect(() => {
     if (!roomCode || !gameStarted) return
-    const onKey = async (e: KeyboardEvent) => {
+    const socket = getSocket()
+    const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return
       e.preventDefault()
       const room = roomSnapshot
       if (!room) return
       if (room.state === "paused" && room.pausedBy === playerId) {
-        // ESC de novo retoma
         playResumeSound(getVol())
-        await fetch(`/api/rooms/${roomCode}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "resume", playerId }),
-        }).catch(() => {})
+        socket.emit("resume-game", { code: roomCode, playerId })
       } else if (room.state === "playing") {
         playPauseSound(getVol())
-        await fetch(`/api/rooms/${roomCode}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "pause", playerId }),
-        }).catch(() => {})
+        socket.emit("pause-game", { code: roomCode, playerId })
       }
     }
     window.addEventListener("keydown", onKey)
@@ -520,37 +493,24 @@ function PlayInner() {
     } catch {}
   }, [roomCode, playerId])
 
-  const handlePause = useCallback(async () => {
+  const handlePause = useCallback(() => {
     if (!roomCode || !playerId) return
     playPauseSound(getVol())
-    try {
-      await fetch(`/api/rooms/${roomCode}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "pause", playerId }),
-      })
-    } catch {}
+    getSocket().emit("pause-game", { code: roomCode, playerId })
   }, [roomCode, playerId])
 
-  const handleResume = useCallback(async () => {
+  const handleResume = useCallback(() => {
     if (!roomCode || !playerId) return
     playResumeSound(getVol())
-    try {
-      await fetch(`/api/rooms/${roomCode}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "resume", playerId }),
-      })
-    } catch {}
+    getSocket().emit("resume-game", { code: roomCode, playerId })
   }, [roomCode, playerId])
 
   const handleScoreUpdate = useCallback((stats: GameStats) => { latestStatsRef.current = stats }, [])
   const handleSongEnd = useCallback((_stats?: GameStats) => {
     gameEndedRef.current = true
-    // Marca a sala como encerrada no Supabase
-    if (roomCode && playerId) {
-      fetch(`/api/rooms/${roomCode}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "setState", state: "ended" }),
-      }).catch(() => {})
+    // Notifica sala via WebSocket
+    if (roomCode) {
+      getSocket().emit("end-game", { code: roomCode })
     }
     const stats = latestStatsRef.current
     if (stats && meta) {
@@ -611,20 +571,12 @@ function PlayInner() {
     }
   }, [meta, laneCount])
 
-  const handleBack = useCallback(async () => {
+  const handleBack = useCallback(() => {
     if (isLeavingRef.current) return
     isLeavingRef.current = true
     if (roomCode && playerId) {
-      try {
-        // Notifica o servidor que este jogador saiu voluntariamente
-        await fetch(`/api/rooms/${roomCode}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "leave", playerId }),
-        })
-      } catch {}
+      getSocket().emit("leave-room", { code: roomCode, playerId })
     }
-    // Se tinha sala, volta para a sala (que mostrará estado ended ou waiting para nova partida)
-    // Se a sala foi deletada, o /room vai redirecionar para /lobby automaticamente
     router.push(roomCode ? `/room/${roomCode}` : "/songs")
   }, [roomCode, playerId, router])
 
