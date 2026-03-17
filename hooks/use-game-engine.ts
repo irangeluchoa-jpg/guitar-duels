@@ -94,6 +94,7 @@ export function useGameEngine({
   const gameTimeRef     = useRef(0)
   const gameStartWallRef = useRef(0)
   const displayScoreRef = useRef(0)    // score animado suave
+  const statsUpdateCounter = useRef(0) // throttle React re-renders
   const lastMissTimeRef = useRef(0)    // timestamp do último miss para flash vermelho
 
   // Mantém refs de speed/showGuide/calibration para o game loop sem re-criar callbacks

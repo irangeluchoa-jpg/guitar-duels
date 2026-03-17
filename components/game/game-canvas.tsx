@@ -42,6 +42,19 @@ interface GameCanvasProps {
 }
 
 export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused, frozen = false, laneCount = 5, isDaily = false, onNextSong, playlistCount = 0, playlistPosition = 0, hideTopBar = false }: GameCanvasProps) {
+  // Unlock audio on first interaction (browser autoplay policy)
+  useEffect(() => {
+    const unlock = () => {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+      ctx.resume().then(() => ctx.close()).catch(() => {})
+    }
+    window.addEventListener("click", unlock, { once: true })
+    window.addEventListener("keydown", unlock, { once: true })
+    return () => {
+      window.removeEventListener("click", unlock)
+      window.removeEventListener("keydown", unlock)
+    }
+  }, [])
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const isLeavingRef = useRef(false)   // impede startGame após navegar para fora
