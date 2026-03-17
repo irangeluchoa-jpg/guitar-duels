@@ -165,7 +165,9 @@ export function useGameEngine({
 
           const newStats = applyHit(statsRef.current, rating)
           statsRef.current = newStats
-          setStats(newStats)
+          // Throttle React re-render — only update every 2 hits for perf
+          statsUpdateCounter.current++
+          if (statsUpdateCounter.current % 2 === 0) setStats(newStats)
           onScoreUpdate?.(newStats)
           if (newStats.combo > 0 && newStats.combo % 10 === 0) {
             playComboSound(newStats.combo, sfxVolRef.current)
@@ -231,7 +233,8 @@ export function useGameEngine({
           note.missed = true
           const newStats = applyHit(statsRef.current, "miss")
           statsRef.current = newStats
-          setStats(newStats)
+          statsUpdateCounter.current++
+          if (statsUpdateCounter.current % 2 === 0) setStats(newStats)
           onScoreUpdate?.(newStats)
           lastMissTimeRef.current = performance.now()  // para flash vermelho
 
@@ -349,6 +352,12 @@ export function useGameEngine({
         return 0
       })(),
     })
+
+    // Sync React stats every 6 frames (~100ms) to reduce re-renders
+    statsUpdateCounter.current++
+    if (statsUpdateCounter.current % 6 === 0) {
+      setStats({ ...statsRef.current })
+    }
 
     animFrameRef.current = requestAnimationFrame(gameLoop)
   }, [canvasRef, getCurrentTime, checkMisses, onSongEnd, audioRef])

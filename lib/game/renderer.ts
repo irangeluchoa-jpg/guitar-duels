@@ -541,7 +541,7 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
   // ── Bordas com glow ────────────────────────────────────────────────────
   ctx.save()
   ctx.shadowColor = starPower ? sp.primary : tc.borderGlow
-  ctx.shadowBlur = 22
+  ctx.shadowBlur = 5
   for (const [bx,tx] of [[tLB,tLT],[tRB,tRT]] as [number,number][]) {
     ctx.beginPath(); ctx.moveTo(bx,hitY); ctx.lineTo(tx,vanishY)
     ctx.strokeStyle = starPower ? `rgba(${sp.primaryRgb},0.90)` : tc.borderColor
@@ -595,7 +595,7 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
 
   ctx.beginPath(); ctx.moveTo(tL,hitY); ctx.lineTo(tR,hitY)
   ctx.strokeStyle=`rgba(${sp.primaryRgb},${0.75*intensity})`; ctx.lineWidth=2.5
-  ctx.shadowColor=sp.primary; ctx.shadowBlur=16*intensity
+  ctx.shadowColor=sp.primary; ctx.shadowBlur=4*intensity
   ctx.stroke(); ctx.shadowBlur=0
 
   // ── Raios nas bordas do fretboard ─────────────────────────────────────
@@ -618,7 +618,7 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
     const bc = useSecondary ? sp.secondaryRgb : sp.primaryRgb
     ctx.strokeStyle=`rgba(${bc},${0.75*intensity})`
     ctx.lineWidth=0.8+Math.abs(Math.sin(phase))*1.5
-    ctx.shadowColor=`rgba(${bc},0.9)`; ctx.shadowBlur=10*intensity; ctx.stroke(); ctx.shadowBlur=0
+    ctx.shadowColor=`rgba(${bc},0.9)`; ctx.shadowBlur=5*intensity; ctx.stroke(); ctx.shadowBlur=0
   }
 
   // ── Partículas na hit line ─────────────────────────────────────────────
@@ -657,7 +657,7 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
       const bc=useSecondary ? sp.secondaryRgb : sp.primaryRgb
       ctx.strokeStyle=`rgba(${bc},${(0.55+Math.abs(Math.sin(phase))*0.35)*intensity})`
       ctx.lineWidth=0.7+Math.abs(Math.sin(phase+b))*1.8
-      ctx.shadowColor=`rgba(${bc},0.95)`; ctx.shadowBlur=14*intensity; ctx.stroke(); ctx.shadowBlur=0
+      ctx.shadowColor=`rgba(${bc},0.95)`; ctx.shadowBlur=7*intensity; ctx.stroke(); ctx.shadowBlur=0
     }
   }
 
@@ -671,17 +671,19 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
       const pr=(1.5+Math.abs(Math.sin(phase*1.8))*3)*intensity
       ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2)
       ctx.fillStyle=`rgba(${sp.primaryRgb},${(0.5+Math.abs(Math.sin(phase*2.5))*0.45)*intensity})`
-      ctx.shadowColor=sp.primary; ctx.shadowBlur=10*intensity; ctx.fill(); ctx.shadowBlur=0
+      ctx.shadowColor=sp.primary; ctx.shadowBlur=5*intensity; ctx.fill(); ctx.shadowBlur=0
     }
   }
 
   // Glow ambiente lateral com cor do tema
+  if (isEvenFrame) {
   const lG=ctx.createLinearGradient(0,0,w*0.18,0)
   lG.addColorStop(0,sp.glowColor.replace("0.14", String(0.14*intensity))); lG.addColorStop(1,"transparent")
   ctx.fillStyle=lG; ctx.fillRect(0,0,w*0.18,h)
   const rG=ctx.createLinearGradient(w*0.82,0,w,0)
   rG.addColorStop(0,"transparent"); rG.addColorStop(1,sp.glowColor.replace("0.14", String(0.14*intensity)))
   ctx.fillStyle=rG; ctx.fillRect(w*0.82,0,w*0.18,h)
+  } // end isEvenFrame SP glow
 
   ctx.restore()
 }
@@ -815,7 +817,7 @@ function _drawNoteGHInner(
   noteShapePath(ctx as CanvasRenderingContext2D, x, y, rx, ry, shape)
   ctx.strokeStyle = rimCol
   ctx.lineWidth = Math.max(1.8, rx * 0.12)
-  ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt * 1.2
+  ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt * 0.7
   ctx.stroke(); ctx.shadowBlur = 0
 
   // Anel interno
@@ -894,14 +896,14 @@ function drawHitTarget(
   outerG.addColorStop(1,    "#0a0a0a")
   ctx.fillStyle = outerG
   ctx.shadowColor = pressed ? c : "rgba(0,0,0,0.8)"
-  ctx.shadowBlur  = pressed ? 18 : 5
+  ctx.shadowBlur  = pressed ? 10 : 3
   ctx.fill(); ctx.shadowBlur = 0
 
   // Borda do outer ring na cor da lane
   ctx.beginPath(); ctx.ellipse(x, hitY, rx + 5, ry + 5, 0, 0, Math.PI*2)
   ctx.strokeStyle = pressed ? `rgba(${cRgb},1.0)` : `rgba(${cRgb},0.75)`
   ctx.lineWidth = pressed ? 3.5 : 2.5
-  ctx.shadowColor = c; ctx.shadowBlur = pressed ? 20 : 10
+  ctx.shadowColor = c; ctx.shadowBlur = pressed ? 12 : 6
   ctx.stroke(); ctx.shadowBlur = 0
 
   // ── Gap escuro entre os aros (WoR signature) ──────────────────────────
@@ -975,7 +977,7 @@ function drawHitTarget(
       flG.addColorStop(0.65, `rgba(${flameRgb},${flameAlpha*0.35})`)
       flG.addColorStop(1,    "transparent")
       ctx.fillStyle = flG
-      ctx.shadowColor = `rgba(${flameRgb},0.8)`; ctx.shadowBlur = 12
+      ctx.shadowColor = `rgba(${flameRgb},0.8)`; ctx.shadowBlur = 6
       ctx.beginPath()
       ctx.moveTo(x - fw, fy)
       ctx.quadraticCurveTo(x - fw*0.3 + dx, fy - fh*0.4, x + dx*0.5, fy - fh)
@@ -995,7 +997,7 @@ function drawHitTarget(
         const sr   = 1.5 + Math.abs(Math.sin(t*6+s))*2.5
         ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2)
         ctx.fillStyle = `rgba(${sparkRgb},0.95)`
-        ctx.shadowColor = `rgba(${sparkRgb},1)`; ctx.shadowBlur = 10
+        ctx.shadowColor = `rgba(${sparkRgb},1)`; ctx.shadowBlur = 5
         ctx.fill(); ctx.shadowBlur = 0
       }
     }
@@ -1124,7 +1126,7 @@ function drawHitExplosion(
     ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2)
     // Alterna entre cor da lane e burst
     ctx.fillStyle = p % 3 === 0 ? color : (isPerfect ? "#ffffff" : burstCol)
-    ctx.shadowColor = p % 3 === 0 ? color : burstCol; ctx.shadowBlur = 12
+    ctx.shadowColor = p % 3 === 0 ? color : burstCol; ctx.shadowBlur = 6
     ctx.fill(); ctx.shadowBlur = 0
   }
 
@@ -1275,7 +1277,9 @@ function drawDiffLabel(ctx: CanvasRenderingContext2D, x: number, y: number, diff
 }
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────────────────────
+let _frameCount = 0
 export function renderFrame(state: RenderState): void {
+  _frameCount++
   const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true, topBarH = 0, lastMissTime = 0, displayScore } = state
   // Usar dimensões CSS (não físicas) para que as coords batam com o ctx já escalado pelo dpr
   const dpr = (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1
@@ -1291,6 +1295,7 @@ export function renderFrame(state: RenderState): void {
   const uiScale = Math.max(0.5, Math.min(1.6, w / 1200))
   const now=performance.now()
   const starPower=stats.combo>=STAR_POWER_COMBO
+  const isEvenFrame = _frameCount % 2 === 0
   const spPal = getSPPalette(highwayTheme)  // paleta SP do tema ativo
   // Limpa o canvas (bordas ficam transparentes — mostra o background da música)
   ctx.clearRect(0, 0, w, h)
@@ -1307,7 +1312,7 @@ export function renderFrame(state: RenderState): void {
 
   // Qualidade de renderização
   ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = "high"
+  ctx.imageSmoothingQuality = "medium"
 
   // ── Câmera shake (star power ativo) ────────────────────────────────────
   let shakeX = 0, shakeY = 0
@@ -1681,7 +1686,7 @@ export function renderFrame(state: RenderState): void {
     if (starPower) {
       ctx.beginPath()
       const steps = 20
-      ctx.shadowColor=spPal.primary; ctx.shadowBlur=10
+      ctx.shadowColor=spPal.primary; ctx.shadowBlur=5
       ctx.strokeStyle=color+"cc"; ctx.lineWidth=2.5*ps.scale
       for (let i=0; i<=steps; i++) {
         const t2=i/steps
@@ -1884,7 +1889,7 @@ export function renderFrame(state: RenderState): void {
         ctx.closePath()
         if (s < filled) {
           ctx.fillStyle = sp ? spPal.starFill2 : "#f59e0b"
-          ctx.shadowColor = sp ? spPal.primary : "#fbbf24"; ctx.shadowBlur = 12
+          ctx.shadowColor = sp ? spPal.primary : "#fbbf24"; ctx.shadowBlur = 6
         } else {
           ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.shadowBlur = 0
         }
@@ -2054,7 +2059,7 @@ export function renderFrame(state: RenderState): void {
         ctx.fillStyle = rc
         ctx.font = `900 ${Math.round(15*uiScale)}px 'Arial Black',Arial,sans-serif`
         ctx.textAlign = "right"; ctx.textBaseline = "middle"
-        ctx.shadowColor = rc; ctx.shadowBlur = 10
+        ctx.shadowColor = rc; ctx.shadowBlur = 5
         ctx.fillText(rL[recent.rating] ?? recent.rating.toUpperCase(), hitX, hitY2)
         ctx.shadowBlur = 0
         ctx.restore()
@@ -2085,7 +2090,7 @@ export function renderFrame(state: RenderState): void {
     ctx.fillStyle = "#ffffff"
     ctx.font = `900 ${Math.round(17*uiScale)}px 'Arial Black',Arial,sans-serif`
     ctx.textAlign = "center"; ctx.textBaseline = "middle"
-    ctx.shadowColor = sp2 ? spPal.primary : "#38bdf8"; ctx.shadowBlur = 12
+    ctx.shadowColor = sp2 ? spPal.primary : "#38bdf8"; ctx.shadowBlur = 6
     ctx.fillText(`${stats.multiplier}x`, mulX, mulY2)
     ctx.shadowBlur = 0
     if (stats.combo > 1) {

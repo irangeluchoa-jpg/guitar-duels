@@ -290,7 +290,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       } else {
         setTimeInfo((t: {current:number;total:number}) => ({ ...t, current: cur }))
       }
-    }, 100)
+    }, 500)
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState])
