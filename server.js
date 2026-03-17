@@ -2,11 +2,21 @@
 const { createServer } = require("http")
 const { Server } = require("socket.io")
 const next = require("next")
-const { nanoid } = require("nanoid")
 
 const dev = process.env.NODE_ENV !== "production"
 const app = next({ dev })
 const handler = app.getRequestHandler()
+
+// Simple ID generator (replaces nanoid to avoid ESM issues)
+function nanoid(size = 8) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let id = ''
+  const bytes = require('crypto').randomBytes(size)
+  for (let i = 0; i < size; i++) {
+    id += chars[bytes[i] % chars.length]
+  }
+  return id
+}
 
 // ── In-memory room store ─────────────────────────────────────────────────────
 // Works because Socket.io guarantees single process (no multi-instance issue)
