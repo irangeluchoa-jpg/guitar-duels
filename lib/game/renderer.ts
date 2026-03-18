@@ -676,14 +676,13 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
   }
 
   // Glow ambiente lateral com cor do tema
-  if (isEvenFrame) {
   const lG=ctx.createLinearGradient(0,0,w*0.18,0)
   lG.addColorStop(0,sp.glowColor.replace("0.14", String(0.14*intensity))); lG.addColorStop(1,"transparent")
   ctx.fillStyle=lG; ctx.fillRect(0,0,w*0.18,h)
   const rG=ctx.createLinearGradient(w*0.82,0,w,0)
   rG.addColorStop(0,"transparent"); rG.addColorStop(1,sp.glowColor.replace("0.14", String(0.14*intensity)))
   ctx.fillStyle=rG; ctx.fillRect(w*0.82,0,w*0.18,h)
-  } // end isEvenFrame SP glow
+
 
   ctx.restore()
 }
@@ -1277,9 +1276,7 @@ function drawDiffLabel(ctx: CanvasRenderingContext2D, x: number, y: number, diff
 }
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────────────────────
-let _frameCount = 0
 export function renderFrame(state: RenderState): void {
-  _frameCount++
   const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true, topBarH = 0, lastMissTime = 0, displayScore } = state
   // Usar dimensões CSS (não físicas) para que as coords batam com o ctx já escalado pelo dpr
   const dpr = (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1
@@ -1295,7 +1292,6 @@ export function renderFrame(state: RenderState): void {
   const uiScale = Math.max(0.5, Math.min(1.6, w / 1200))
   const now=performance.now()
   const starPower=stats.combo>=STAR_POWER_COMBO
-  const isEvenFrame = _frameCount % 2 === 0
   const spPal = getSPPalette(highwayTheme)  // paleta SP do tema ativo
   // Limpa o canvas (bordas ficam transparentes — mostra o background da música)
   ctx.clearRect(0, 0, w, h)
