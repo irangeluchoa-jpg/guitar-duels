@@ -9,16 +9,17 @@ export interface GameSettings {
   noteSpeed: number
   showGuide: boolean
   calibrationOffset: number
-  keyBindings: string[]      // 6 teclas (modo 6 lanes)
-  keyBindings4: string[]     // 4 teclas (modo fácil)
-  keyBindings5: string[]     // 5 teclas (modo normal)
+  keyBindings: string[]
+  keyBindings4: string[]
+  keyBindings5: string[]
   keyboardEnabled: boolean
   gamepadEnabled: boolean
   highwayTheme: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice" | "random" | "level200"
   noteShape: "circle" | "square" | "diamond"
   cameraShake: boolean
-  starPowerLite: boolean   // modo leve: só muda cor das notas, sem efeitos visuais
-  audioOutputDeviceId: string  // "" = default
+  starPowerLite: boolean
+  potatoMode: boolean   // modo batata: desativa todos efeitos pesados, mantém jogabilidade
+  audioOutputDeviceId: string
 }
 
 export const DEFAULT_KEY_BINDINGS  = ["a", "s", "d", "j", "k", "l"]
@@ -41,6 +42,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   noteShape: "circle",
   cameraShake: true,
   starPowerLite: false,
+  potatoMode: false,
   audioOutputDeviceId: "",
 }
 
@@ -64,6 +66,7 @@ export function loadSettings(): GameSettings {
         noteShape:       parsed.noteShape       ?? "circle",
         cameraShake:     parsed.cameraShake     ?? true,
         starPowerLite:   parsed.starPowerLite   ?? false,
+        potatoMode:      parsed.potatoMode      ?? false,
         audioOutputDeviceId: parsed.audioOutputDeviceId ?? "",
       }
     }

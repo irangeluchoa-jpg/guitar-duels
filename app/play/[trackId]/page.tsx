@@ -26,7 +26,7 @@ const LANE_OPTIONS = [
 
 interface RoomPlayer {
   id: string; name: string; score: number; combo: number; rockMeter: number
-  ready?: boolean; instrument?: string; laneCount?: number
+  ready?: boolean; instrument?: string; laneCount?: number; avatarUrl?: string
 }
 interface RoomSnapshot {
   code: string; hostId: string
@@ -40,6 +40,11 @@ function PlayerCard(props: { key?: React.Key; p: RoomPlayer; color: string; isMe
   const { p, color, isMe } = props
   const totalStars = 5
   const filledStars = Math.min(5, Math.floor(p.score / 20000))
+  const hasPhoto = !isMe && p.avatarUrl && p.avatarUrl.startsWith("http")
+  const myPhoto = isMe && typeof window !== "undefined" ? localStorage.getItem("guitar-duels-photo-url") : null
+  const showPhoto = hasPhoto || (isMe && !!myPhoto)
+  const photoSrc = isMe ? myPhoto : p.avatarUrl
+
   return (
     <div className="flex flex-col gap-1.5" style={{ width: 200, animation: "fade-in 0.3s ease" }}>
       <div style={{ height: 3, background: color, borderRadius: 2 }} />
@@ -49,20 +54,36 @@ function PlayerCard(props: { key?: React.Key; p: RoomPlayer; color: string; isMe
         borderRadius: 14, padding: "10px 12px 8px",
         boxShadow: isMe ? `0 0 18px ${color}33` : "none",
       }}>
-        <div className="flex items-center justify-between mb-1">
+        {/* Nome + mini avatar + combo */}
+        <div className="flex items-center gap-2 mb-2">
+          <div style={{
+            width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+            border: `2px solid ${color}66`, overflow: "hidden",
+            background: "rgba(255,255,255,0.08)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            {showPhoto && photoSrc ? (
+              <img src={photoSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <span style={{ fontSize: 12, lineHeight: 1 }}>
+                {isMe ? "🎸" : p.name.charAt(0).toUpperCase()}
+              </span>
+            )}
+          </div>
           <span style={{
-            fontSize: 11, fontWeight: 900, color: isMe ? "#fff" : "rgba(255,255,255,0.65)",
+            fontSize: 11, fontWeight: 900, color: isMe ? "#fff" : "rgba(255,255,255,0.75)",
             fontFamily: "'Arial Black',Arial,sans-serif",
-            maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
             {isMe ? "Você" : p.name}
           </span>
           {p.combo > 1 && (
-            <span style={{ fontSize: 10, fontWeight: 900, color: color, fontFamily: "'Arial Black',Arial" }}>
+            <span style={{ fontSize: 10, fontWeight: 900, color, fontFamily: "'Arial Black',Arial", flexShrink: 0 }}>
               {p.combo}x
             </span>
           )}
         </div>
+        {/* Estrelas */}
         <div className="flex items-center gap-1 mb-1.5">
           {Array.from({ length: totalStars }).map((_, i) => (
             <svg key={i} width={12} height={12} viewBox="0 0 24 24">

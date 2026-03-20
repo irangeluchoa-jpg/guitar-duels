@@ -64,7 +64,7 @@ app.prepare().then(() => {
   io.on("connection", (socket) => {
 
     // ── CREATE ROOM ──────────────────────────────────────────────────────────
-    socket.on("create-room", ({ playerName, maxPlayers, roomName, playerTitle, playerBorder }, cb) => {
+    socket.on("create-room", ({ playerName, maxPlayers, roomName, playerTitle, playerBorder, avatarUrl }, cb) => {
       const playerId = nanoid(8)
       let code = generateCode()
       while (rooms.has(code)) code = generateCode()
@@ -79,6 +79,7 @@ app.prepare().then(() => {
         players: new Map([[playerId, {
           id: playerId, name: playerName || "Jogador",
           title: playerTitle || "", border: playerBorder || "none",
+          avatarUrl: avatarUrl || "",
           score: 0, combo: 0, rockMeter: 50,
           ready: false, socketId: socket.id,
         }]]),
@@ -91,7 +92,7 @@ app.prepare().then(() => {
     })
 
     // ── JOIN ROOM ────────────────────────────────────────────────────────────
-    socket.on("join-room", ({ code, playerName, playerTitle, playerBorder }, cb) => {
+    socket.on("join-room", ({ code, playerName, playerTitle, playerBorder, avatarUrl }, cb) => {
       const room = rooms.get(code?.toUpperCase())
       if (!room) return cb?.({ success: false, error: "Sala não encontrada" })
       if (room.players.size >= room.maxPlayers) return cb?.({ success: false, error: "Sala cheia" })
@@ -101,6 +102,7 @@ app.prepare().then(() => {
       room.players.set(playerId, {
         id: playerId, name: playerName || "Jogador",
         title: playerTitle || "", border: playerBorder || "none",
+        avatarUrl: avatarUrl || "",
         score: 0, combo: 0, rockMeter: 50,
         ready: false, socketId: socket.id,
       })

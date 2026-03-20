@@ -221,6 +221,7 @@ interface RenderState {
   songProgress?: number
   lastMissTime?: number       // timestamp do último miss para flash vermelho
   displayScore?: number       // score animado (contador suave)
+  potatoMode?: boolean        // modo batata: desativa efeitos pesados para PCs fracos
 }
 
 export function getHitLineY(h: number) { return h * HIT_LINE_Y_RATIO }
@@ -754,13 +755,13 @@ function drawNoteGH(
   now: number,
   shape: "circle" | "square" | "diamond" = "circle",
   spColor = "#00ffff",
-  spColorRgb = "0,255,255"
+  spColorRgb = "0,255,255",
+  potato = false
 ) {
   const sp  = starPower
   const rxR = Math.round(rx * 2) / 2
   const ryR = Math.round(ry * 2) / 2
-  // spColor faz parte do cache key — temas diferentes geram notas diferentes
-  const cacheKey = `n:${laneIdx}:${rxR}:${ryR}:${sp?1:0}:${shape}:${sp?spColor:"def"}`
+  const cacheKey = `n:${laneIdx}:${rxR}:${ryR}:${sp?1:0}:${shape}:${sp?spColor:"def"}:${potato?1:0}`
 
   let cached = _noteCache.get(cacheKey)
   if (!cached) {
@@ -772,13 +773,15 @@ function drawNoteGH(
     const ow  = Math.ceil(rxR * 2 + pad * 2)
     const oh  = Math.ceil(ryR * 2 + pad * 2)
     const oc  = new OffscreenCanvas(ow, oh)
-    _drawNoteGHInner(oc.getContext('2d')!, ow / 2, oh / 2, rxR, ryR, laneIdx, sp, shape, spColor)
+    _drawNoteGHInner(oc.getContext('2d')!, ow / 2, oh / 2, rxR, ryR, laneIdx, sp, shape, spColor, potato)
     cached = oc
     _noteCache.set(cacheKey, cached)
   }
 
   // Blit do cache (barato — sem gradientes)
   ctx.drawImage(cached, Math.round(x - cached.width / 2), Math.round(y - cached.height / 2))
+
+  if (potato) return  // modo batata: só o blit, sem corona animada
 
   // Corona pulsante animada (só 1 ellipse fill por nota — custo mínimo)
   const t      = now * 0.003
@@ -802,7 +805,8 @@ function _drawNoteGHInner(
   laneIdx: number,
   sp: boolean,
   shape: "circle" | "square" | "diamond",
-  spColor = "#00ffff"
+  spColor = "#00ffff",
+  potato = false
 ) {
   const laneCol  = NOTE_COLORS[laneIdx]  ?? "#00e5ff"
   const laneAnim = NOTE_ANIM_COLORS[laneIdx] ?? laneCol
@@ -814,20 +818,22 @@ function _drawNoteGHInner(
 
   ctx.save()
 
-  // Glow externo
-  const haloG = (ctx as CanvasRenderingContext2D).createRadialGradient(x, y, rx*0.5, x, y, rx*3.2)
-  haloG.addColorStop(0,   `rgba(${rimAnimRgb},${sp?0.30:0.18})`)
-  haloG.addColorStop(1,   "transparent")
-  ctx.fillStyle = haloG
-  noteShapePath(ctx as CanvasRenderingContext2D, x, y, rx*3.2, ry*3.2, shape); ctx.fill()
+  if (!potato) {
+    // Glow externo (caro — skip no modo batata)
+    const haloG = (ctx as CanvasRenderingContext2D).createRadialGradient(x, y, rx*0.5, x, y, rx*3.2)
+    haloG.addColorStop(0,   `rgba(${rimAnimRgb},${sp?0.30:0.18})`)
+    haloG.addColorStop(1,   "transparent")
+    ctx.fillStyle = haloG
+    noteShapePath(ctx as CanvasRenderingContext2D, x, y, rx*3.2, ry*3.2, shape); ctx.fill()
+  }
 
   // Shadow drop
   ctx.save(); ctx.globalAlpha = 0.35
   ctx.beginPath(); ctx.ellipse(x, y + ry*1.0, rx*0.82, ry*0.20, 0, 0, Math.PI*2)
   ctx.fillStyle = "rgba(0,0,0,1)"; ctx.fill(); ctx.restore()
 
-  // Glow edge
-  ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt
+  // Glow edge — só se não for batata
+  if (!potato) { ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt }
 
   // Base metálica
   const baseG = (ctx as CanvasRenderingContext2D).createRadialGradient(x - rx*0.20, y - ry*0.35, 0, x, y, rx*1.05)
@@ -843,7 +849,7 @@ function _drawNoteGHInner(
   noteShapePath(ctx as CanvasRenderingContext2D, x, y, rx, ry, shape)
   ctx.strokeStyle = rimCol
   ctx.lineWidth = Math.max(1.8, rx * 0.12)
-  ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt * 0.7
+  if (!potato) { ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt * 0.7 }
   ctx.stroke(); ctx.shadowBlur = 0
 
   // Anel interno
@@ -855,21 +861,27 @@ function _drawNoteGHInner(
   ctx.beginPath(); ctx.ellipse(x, y, rx*0.46, ry*0.46, 0, 0, Math.PI*2)
   ctx.fillStyle = "#0a0a0a"; ctx.fill()
 
-  // Dot reflexo
-  const dotG = (ctx as CanvasRenderingContext2D).createRadialGradient(x - rx*0.08, y - ry*0.15, 0, x, y, rx*0.32)
-  dotG.addColorStop(0,    `rgba(${rimRgb},${sp?0.85:0.60})`)
-  dotG.addColorStop(0.5,  `rgba(${rimRgb},0.12)`)
-  dotG.addColorStop(1,    "transparent")
-  ctx.fillStyle = dotG; ctx.fill()
+  if (!potato) {
+    // Dot reflexo (gradiente — caro)
+    const dotG = (ctx as CanvasRenderingContext2D).createRadialGradient(x - rx*0.08, y - ry*0.15, 0, x, y, rx*0.32)
+    dotG.addColorStop(0,    `rgba(${rimRgb},${sp?0.85:0.60})`)
+    dotG.addColorStop(0.5,  `rgba(${rimRgb},0.12)`)
+    dotG.addColorStop(1,    "transparent")
+    ctx.fillStyle = dotG; ctx.fill()
 
-  // Shine especular
-  ctx.save()
-  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2); ctx.clip()
-  const shG = (ctx as CanvasRenderingContext2D).createRadialGradient(x - rx*0.28, y - ry*0.48, 0, x, y - ry*0.1, rx*0.58)
-  shG.addColorStop(0,    "rgba(255,255,255,0.75)")
-  shG.addColorStop(0.18, "rgba(255,255,255,0.18)")
-  shG.addColorStop(1,    "transparent")
-  ctx.fillStyle = shG; ctx.fill(); ctx.restore()
+    // Shine especular
+    ctx.save()
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2); ctx.clip()
+    const shG = (ctx as CanvasRenderingContext2D).createRadialGradient(x - rx*0.28, y - ry*0.48, 0, x, y - ry*0.1, rx*0.58)
+    shG.addColorStop(0,    "rgba(255,255,255,0.75)")
+    shG.addColorStop(0.18, "rgba(255,255,255,0.18)")
+    shG.addColorStop(1,    "transparent")
+    ctx.fillStyle = shG; ctx.fill(); ctx.restore()
+  } else {
+    // Modo batata: só um ponto branco simples no centro como reflexo
+    ctx.beginPath(); ctx.ellipse(x - rx*0.2, y - ry*0.3, rx*0.18, ry*0.18, 0, 0, Math.PI*2)
+    ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.fill()
+  }
 
   ctx.restore()
 }
@@ -883,7 +895,8 @@ function drawHitTarget(
   jumpY: number = 0, scaleX: number = 1, scaleY: number = 1,
   baseRX: number = NOTE_RX_BASE, baseRY: number = NOTE_RY_BASE,
   spColor = "#00ffff",
-  spColorRgb = "0,255,255"
+  spColorRgb = "0,255,255",
+  potato = false
 ) {
   const hitY  = baseHitY - jumpY
   const sp    = starPower
@@ -897,8 +910,8 @@ function drawHitTarget(
 
   ctx.save()
 
-  // ── Glow halo ao pressionar ───────────────────────────────────────────
-  if (pressed) {
+  // ── Glow halo ao pressionar (skip no modo batata)
+  if (pressed && !potato) {
     const halo = ctx.createRadialGradient(x, hitY, 0, x, hitY, rx * 3.5)
     halo.addColorStop(0,   `rgba(${cRgb},0.40)`)
     halo.addColorStop(0.5, `rgba(${cRgb},0.10)`)
@@ -921,15 +934,14 @@ function drawHitTarget(
   outerG.addColorStop(0.6,  "#151515")
   outerG.addColorStop(1,    "#0a0a0a")
   ctx.fillStyle = outerG
-  ctx.shadowColor = pressed ? c : "rgba(0,0,0,0.8)"
-  ctx.shadowBlur  = pressed ? 10 : 3
+  if (!potato) { ctx.shadowColor = pressed ? c : "rgba(0,0,0,0.8)"; ctx.shadowBlur = pressed ? 10 : 3 }
   ctx.fill(); ctx.shadowBlur = 0
 
   // Borda do outer ring na cor da lane
   ctx.beginPath(); ctx.ellipse(x, hitY, rx + 5, ry + 5, 0, 0, Math.PI*2)
   ctx.strokeStyle = pressed ? `rgba(${cRgb},1.0)` : `rgba(${cRgb},0.75)`
   ctx.lineWidth = pressed ? 3.5 : 2.5
-  ctx.shadowColor = c; ctx.shadowBlur = pressed ? 12 : 6
+  if (!potato) { ctx.shadowColor = c; ctx.shadowBlur = pressed ? 12 : 6 }
   ctx.stroke(); ctx.shadowBlur = 0
 
   // ── Gap escuro entre os aros (WoR signature) ──────────────────────────
@@ -1232,7 +1244,7 @@ function getCachedGradient(
 }
 
 export function renderFrame(state: RenderState): void {
-  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true, starPowerLite = false, topBarH = 0, lastMissTime = 0, displayScore } = state
+  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true, starPowerLite = false, topBarH = 0, lastMissTime = 0, displayScore, potatoMode = false } = state
   // Usar dimensões CSS (não físicas) para que as coords batam com o ctx já escalado pelo dpr
   const dpr = (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1
   const w = canvas.width / dpr
@@ -1252,7 +1264,7 @@ export function renderFrame(state: RenderState): void {
   ctx.clearRect(0, 0, w, h)
 
   // ── Miss flash: tela fica vermelha por 300ms ──────────────────────────
-  if (lastMissTime > 0) {
+  if (!potatoMode && lastMissTime > 0) {
     const missAge = now - lastMissTime
     if (missAge < 300) {
       const flashAlpha = (1 - missAge / 300) * 0.18
@@ -1265,7 +1277,7 @@ export function renderFrame(state: RenderState): void {
 
   // ── Câmera shake (star power ativo) ────────────────────────────────────
   let shakeX = 0, shakeY = 0
-  if (cameraShake && starPower && !starPowerLite) {
+  if (cameraShake && starPower && !starPowerLite && !potatoMode) {
     const t = performance.now()
     shakeX = (Math.sin(t * 0.041) * 2 + Math.sin(t * 0.073) * 1.5) * 0.8
     shakeY = (Math.cos(t * 0.031) * 1.5 + Math.cos(t * 0.059) * 1)  * 0.6
@@ -1296,8 +1308,8 @@ export function renderFrame(state: RenderState): void {
   }
   ctx.restore()
 
-  // 2b – Streak de combo: flash de energia subindo pela highway a cada 10 combos
-  {
+  // 2b – Streak de combo: skip no modo batata
+  if (!potatoMode) {
     const combo = stats.combo
     if (combo > 0 && combo % 10 === 0) {
       // Procurar no hitEffects o efeito mais recente para calcular "há quanto tempo bateu o milestone"
@@ -1703,7 +1715,7 @@ export function renderFrame(state: RenderState): void {
       scaleY = 1 + bounce * 0.18              // estica verticalmente (stretch)
     }
 
-    const {rx,ry}=drawHitTarget(ctx,x,hitY,i,pressed,starPower,now,jumpY,scaleX,scaleY,NRX,NRY,spPal.primary,spPal.primaryRgb)
+    const {rx,ry}=drawHitTarget(ctx,x,hitY,i,pressed,starPower,now,jumpY,scaleX,scaleY,NRX,NRY,spPal.primary,spPal.primaryRgb,potatoMode)
     if (showGuide) {
       const label=(keyLabels?.[i]??LANE_LABELS[i]).toUpperCase()
       ctx.fillStyle=pressed?"#fff":"rgba(200,230,210,0.45)"
@@ -1724,7 +1736,7 @@ export function renderFrame(state: RenderState): void {
     const {x,y,scale}=project(lane,Math.max(ahead,0),canvas,ns,LC)
     if (y>hitY+NRY*4) continue
     const rx=NRX*scale, ry=NRY*scale
-    drawNoteGH(ctx,x,y,rx,ry,lane,starPower,now,noteShape,spPal.primary,spPal.primaryRgb)
+    drawNoteGH(ctx,x,y,rx,ry,lane,starPower,now,noteShape,spPal.primary,spPal.primaryRgb,potatoMode)
 
     // reflection removed for performance
   }
@@ -1740,9 +1752,16 @@ export function renderFrame(state: RenderState): void {
     const isMiss=fx.rating==="miss"
     ctx.save()
     if (!isMiss) {
-      // Feixe de luz vertical (como imagem 3)
-      if (prog < 0.6) drawLightBeam(ctx,x,hitY,h,color,prog,alpha)
-      drawHitExplosion(ctx,x,hitY,color,prog,alpha,fx.rating,NRX,NRY,starPower,spPal.primary,spPal.primaryRgb)
+      if (!potatoMode && prog < 0.6) drawLightBeam(ctx,x,hitY,h,color,prog,alpha)
+      if (potatoMode) {
+        // Modo batata: só um flash simples sem shadow
+        const fa = Math.max(0, 1 - prog * 3)
+        ctx.beginPath(); ctx.arc(x, hitY, NRX * (1 + prog * 2), 0, Math.PI*2)
+        ctx.strokeStyle = `${color}${Math.round(fa*180).toString(16).padStart(2,"0")}`
+        ctx.lineWidth = 2; ctx.stroke()
+      } else {
+        drawHitExplosion(ctx,x,hitY,color,prog,alpha,fx.rating,NRX,NRY,starPower,spPal.primary,spPal.primaryRgb)
+      }
     } else {
       const xs=NRX*(1.1+prog*0.35)
       ctx.strokeStyle="#ef4444"+Math.round(alpha*180).toString(16).padStart(2,"0")
@@ -2029,8 +2048,8 @@ export function renderFrame(state: RenderState): void {
     }
   }
 
-  // 10 – Efeitos de borda por tema (decoração ambiente + intensificação em star power)
-  if (highwayTheme !== "default") {
+  // 10 – Efeitos de borda por tema: skip no modo batata
+  if (!potatoMode && highwayTheme !== "default") {
     ctx.save()
     const t = now * 0.001
     const spMult = starPower ? (2.5 + Math.sin(t * 3) * 0.5) : 1  // 2.5x mais intenso em SP

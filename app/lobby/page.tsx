@@ -33,12 +33,14 @@ export default function LobbyPage() {
   function handleCreate() {
     setLoading("create"); setError("")
     const socket = getSocket()
+    const avatarUrl = localStorage.getItem("guitar-duels-photo-url") ?? ""
     socket.emit("create-room", {
       playerName,
       maxPlayers,
       roomName: roomName.trim() || `Sala de ${playerName}`,
       playerTitle: activeTitle?.label ?? "",
       playerBorder: profile?.selectedBorder ?? "none",
+      avatarUrl,
     }, (res: any) => {
       setLoading(null)
       if (!res?.success) { setError(res?.error || "Erro ao criar sala"); return }
@@ -52,11 +54,13 @@ export default function LobbyPage() {
     if (!joinCode.trim()) { setError("Digite o código da sala"); return }
     setLoading("join"); setError("")
     const socket = getSocket()
+    const avatarUrl = localStorage.getItem("guitar-duels-photo-url") ?? ""
     socket.emit("join-room", {
       code: joinCode.trim().toUpperCase(),
       playerName,
       playerTitle: activeTitle?.label ?? "",
       playerBorder: profile?.selectedBorder ?? "none",
+      avatarUrl,
     }, (res: any) => {
       setLoading(null)
       if (!res?.success) { setError(res?.error || "Sala não encontrada"); return }

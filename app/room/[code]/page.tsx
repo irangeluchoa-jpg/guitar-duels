@@ -13,7 +13,7 @@ import { loadProfile, getActiveBorder, getUnlockedTitles } from "@/lib/progressi
 function getVol() { try { const s=loadSettings(); return (s.masterVolume/100)*(s.sfxVolume/100) } catch { return .5 } }
 function fmt(ms: number) { const s=Math.floor(ms/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}` }
 
-interface Player { id:string; name:string; title?:string; border?:string; score:number; combo:number; rockMeter:number; ready:boolean }
+interface Player { id:string; name:string; title?:string; border?:string; avatarUrl?:string; score:number; combo:number; rockMeter:number; ready:boolean }
 interface RoomData {
   code:string; roomName?:string; hostId:string; songId:string|null
   state:"waiting"|"playing"|"paused"|"ended"; pausedBy:string|null
@@ -59,7 +59,8 @@ function PlayerSlot({ p, idx, hostId, playerId }: { p:Player|null; idx:number; h
     <div className="flex flex-col items-center gap-2" style={{animation:"fade-up 0.3s ease both"}}>
       <div className="relative">
         <PlayerAvatar
-          avatar={isMe ? undefined : p.name.charAt(0).toUpperCase()}
+          avatar={isMe ? undefined : (p.avatarUrl && p.avatarUrl.startsWith("http") ? p.avatarUrl : p.name.charAt(0).toUpperCase())}
+          isPhoto={!isMe && !!(p.avatarUrl && p.avatarUrl.startsWith("http"))}
           size={52}
           borderId={isMe
             ? ((typeof window !== "undefined" ? (window as any).__myProfileData?.border : null) ?? p.border ?? "none")

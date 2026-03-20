@@ -70,13 +70,16 @@ export const GameCanvas = React.memo(function GameCanvas({ chart, meta, audioUrl
   // para garantir que mudanças feitas nas settings sejam aplicadas
   const [settings] = useState(() => loadSettings())
   // Resolve random theme client-side only (avoid SSR hydration mismatch)
+  // IMPORTANTE: relê o tema diretamente do localStorage para pegar o valor mais recente,
+  // pois useState() pode ter cachado um valor antigo de antes das settings serem alteradas.
   const [resolvedTheme, setResolvedTheme] = useState(settings.highwayTheme)
   useEffect(() => {
-    if (settings.highwayTheme === "random") {
-      const themes = ["default","neon","fire","space","wood","retro","ice","tattoo","level200"] as const
+    const fresh = loadSettings()  // sempre relê do localStorage
+    if (fresh.highwayTheme === "random") {
+      const themes = ["default","neon","fire","space","wood","retro","ice"] as const
       setResolvedTheme(themes[Math.floor(Math.random() * themes.length)])
     } else {
-      setResolvedTheme(settings.highwayTheme)
+      setResolvedTheme(fresh.highwayTheme)
     }
   }, [])
 
@@ -128,7 +131,8 @@ export const GameCanvas = React.memo(function GameCanvas({ chart, meta, audioUrl
       noteShape: settings.noteShape,
       highwayTheme: resolvedTheme as any,
       cameraShake: settings.cameraShake,
-      starPowerLite: settings.starPowerLite,
+      // starPowerLite é lido direto das settings no renderFrame via potatoMode
+      potatoMode: settings.potatoMode || settings.starPowerLite,
       onSongEnd: (stats) => { onSongEnd?.(stats) },
       onScoreUpdate,
     })
@@ -441,13 +445,19 @@ export const GameCanvas = React.memo(function GameCanvas({ chart, meta, audioUrl
       })()}
 
       {gameState === "playing" && (
-        <div className="absolute top-[72px] right-4 z-10 pointer-events-none">
-          <span
-            className="text-[10px] tracking-widest uppercase"
-            style={{ color: "rgba(255,255,255,0.12)" }}
-          >
+        <div className="absolute top-[72px] right-4 z-10 pointer-events-none flex flex-col items-end gap-1">
+          <span className="text-[10px] tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.12)" }}>
             ESC pausar
           </span>
+          {settings.potatoMode && (
+            <span style={{
+              fontSize: 9, fontWeight: 700, color: "rgba(255,200,80,0.55)",
+              background: "rgba(0,0,0,0.35)", borderRadius: 4,
+              padding: "1px 5px", letterSpacing: "0.08em",
+            }}>
+              🥔 MODO BATATA
+            </span>
+          )}
         </div>
       )}
 

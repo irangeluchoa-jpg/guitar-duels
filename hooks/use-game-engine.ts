@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ChartData as Chart, SongMeta } from "@/lib/songs/types"
 import {
-  type ActiveNote,
-  type GameState,
-  type GameStats,
-  type HitEffect,
-  type HitRating,
-  TIMING_MISS,
   ALL_LANE_KEYS,
   applyHit,
   createInitialStats,
@@ -17,6 +11,13 @@ import {
   getTimingWindows,
   isFullCombo,
   MISS_PENALTY_BASE,
+  type ActiveNote,
+  type GameState,
+  type GameStats,
+  type HitEffect,
+  type HitRating,
+  TIMING_MISS,
+  LANE_COUNT,
 } from "@/lib/game/engine"
 import { renderFrame, getHitLineY, clearFretCache } from "@/lib/game/renderer"
 import { playComboSound, playPauseSound, playResumeSound, playGameOverSound } from "@/lib/game/sounds"
@@ -35,6 +36,7 @@ interface UseGameEngineOptions {
   noteShape?: "circle" | "square" | "diamond"
   highwayTheme?: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice"
   cameraShake?: boolean
+  potatoMode?: boolean
   onSongEnd?: (stats: GameStats) => void
   onScoreUpdate?: (stats: GameStats) => void
 }
@@ -51,6 +53,7 @@ export function useGameEngine({
   noteShape = "circle" as "circle" | "square" | "diamond",
   highwayTheme = "default" as "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice",
   cameraShake = true,
+  potatoMode = false,
   onSongEnd,
   onScoreUpdate,
 }: UseGameEngineOptions) {
@@ -104,6 +107,7 @@ export function useGameEngine({
   const noteShapeRef      = useRef(noteShape)
   const highwayThemeRef   = useRef(highwayTheme)
   const cameraShakeRef    = useRef(cameraShake)
+  const potatoModeRef     = useRef(potatoMode)
   const timingWindowsRef  = useRef(getTimingWindows(meta.difficulty ?? 2))
   useEffect(() => { speedRef.current = speed }, [speed])
   useEffect(() => { showGuideRef.current = showGuide }, [showGuide])
@@ -116,6 +120,7 @@ export function useGameEngine({
     }
   }, [highwayTheme])
   useEffect(() => { cameraShakeRef.current = cameraShake }, [cameraShake])
+  useEffect(() => { potatoModeRef.current = potatoMode }, [potatoMode])
 
   useEffect(() => { gameStateRef.current = gameState }, [gameState])
 
@@ -340,6 +345,8 @@ export function useGameEngine({
       noteShape: noteShapeRef.current,
       highwayTheme: highwayThemeRef.current,
       cameraShake: cameraShakeRef.current,
+      potatoMode: potatoModeRef.current,
+      starPowerLite: potatoModeRef.current || loadSettings().starPowerLite,
       topBarH,
       songMeta: { artist: meta.artist, name: meta.name },
       lastMissTime: lastMissTimeRef.current,

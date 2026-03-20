@@ -472,6 +472,13 @@ export default function SettingsPage() {
             <ToggleRow label="⚡ Star Power Leve"
               description="Desativa partículas, raios e tremedeiras do Star Power — só muda a cor das notas. Ideal para PCs mais fracos."
               value={settings.starPowerLite ?? false} onChange={v => update({ starPowerLite: v })} color="#f97316" />
+
+            <ToggleRow label="🥔 Modo Batata"
+              description="Remove todos os efeitos visuais pesados: explosões, halos, shadows, reflexos, partículas e efeitos de borda. O jogo fica visualmente mais simples mas muito mais fluido em PCs fracos. As notas, highway e HUD continuam bonitos."
+              value={settings.potatoMode ?? false} onChange={v => {
+                // Modo batata implica star power lite — ativar junto
+                update({ potatoMode: v, starPowerLite: v ? true : settings.starPowerLite })
+              }} color="#f59e0b" />
 {/* Tema da Highway */}
             <div className="space-y-2">
               <p className="text-sm text-white font-medium">Tema da Highway</p>
