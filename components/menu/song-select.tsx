@@ -7,6 +7,7 @@ import type { SongListItem } from "@/lib/songs/types"
 import { playClickSound, playHoverSound } from "@/lib/game/sounds"
 import { loadSettings, saveSettings, DEFAULT_KEY_BINDINGS, getKeyBindingsForLanes } from "@/lib/settings"
 import { GHBackground, GHLogo, GHBackButton, GHCard, GHSectionTitle, GHButton } from "@/components/ui/gh-layout"
+import { PlayerCardGH, useLocalPlayerCard } from "@/components/ui/player-card-gh"
 
 function getVol() { try { const s=loadSettings(); return (s.masterVolume/100)*(s.sfxVolume/100) } catch { return .5 } }
 
@@ -81,6 +82,7 @@ export function SongSelect() {
   const [allSettings, setAllSettings] = useState(loadSettings)
   const [songs, setSongs]             = useState<SongListItem[]>([])
   const [sel, setSel]                 = useState(0)
+  const localPlayer = useLocalPlayerCard()
   const [query, setQuery]              = useState("")
   const [filterDiff, setFilterDiff]    = useState<number | null>(null)
   const [sortBy, setSortBy]            = useState<"name" | "difficulty" | "duration">("name")
@@ -348,7 +350,7 @@ export function SongSelect() {
               {/* Ordenação */}
               <div className="flex gap-1">
                 {([["name","A-Z"],["difficulty","Dific."],["duration","Duração"]] as const).map(([key, label]) => (
-                  <button key={key} onClick={() => setSortBy(key)}
+                  <button key={key} onClick={() => { previewAudio?.pause(); setSortBy(key); setSel(0) }}
                     className="flex-1 text-[10px] py-1 rounded-lg font-semibold transition-all"
                     style={{ background: sortBy === key ? "rgba(225,29,72,0.2)" : "rgba(255,255,255,0.04)", color: sortBy === key ? "#e11d48" : "rgba(255,255,255,0.3)", border: sortBy === key ? "1px solid rgba(225,29,72,0.4)" : "1px solid rgba(255,255,255,0.06)" }}>
                     {label}
@@ -699,6 +701,27 @@ export function SongSelect() {
         @keyframes wave-2 { from { height: 8px } to { height: 20px } }
         @keyframes wave-3 { from { height: 5px } to { height: 16px } }
       `}</style>
+
+      {/* Card do jogador — canto inferior esquerdo, estilo GH:Live */}
+      {localPlayer && (
+        <div className="fixed bottom-4 left-4 z-20 pointer-events-none"
+          style={{ animation: "fade-up 0.4s ease both" }}>
+          <PlayerCardGH
+            name={localPlayer.name}
+            avatarUrl={localPlayer.avatarUrl || undefined}
+            level={localPlayer.level}
+            title={localPlayer.title}
+            titleColor={localPlayer.titleColor}
+            titleIcon={localPlayer.titleIcon}
+            borderId={localPlayer.borderId}
+            achievements={localPlayer.achievements}
+            isMe={true}
+            color="#e11d48"
+            size="md"
+            showStats={false}
+          />
+        </div>
+      )}
     </GHBackground>
   )
 }

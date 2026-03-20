@@ -9,9 +9,10 @@ import { getGrade, getAccuracy, isFullCombo } from "@/lib/game/engine"
 import { playPauseSound, playResumeSound } from "@/lib/game/sounds"
 import { loadSettings } from "@/lib/settings"
 import { saveRecord } from "@/app/history/page"
-import { processGameSession } from "@/lib/progression"
+import { processGameSession, SPECIAL_TITLES, loadProfile } from "@/lib/progression"
 import { showAchievementToast, showLevelUpToast, showXPToast, ToastContainer } from "@/components/ui/achievement-toast"
 import { getSocket } from "@/lib/multiplayer/socket-client"
+import { PlayerCardGH } from "@/components/ui/player-card-gh"
 
 function getVol() {
   try { const s = loadSettings(); return (s.masterVolume / 100) * (s.sfxVolume / 100) } catch { return 0.5 }
@@ -35,86 +36,45 @@ interface RoomSnapshot {
   players: RoomPlayer[]
 }
 
-// ── PlayerCard (estilo Fortnite Festival) ────────────────────────────────────
+// PlayerCard agora usa PlayerCardGH internamente
 function PlayerCard(props: { key?: React.Key; p: RoomPlayer; color: string; isMe: boolean }) {
   const { p, color, isMe } = props
-  const totalStars = 5
-  const filledStars = Math.min(5, Math.floor(p.score / 20000))
-  const hasPhoto = !isMe && p.avatarUrl && p.avatarUrl.startsWith("http")
+  // Tentar obter título do jogador (apenas para "eu mesmo")
+  let title: string | undefined
+  let titleColor = "#f59e0b"
+  let titleIcon = "🎸"
+  if (isMe) {
+    try {
+      const profile = loadProfile()
+      const t = SPECIAL_TITLES.find(t2 => t2.id === profile.selectedTitle && t2.check(profile))
+             ?? SPECIAL_TITLES.find(t2 => t2.check(profile))
+      title = t?.label; titleColor = t?.color || "#f59e0b"; titleIcon = t?.icon || "🎸"
+    } catch {}
+  } else {
+    // Usar título enviado via socket se disponível
+    title = (p as RoomPlayer & { title?: string }).title || undefined
+  }
   const myPhoto = isMe && typeof window !== "undefined" ? localStorage.getItem("guitar-duels-photo-url") : null
-  const showPhoto = hasPhoto || (isMe && !!myPhoto)
-  const photoSrc = isMe ? myPhoto : p.avatarUrl
+  const photoSrc = isMe ? (myPhoto || undefined) : (p.avatarUrl && p.avatarUrl.startsWith("http") ? p.avatarUrl : undefined)
 
   return (
-    <div className="flex flex-col gap-1.5" style={{ width: 200, animation: "fade-in 0.3s ease" }}>
-      <div style={{ height: 3, background: color, borderRadius: 2 }} />
-      <div style={{
-        background: "rgba(0,0,0,0.72)", backdropFilter: "blur(16px)",
-        border: `1px solid ${isMe ? color + "55" : "rgba(255,255,255,0.10)"}`,
-        borderRadius: 14, padding: "10px 12px 8px",
-        boxShadow: isMe ? `0 0 18px ${color}33` : "none",
-      }}>
-        {/* Nome + mini avatar + combo */}
-        <div className="flex items-center gap-2 mb-2">
-          <div style={{
-            width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
-            border: `2px solid ${color}66`, overflow: "hidden",
-            background: "rgba(255,255,255,0.08)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            {showPhoto && photoSrc ? (
-              <img src={photoSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            ) : (
-              <span style={{ fontSize: 12, lineHeight: 1 }}>
-                {isMe ? "🎸" : p.name.charAt(0).toUpperCase()}
-              </span>
-            )}
-          </div>
-          <span style={{
-            fontSize: 11, fontWeight: 900, color: isMe ? "#fff" : "rgba(255,255,255,0.75)",
-            fontFamily: "'Arial Black',Arial,sans-serif",
-            flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
-            {isMe ? "Você" : p.name}
-          </span>
-          {p.combo > 1 && (
-            <span style={{ fontSize: 10, fontWeight: 900, color, fontFamily: "'Arial Black',Arial", flexShrink: 0 }}>
-              {p.combo}x
-            </span>
-          )}
-        </div>
-        {/* Estrelas */}
-        <div className="flex items-center gap-1 mb-1.5">
-          {Array.from({ length: totalStars }).map((_, i) => (
-            <svg key={i} width={12} height={12} viewBox="0 0 24 24">
-              <path d="M12 2l2.9 6.2L22 9.2l-5.2 5 1.3 7.2L12 18l-6.1 3.4 1.3-7.2L2 9.2l7.1-1z"
-                fill={i < filledStars ? color : "rgba(255,255,255,0.15)"}
-                style={{ filter: i < filledStars ? `drop-shadow(0 0 3px ${color})` : "none" }} />
-            </svg>
-          ))}
-        </div>
-        <div style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.32)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>
-          PONTUAÇÃO
-        </div>
-        <div style={{
-          fontSize: 22, fontWeight: 900, color: "#ffffff",
-          fontFamily: "'Arial Black',Arial,sans-serif",
-          textShadow: isMe ? `0 0 12px ${color}` : "none", lineHeight: 1,
-        }}>
-          {p.score.toLocaleString()}
-        </div>
-        <div style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 2, marginTop: 8, overflow: "hidden" }}>
-          <div style={{
-            height: "100%", width: `${p.rockMeter}%`,
-            background: p.rockMeter > 60 ? "linear-gradient(90deg,#22c55e,#4ade80)" : p.rockMeter > 30 ? "#f59e0b" : "#ef4444",
-            borderRadius: 2,
-            boxShadow: `0 0 4px ${p.rockMeter > 60 ? "#22c55e" : p.rockMeter > 30 ? "#f59e0b" : "#ef4444"}`,
-          }} />
-        </div>
-      </div>
-    </div>
+    <PlayerCardGH
+      name={isMe ? "Você" : p.name}
+      avatarUrl={photoSrc}
+      title={title}
+      titleColor={titleColor}
+      titleIcon={titleIcon}
+      color={color}
+      score={p.score}
+      combo={p.combo}
+      rockMeter={p.rockMeter}
+      isMe={isMe}
+      showStats={true}
+      size="sm"
+    />
   )
 }
+
 
 // ── MultiplayerHUD ────────────────────────────────────────────────────────────
 const MultiplayerHUD = React.memo(function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResume, canResume, leftPlayers = [] }:
@@ -667,13 +627,26 @@ function PlayInner() {
     }
   }, [meta, laneCount])
 
-  const handleBack = useCallback(() => {
+  const handleBack = useCallback(async () => {
     if (isLeavingRef.current) return
     isLeavingRef.current = true
     if (roomCode && playerId) {
       getSocket().emit("leave-room", { code: roomCode, playerId })
     }
-    router.push(roomCode ? `/room/${roomCode}` : "/songs")
+    if (roomCode) {
+      // Verificar se a sala ainda existe antes de redirecionar
+      try {
+        const res = await fetch(`/api/rooms/${roomCode}`)
+        if (res.ok) {
+          router.push(`/room/${roomCode}`)
+          return
+        }
+      } catch {}
+      // Sala não existe mais — ir direto ao lobby
+      router.push("/lobby")
+    } else {
+      router.push("/songs")
+    }
   }, [roomCode, playerId, router])
 
   // ── Renders ──────────────────────────────────────────────────────────────

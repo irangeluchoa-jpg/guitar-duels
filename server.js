@@ -228,6 +228,9 @@ app.prepare().then(() => {
   })
 })
 
+// Salas "dormentes" aguardando host voltar (deletadas após timeout)
+const _emptyRoomTimers = new Map()
+
 function handleLeave(socket, io, code, playerId) {
   const room = rooms.get(code)
   if (!room) return
@@ -235,8 +238,20 @@ function handleLeave(socket, io, code, playerId) {
   socket.leave(code)
 
   if (room.players.size === 0) {
-    rooms.delete(code)
+    // Não deletar imediatamente — dar 30s para o host voltar ao lobby
+    if (_emptyRoomTimers.has(code)) clearTimeout(_emptyRoomTimers.get(code))
+    const timer = setTimeout(() => {
+      if (rooms.get(code)?.players.size === 0) rooms.delete(code)
+      _emptyRoomTimers.delete(code)
+    }, 30000)
+    _emptyRoomTimers.set(code, timer)
     return
+  }
+
+  // Cancelar timer de deleção se alguém voltou
+  if (_emptyRoomTimers.has(code)) {
+    clearTimeout(_emptyRoomTimers.get(code))
+    _emptyRoomTimers.delete(code)
   }
 
   // Promote new host if needed

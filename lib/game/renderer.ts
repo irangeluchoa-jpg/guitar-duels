@@ -496,7 +496,8 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
   const hwImg = _hwImages[hwKey]
   if (hwImg && hwImg.complete && hwImg.naturalWidth > 0) {
     const iw = hwImg.naturalWidth, ih = hwImg.naturalHeight
-    const COLS = 40, ROWS = 40
+    // 20x20 em vez de 40x40 — metade das operações drawImage com qualidade visual idêntica
+    const COLS = 20, ROWS = 20
     const fH = hitY - vanishY
 
     ctx.save()
@@ -1725,10 +1726,15 @@ export function renderFrame(state: RenderState): void {
     }
   }
 
-  // 7 – Notas (estilo GH:WT — disco achatado + chama)
-  const maxV=2200/ns
-  const visible=notes
-    .filter(n=>!n.hit&&!n.missed&&(n.time-currentTime)>=-TIMING_MISS*2&&(n.time-currentTime)<=maxV)
+  // 7 – Notas visíveis na tela apenas
+  // maxV = janela de tempo visível (ms). Limita ao que realmente aparece na highway
+  const maxV = 2000 / ns  // 2s de antecedência máxima, proporcional à velocidade
+  const missWindow = TIMING_MISS * 2
+  const visible = notes.filter(n =>
+    !n.hit && !n.missed &&
+    (n.time - currentTime) >= -missWindow &&
+    (n.time - currentTime) <= maxV
+  )
 
   for (const note of visible) {
     const ahead=note.time-currentTime
