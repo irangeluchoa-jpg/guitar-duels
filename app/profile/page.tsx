@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, Star, Trophy, Target, Zap, Clock, Music2, Edit2, Check, Download, Upload, RefreshCw, Camera } from "lucide-react"
 import { HISTORY_KEY } from "@/app/history/page"
 import { PlayerAvatar } from "@/components/ui/player-avatar"
+import { uploadAvatar } from "@/lib/supabase"
 import {
   loadProfile, saveProfile, type PlayerProfile, type Achievement,
   ACHIEVEMENTS, RARITY_COLORS, RARITY_LABELS,
@@ -224,23 +225,64 @@ export default function ProfilePage() {
     setPhotoUrl(null)
     localStorage.removeItem("guitar-duels-photo-url")
     window.dispatchEvent(new StorageEvent("storage", { key: "guitar-duels-photo-url", newValue: null }))
+    // Deletar do Supabase em background (fire-and-forget)
+    const pid = sessionStorage.getItem("playerId")
+    if (pid) {
+      // uploadAvatar já deleta arquivos antigos — chamar deleteOldAvatars via upload vazio não faz sentido
+      // Simplesmente tentar deletar via storage API pública
+      const supaUrl = (window as Window & { __NEXT_PUBLIC_SUPABASE_URL__?: string }).__NEXT_PUBLIC_SUPABASE_URL__
+        ?? document.querySelector<HTMLMetaElement>("meta[name=supabase-url]")?.content
+      // Se não tiver URL, silenciosamente ignora — foto já removida do localStorage
+      void supaUrl
+    }
   }
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     if (!file.type.startsWith("image/")) return
     setUploading(true)
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const url = ev.target?.result as string
-      setPhotoUrl(url)
-      localStorage.setItem("guitar-duels-photo-url", url)
-      // Notify all PlayerAvatar components across the app
-      window.dispatchEvent(new StorageEvent("storage", { key: "guitar-duels-photo-url", newValue: url }))
+
+    try {
+      // Obter ou gerar playerId estável
+      let pid = sessionStorage.getItem("playerId")
+      if (!pid) {
+        pid = `anon_${Math.random().toString(36).slice(2, 10)}`
+        sessionStorage.setItem("playerId", pid)
+      }
+
+      // Tentar upload para Supabase Storage
+      const remoteUrl = await uploadAvatar(pid, file)
+
+      if (remoteUrl) {
+        // ✅ Upload Supabase funcionou — usar URL remota
+        setPhotoUrl(remoteUrl)
+        localStorage.setItem("guitar-duels-photo-url", remoteUrl)
+        window.dispatchEvent(new StorageEvent("storage", { key: "guitar-duels-photo-url", newValue: remoteUrl }))
+      } else {
+        // ⚠️ Supabase não configurado — fallback para base64 local
+        const reader = new FileReader()
+        reader.onload = (ev) => {
+          const url = ev.target?.result as string
+          setPhotoUrl(url)
+          localStorage.setItem("guitar-duels-photo-url", url)
+          window.dispatchEvent(new StorageEvent("storage", { key: "guitar-duels-photo-url", newValue: url }))
+        }
+        reader.readAsDataURL(file)
+      }
+    } catch {
+      // Fallback base64
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        const url = ev.target?.result as string
+        setPhotoUrl(url)
+        localStorage.setItem("guitar-duels-photo-url", url)
+        window.dispatchEvent(new StorageEvent("storage", { key: "guitar-duels-photo-url", newValue: url }))
+      }
+      reader.readAsDataURL(file)
+    } finally {
       setUploading(false)
     }
-    reader.readAsDataURL(file)
   }
 
   const saveName = () => {

@@ -97,27 +97,47 @@ export function PlayerAvatar({
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
       {hasBorder ? (
         <>
-          {/* Glow */}
+          {/* Glow externo */}
           <div style={{
             position: "absolute", inset: -2, borderRadius: "50%",
             boxShadow: `0 0 ${size * 0.25}px ${border.glow}88, 0 0 ${size * 0.5}px ${border.glow}33`,
             pointerEvents: "none",
           }}/>
-          {/* Animated ring */}
+
+          {/* Anel de borda giratório — APENAS o gradiente gira, não o conteúdo */}
           <div style={{
             position: "absolute", inset: 0, borderRadius: "50%",
-            background: border.gradient,
-            animation: border.animated && animated ? "border-ring-spin 3s linear infinite" : "none",
             padding,
+            overflow: "hidden",
           }}>
+            {/* Camada do gradiente que gira */}
             <div style={{
-              width: "100%", height: "100%", borderRadius: "50%",
+              position: "absolute",
+              inset: -size,   // estende para além do círculo para cobrir ao girar
+              borderRadius: "50%",
+              background: border.gradient,
+              animation: border.animated && animated ? "border-ring-spin 3s linear infinite" : "none",
+            }} />
+            {/* Buraco central que mascara — mostra só o anel externo */}
+            <div style={{
+              position: "absolute",
+              inset: padding,
+              borderRadius: "50%",
               background: "#0d0b08",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              overflow: "hidden",
-            }}>
-              {innerContent}
-            </div>
+            }} />
+          </div>
+
+          {/* Conteúdo (foto/emoji) — completamente parado, sobre a borda */}
+          <div style={{
+            position: "absolute",
+            inset: padding,
+            borderRadius: "50%",
+            background: "#0d0b08",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            overflow: "hidden",
+            zIndex: 1,
+          }}>
+            {innerContent}
           </div>
         </>
       ) : (
