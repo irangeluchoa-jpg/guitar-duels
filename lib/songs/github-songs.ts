@@ -35,11 +35,14 @@ interface SongIndexEntry {
   audioFiles?: Record<string, string>; albumArtFile?: string; backgroundFile?: string; previewFile?: string
 }
 
+// Cache em memória dos charts para evitar re-fetch durante a sessão
+const _chartCache = new Map<string, string>()
+
 export async function fetchSongsIndex(): Promise<SongIndexEntry[]> {
   if (_indexCache) return _indexCache
   try {
     const url = githubRawUrl("songs-index.json")
-    const res = await fetch(url, { next: { revalidate: 60 } })
+    const res = await fetch(url, { cache: "force-cache" })  // cache imutável
     if (!res.ok) return []
     _indexCache = await res.json()
     return _indexCache ?? []
@@ -86,12 +89,22 @@ export async function getGitHubSongMeta(trackId: string): Promise<SongMeta | nul
 }
 
 export async function getGitHubSongChart(trackId: string): Promise<ChartData | null> {
+  // Cache em memória: chart já carregado nesta sessão não precisa re-fetch
+  if (_chartCache.has(trackId)) {
+    const { parseChart } = await import("./chart-parser")
+    return parseChart(_chartCache.get(trackId)!)
+  }
+
   const { parseChart }     = await import("./chart-parser")
   const { parseMidi }      = await import("./midi-parser")
   // 1. notes.chart
   try {
     const res = await fetch(songFileUrl(trackId, "notes.chart"))
-    if (res.ok) return parseChart(await res.text())
+    if (res.ok) {
+      const text = await res.text()
+      _chartCache.set(trackId, text)
+      return parseChart(text)
+    }
   } catch {}
   // 2. notes.mid
   try {

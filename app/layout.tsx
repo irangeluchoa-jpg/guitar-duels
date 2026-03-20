@@ -30,7 +30,7 @@ export const viewport: Viewport = {
   minimumScale: 1,
   maximumScale: 1,
   userScalable: false,
-  viewportFit: 'cover',   // suporte a notch/safe-area no iPhone
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({
@@ -40,6 +40,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt">
+      <head>
+        {/* Preconnect ao GitHub para carregar songs mais rápido */}
+        <link rel="preconnect" href="https://raw.githubusercontent.com" />
+        <link rel="dns-prefetch" href="https://raw.githubusercontent.com" />
+        {/* Preconnect ao Supabase */}
+        <link rel="dns-prefetch" href="https://supabase.co" />
+      </head>
       <body className="font-sans antialiased">
         {children}
       </body>

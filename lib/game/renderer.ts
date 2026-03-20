@@ -176,8 +176,8 @@ function loadHighwayImages() {
   }
   // Load fretboard skins
   for (const [key, src] of [
-    ["tattoo", "/fretboard-tattoo.png"],
-    ["tiger",  "/fretboard-tiger.png"],
+    ["tattoo", "/fretboard-tattoo.webp"],
+    ["tiger",  "/fretboard-tiger.webp"],
   ] as [string, string][]) {
     const img = new Image()
     img.src = src

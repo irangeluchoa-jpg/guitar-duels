@@ -128,7 +128,25 @@ export function SongSelect() {
   }, [])
   const keyBindings = getKeyBindingsForLanes(allSettings, laneCount)
   useEffect(() => {
-    fetch("/api/songs").then(r => r.json()).then(d => { setSongs(d); setLoading(false) }).catch(() => setLoading(false))
+    // Verificar cache sessionStorage para evitar re-fetch a cada visita à song-select
+    const cached = sessionStorage.getItem("guitar-duels-songs-cache")
+    if (cached) {
+      try {
+        const { data, ts } = JSON.parse(cached)
+        if (Date.now() - ts < 5 * 60 * 1000) {  // válido por 5 minutos
+          setSongs(data); setLoading(false); return
+        }
+      } catch {}
+    }
+    fetch("/api/songs")
+      .then(r => r.json())
+      .then(d => {
+        setSongs(d)
+        setLoading(false)
+        // Cachear no sessionStorage
+        try { sessionStorage.setItem("guitar-duels-songs-cache", JSON.stringify({ data: d, ts: Date.now() })) } catch {}
+      })
+      .catch(() => setLoading(false))
   }, [])
 
   // Probe: quando uma música sem songLength é selecionada, carrega seu audio para pegar duração
