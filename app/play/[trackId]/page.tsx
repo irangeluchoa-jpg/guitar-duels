@@ -96,7 +96,7 @@ function PlayerCard(props: { key?: React.Key; p: RoomPlayer; color: string; isMe
 }
 
 // ── MultiplayerHUD ────────────────────────────────────────────────────────────
-function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResume, canResume, leftPlayers = [] }:
+const MultiplayerHUD = React.memo(function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResume, canResume, leftPlayers = [] }:
   { players: RoomPlayer[]; myId: string; isPaused: boolean; pausedByName: string
     onPause: () => void; onResume: () => void; canResume: boolean; leftPlayers?: string[] }) {
 
@@ -239,7 +239,7 @@ function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResu
       <style>{`@keyframes fade-in { from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)} }`}</style>
     </>
   )
-}
+}) // React.memo MultiplayerHUD
 
 // ── Tela de espera multiplayer ────────────────────────────────────────────────
 function WaitingRoom({ players, myId, hostId, myLaneCount, iAmReady, onReady, onBack, onLaneChange }:

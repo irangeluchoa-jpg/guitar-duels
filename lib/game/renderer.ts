@@ -153,6 +153,12 @@ export function clearFretCache(): void {
 const _hwImages: Record<string, HTMLImageElement | null> = {
   easy: null, hard: null, expert: null
 }
+// Fretboard skin images (decorative overlay on the neck/cable of the guitar)
+const _fretSkins: Record<string, HTMLImageElement | null> = {
+  tattoo: null, tiger: null
+}
+// Which skin is active for current session (random per session)
+let _activeSkin: string | null = null
 let _hwLoaded = false
 
 function loadHighwayImages() {
@@ -165,14 +171,22 @@ function loadHighwayImages() {
   ] as [string, string][]) {
     const img = new Image()
     img.src = src
-    img.onload = () => {
-      _hwImages[key] = img
-      // Invalidate cache so fretboard gets rebuilt with texture
-      _fretCache.clear()
-    }
-    // Store immediately so we can check .complete
+    img.onload = () => { _hwImages[key] = img; _fretCache.clear() }
     _hwImages[key] = img
   }
+  // Load fretboard skins
+  for (const [key, src] of [
+    ["tattoo", "/fretboard-tattoo.png"],
+    ["tiger",  "/fretboard-tiger.png"],
+  ] as [string, string][]) {
+    const img = new Image()
+    img.src = src
+    img.onload = () => { _fretSkins[key] = img; _fretCache.clear() }
+    _fretSkins[key] = img
+  }
+  // Pick random skin for this session
+  const skins = ["tattoo", "tiger"]
+  _activeSkin = skins[Math.floor(Math.random() * skins.length)]
 }
 
 function diffToHwKey(diff: number): string {
@@ -199,8 +213,9 @@ interface RenderState {
   difficulty?: number
   laneCount?: number
   noteShape?: "circle" | "square" | "diamond"
-  highwayTheme?: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice"
+  highwayTheme?: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice" | "random" | "level200"
   cameraShake?: boolean
+  starPowerLite?: boolean
   topBarH?: number
   songMeta?: { artist?: string; name?: string }
   songProgress?: number
@@ -241,14 +256,20 @@ function shade(hex: string, amt: number) {
 }
 
 // ── Helper: hex -> "r,g,b" string ────────────────────────────────────────────
+const _hexToRgbCache = new Map<string,string>()
 function hexToRgb(hex: string): string {
-  // Handle rgb(...) format passthrough
+  const cached = _hexToRgbCache.get(hex)
+  if (cached) return cached
+  let result: string
   if (hex.startsWith("rgb")) {
     const m = hex.match(/\d+/g)
-    return m ? `${m[0]},${m[1]},${m[2]}` : "128,128,128"
+    result = m ? `${m[0]},${m[1]},${m[2]}` : "128,128,128"
+  } else {
+    const n = parseInt(hex.replace("#",""), 16)
+    result = `${(n>>16)&0xff},${(n>>8)&0xff},${n&0xff}`
   }
-  const n = parseInt(hex.replace("#",""), 16)
-  return `${(n>>16)&0xff},${(n>>8)&0xff},${n&0xff}`
+  _hexToRgbCache.set(hex, result)
+  return result
 }
 
 // ── Aranha vetorial no centro do fretboard ────────────────────────────────────
@@ -391,6 +412,48 @@ const HIGHWAY_THEME_CONFIG: Record<string, {
     borderGlow: "rgba(120,210,255,0.95)",
     fogColor: "rgba(0,5,15,0.97)",
   },
+  tattoo: {
+    bgTop: "rgba(10,4,4,1.0)", bgMid: "rgba(15,6,4,1.0)", bgBot: "rgba(20,8,4,1.0)",
+    imgAlpha: 0.55,
+    overlayStops: [
+      ["rgba(0,200,150,0.08)", 0],
+      ["rgba(200,160,40,0.06)", 0.5],
+      ["rgba(0,200,150,0.04)", 1],
+    ],
+    gridColor: "0,200,150",
+    divColor: "rgba(0,180,130,0.40)",
+    borderColor: "rgba(0,200,150,0.90)",
+    borderGlow: "rgba(0,200,150,0.95)",
+    fogColor: "rgba(10,3,3,0.97)",
+  },
+  tiger: {
+    bgTop: "rgba(10,4,0,1.0)", bgMid: "rgba(16,7,0,1.0)", bgBot: "rgba(22,9,0,1.0)",
+    imgAlpha: 0.5,
+    overlayStops: [
+      ["rgba(200,120,32,0.10)", 0],
+      ["rgba(120,60,0,0.08)", 0.5],
+      ["rgba(200,120,32,0.06)", 1],
+    ],
+    gridColor: "200,120,32",
+    divColor: "rgba(180,100,20,0.40)",
+    borderColor: "rgba(200,140,40,0.90)",
+    borderGlow: "rgba(200,140,40,0.95)",
+    fogColor: "rgba(10,4,0,0.97)",
+  },
+  level200: {
+    bgTop: "rgba(0,8,4,1.0)", bgMid: "rgba(0,12,6,1.0)", bgBot: "rgba(0,8,3,1.0)",
+    imgAlpha: 0.4,
+    overlayStops: [
+      ["rgba(0,255,128,0.10)", 0],
+      ["rgba(255,0,144,0.06)", 0.5],
+      ["rgba(0,255,128,0.08)", 1],
+    ],
+    gridColor: "0,255,128",
+    divColor: "rgba(0,255,128,0.45)",
+    borderColor: "rgba(0,255,128,0.95)",
+    borderGlow: "rgba(0,255,128,1.0)",
+    fogColor: "rgba(0,8,3,0.97)",
+  },
 }
 
 function buildFretboard(w: number, h: number, starPower: boolean, diff: number, lc = LANE_COUNT, theme = "default"): OffscreenCanvas {
@@ -412,7 +475,7 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
 
   // ── Fundo base (cor do SP varia com tema) ─────────────────────────────
   {
-    const bg = ctx.createLinearGradient(0, vanishY, 0, hitY)
+    const bg = getCachedGradient(ctx, `bg:${vanishY}:${hitY}`, () => ctx.createLinearGradient(0, vanishY, 0, hitY))
     if (starPower) {
       // Fundo tintado com a cor SP do tema
       const [r,g,b] = sp.primaryRgb.split(",").map(Number)
@@ -490,12 +553,12 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
         // Brilho pulsante nas bordas da highway em SP
         const t0 = Date.now() * 0.001
         const pulse = 0.06 + Math.sin(t0 * 2.5) * 0.03
-        const leftG = ctx.createLinearGradient(tLB, 0, tLB + trackBot * 0.15, 0)
+        const leftG = getCachedGradient(ctx, `leftG:${tLB}:${trackBot}`, () => ctx.createLinearGradient(tLB, 0, tLB + trackBot * 0.15, 0))
         leftG.addColorStop(0, `rgba(${sp.primaryRgb},${pulse})`)
         leftG.addColorStop(1, "transparent")
         ctx.fillStyle = leftG; ctx.fillRect(tLB, vanishY, trackBot * 0.15, hitY - vanishY)
 
-        const rightG = ctx.createLinearGradient(tRB, 0, tRB - trackBot * 0.15, 0)
+        const rightG = getCachedGradient(ctx, `rightG:${tRB}:${trackBot}`, () => ctx.createLinearGradient(tRB, 0, tRB - trackBot * 0.15, 0))
         rightG.addColorStop(0, `rgba(${sp.primaryRgb},${pulse})`)
         rightG.addColorStop(1, "transparent")
         ctx.fillStyle = rightG; ctx.fillRect(tRB - trackBot * 0.15, vanishY, trackBot * 0.15, hitY - vanishY)
@@ -507,7 +570,7 @@ function buildFretboard(w: number, h: number, starPower: boolean, diff: number, 
 
   // Reflexo central
   {
-    const cg = ctx.createRadialGradient(w/2, hitY, 0, w/2, vanishY, trackBot*0.7)
+    const cg = getCachedGradient(ctx, `cg:${w}:${hitY}:${vanishY}:${trackBot}`, () => ctx.createRadialGradient(w/2, hitY, 0, w/2, vanishY, trackBot*0.7))
     cg.addColorStop(0, starPower ? `rgba(${sp.primaryRgb},0.10)` : "rgba(0,160,200,0.04)")
     cg.addColorStop(1, "transparent")
     ctx.fillStyle = cg; ctx.fillRect(0,0,w,h)
@@ -595,17 +658,16 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
 
   ctx.beginPath(); ctx.moveTo(tL,hitY); ctx.lineTo(tR,hitY)
   ctx.strokeStyle=`rgba(${sp.primaryRgb},${0.75*intensity})`; ctx.lineWidth=2.5
-  ctx.shadowColor=sp.primary; ctx.shadowBlur=4*intensity
-  ctx.stroke(); ctx.shadowBlur=0
+  ctx.stroke()
 
   // ── Raios nas bordas do fretboard ─────────────────────────────────────
-  const numBolts = 3+Math.floor(intensity*5)
+  const numBolts = 2
   for (let b=0; b<numBolts; b++) {
     const side=b%2===0, phase=t*2.8+b*1.7
     const boltH=50+Math.sin(phase)*20+b*6
     const startX=side?tL-2:tR+2, sDir=side?-1:1
     ctx.beginPath(); let bx=startX, by=hitY; ctx.moveTo(bx,by)
-    for (let s=0; s<7; s++) {
+    for (let s=0; s<4; s++) {
       const frac=(s+1)/7
       bx=startX+sDir*(8+frac*18)*intensity+Math.sin(phase+s*3.7)*10*intensity
       by=hitY-frac*boltH+Math.cos(phase*0.7+s*2.1)*7
@@ -617,71 +679,36 @@ function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: num
     const useSecondary = ((b + (side ? 1 : 0)) % 2) === 0
     const bc = useSecondary ? sp.secondaryRgb : sp.primaryRgb
     ctx.strokeStyle=`rgba(${bc},${0.75*intensity})`
-    ctx.lineWidth=0.8+Math.abs(Math.sin(phase))*1.5
-    ctx.shadowColor=`rgba(${bc},0.9)`; ctx.shadowBlur=5*intensity; ctx.stroke(); ctx.shadowBlur=0
+    ctx.lineWidth=1.2; ctx.stroke()
   }
 
   // ── Partículas na hit line ─────────────────────────────────────────────
-  for (let p=0; p<8; p++) {
-    const px=tL+(tBot/8)*(p+0.5)+Math.sin(t*1.5+p*0.8)*6
+  for (let p=0; p<5; p++) {
+    const px=tL+(tBot/5)*(p+0.5)+Math.sin(t*1.5+p*0.8)*6
     const py=hitY+Math.cos(t*2+p*1.1)*4-2
     const pr=(1+Math.abs(Math.sin(t*3+p))*2)*intensity
     ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2)
     ctx.fillStyle=`rgba(${sp.primaryRgb},${(0.5+Math.abs(Math.sin(t*2+p*0.7))*0.4)*intensity})`
-    ctx.shadowColor=sp.primary; ctx.shadowBlur=8; ctx.fill(); ctx.shadowBlur=0
+    ctx.fill()
   }
 
-  // ── RAIOS VERTICAIS NAS BORDAS DA TELA ────────────────────────────────
-  const sideCount = 2+Math.floor(intensity*3)
+  // ── RAIOS VERTICAIS NAS BORDAS (simplificado) ───────────────────────
   for (let side=0; side<2; side++) {
-    const isLeft=side===0, edgeX=isLeft?0:w
-    for (let b=0; b<sideCount; b++) {
-      const phase=t*1.8+b*2.1+side*3.7
-      const startY=h+20, endY=h*(0.04+Math.sin(phase*0.4+b)*0.08)
-      const xDir=isLeft?1:-1
-      ctx.beginPath(); let bx=edgeX, by=startY; ctx.moveTo(bx,by)
-      for (let s=0; s<14; s++) {
-        const frac=(s+1)/14
-        const spread=xDir*(10+frac*30)*intensity
-        const noise=Math.sin(phase*1.3+s*2.7)*14*intensity
-        const noiseY=Math.cos(phase*0.9+s*1.8)*6
-        bx=edgeX+spread+noise; by=startY-frac*(startY-endY)+noiseY
-        ctx.lineTo(bx,by)
-        if (s%4===2&&Math.sin(phase*2+s)>0.4) {
-          ctx.moveTo(bx,by)
-          ctx.lineTo(bx+xDir*(8+Math.abs(Math.sin(phase+s))*18),by+(Math.sin(phase+s)>0?-16:10))
-          ctx.moveTo(bx,by)
-        }
-      }
-      const useSecondary=(b+side)%2===0
-      const bc=useSecondary ? sp.secondaryRgb : sp.primaryRgb
-      ctx.strokeStyle=`rgba(${bc},${(0.55+Math.abs(Math.sin(phase))*0.35)*intensity})`
-      ctx.lineWidth=0.7+Math.abs(Math.sin(phase+b))*1.8
-      ctx.shadowColor=`rgba(${bc},0.95)`; ctx.shadowBlur=7*intensity; ctx.stroke(); ctx.shadowBlur=0
+    const isLeft=side===0, edgeX=isLeft?0:w, xDir=isLeft?1:-1
+    const phase=t*1.8+side*3.7
+    const startY=h+20, endY=h*0.06
+    ctx.beginPath(); let bx=edgeX, by=startY; ctx.moveTo(bx,by)
+    for (let s=0; s<6; s++) {
+      const frac=(s+1)/6
+      bx=edgeX+xDir*(10+frac*25)*intensity+Math.sin(phase+s*3.7)*8*intensity
+      by=startY-frac*(startY-endY)+Math.cos(phase+s*2.1)*5
+      ctx.lineTo(bx,by)
     }
+    ctx.strokeStyle=`rgba(${sp.primaryRgb},${0.6*intensity})`
+    ctx.lineWidth=1.2; ctx.stroke()
   }
 
-  // Faíscas nas bordas laterais
-  for (let side=0; side<2; side++) {
-    const isLeft=side===0
-    for (let p=0; p<5; p++) {
-      const phase=t*2.2+p*1.4+side*2.9
-      const px=isLeft?Math.abs(Math.sin(phase))*40*intensity:w-Math.abs(Math.sin(phase))*40*intensity
-      const py=h*(0.10+((p*0.19+Math.sin(phase*0.6))%0.85))
-      const pr=(1.5+Math.abs(Math.sin(phase*1.8))*3)*intensity
-      ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2)
-      ctx.fillStyle=`rgba(${sp.primaryRgb},${(0.5+Math.abs(Math.sin(phase*2.5))*0.45)*intensity})`
-      ctx.shadowColor=sp.primary; ctx.shadowBlur=5*intensity; ctx.fill(); ctx.shadowBlur=0
-    }
-  }
-
-  // Glow ambiente lateral com cor do tema
-  const lG=ctx.createLinearGradient(0,0,w*0.18,0)
-  lG.addColorStop(0,sp.glowColor.replace("0.14", String(0.14*intensity))); lG.addColorStop(1,"transparent")
-  ctx.fillStyle=lG; ctx.fillRect(0,0,w*0.18,h)
-  const rG=ctx.createLinearGradient(w*0.82,0,w,0)
-  rG.addColorStop(0,"transparent"); rG.addColorStop(1,sp.glowColor.replace("0.14", String(0.14*intensity)))
-  ctx.fillStyle=rG; ctx.fillRect(w*0.82,0,w*0.18,h)
+  // Ambient glow removed for performance
 
 
   ctx.restore()
@@ -1132,7 +1159,7 @@ function drawHitExplosion(
   // ── Estrelas girando (só Perfect) ─────────────────────────────────────
   if (isPerfect && progress < 0.70) {
     const tn = performance.now() * 0.003
-    for (let s = 0; s < 5; s++) {
+    for (let s = 0; s < 3; s++) {
       const ang  = (s/5)*Math.PI*2 + tn*2.0
       const dist = rx*(1.8 + progress*5.0)
       const sx   = x + Math.cos(ang)*dist
@@ -1160,108 +1187,7 @@ function drawHitExplosion(
 
 // ── Guitarra decorativa por dificuldade (canto superior esquerdo) ─────────────
 // diff 0-1 = Explorer (fácil), 2-3 = SG (médio), 4-5 = Les Paul (difícil), 6 = Flying V (expert)
-function drawGuitarSilhouette(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, diff: number, now: number) {
-  ctx.save()
-  const s = size
-  const t = now * 0.001
-  // Cor da guitarra muda com dificuldade
-  const colors = ["#22c55e","#22c55e","#eab308","#eab308","#f97316","#f97316","#ef4444"]
-  const glows  = ["rgba(34,197,94,0.7)","rgba(34,197,94,0.7)","rgba(234,179,8,0.7)","rgba(234,179,8,0.7)","rgba(249,115,22,0.7)","rgba(249,115,22,0.7)","rgba(239,68,68,0.7)"]
-  const col   = colors[Math.min(diff, 6)]
-  const glow  = glows[Math.min(diff, 6)]
-  const pulse = 0.85 + Math.sin(t * 2.2) * 0.15
 
-  ctx.shadowColor = glow; ctx.shadowBlur = 10 * pulse
-  ctx.fillStyle   = col
-  ctx.strokeStyle = "rgba(255,255,255,0.55)"
-  ctx.lineWidth   = 1
-
-  if (diff <= 1) {
-    // Explorer (angular, fácil)
-    ctx.beginPath()
-    ctx.moveTo(x,        y + s*0.00)
-    ctx.lineTo(x + s*0.30, y + s*0.18)
-    ctx.lineTo(x + s*0.55, y + s*0.10)
-    ctx.lineTo(x + s*0.60, y + s*0.30)
-    ctx.lineTo(x + s*0.38, y + s*0.45)
-    ctx.lineTo(x + s*0.35, y + s*0.95)
-    ctx.lineTo(x + s*0.25, y + s*0.95)
-    ctx.lineTo(x + s*0.22, y + s*0.48)
-    ctx.lineTo(x,        y + s*0.38)
-    ctx.closePath()
-    ctx.fill(); ctx.stroke()
-    // Cordas
-    for (let i = 0; i < 4; i++) {
-      const cx2 = x + s*0.27 + i*s*0.025
-      ctx.beginPath(); ctx.moveTo(cx2, y+s*0.48); ctx.lineTo(cx2, y+s*0.90)
-      ctx.strokeStyle=`rgba(255,255,255,0.35)`; ctx.lineWidth=0.5; ctx.stroke()
-    }
-  } else if (diff <= 3) {
-    // SG (cornos duplos, médio)
-    ctx.beginPath()
-    ctx.moveTo(x + s*0.10, y + s*0.00)
-    ctx.lineTo(x + s*0.45, y + s*0.20)
-    ctx.lineTo(x + s*0.65, y + s*0.08)
-    ctx.lineTo(x + s*0.70, y + s*0.28)
-    ctx.lineTo(x + s*0.50, y + s*0.42)
-    ctx.lineTo(x + s*0.48, y + s*0.95)
-    ctx.lineTo(x + s*0.28, y + s*0.95)
-    ctx.lineTo(x + s*0.25, y + s*0.42)
-    ctx.lineTo(x + s*0.00, y + s*0.30)
-    ctx.lineTo(x + s*0.05, y + s*0.12)
-    ctx.closePath()
-    ctx.fill(); ctx.stroke()
-    for (let i = 0; i < 4; i++) {
-      const cx2 = x + s*0.30 + i*s*0.028
-      ctx.beginPath(); ctx.moveTo(cx2, y+s*0.46); ctx.lineTo(cx2, y+s*0.90)
-      ctx.strokeStyle=`rgba(255,255,255,0.35)`; ctx.lineWidth=0.5; ctx.stroke()
-    }
-  } else if (diff <= 5) {
-    // Les Paul (curvas suaves, difícil)
-    ctx.beginPath()
-    ctx.moveTo(x + s*0.30, y + s*0.00)
-    ctx.bezierCurveTo(x+s*0.60, y+s*0.00, x+s*0.72, y+s*0.18, x+s*0.68, y+s*0.35)
-    ctx.bezierCurveTo(x+s*0.65, y+s*0.48, x+s*0.55, y+s*0.50, x+s*0.50, y+s*0.50)
-    ctx.lineTo(x + s*0.48, y + s*0.95)
-    ctx.lineTo(x + s*0.28, y + s*0.95)
-    ctx.lineTo(x + s*0.26, y + s*0.50)
-    ctx.bezierCurveTo(x+s*0.20, y+s*0.50, x+s*0.10, y+s*0.48, x+s*0.06, y+s*0.35)
-    ctx.bezierCurveTo(x-s*0.02, y+s*0.18, x+s*0.10, y+s*0.00, x+s*0.30, y+s*0.00)
-    ctx.closePath()
-    ctx.fill(); ctx.stroke()
-    for (let i = 0; i < 4; i++) {
-      const cx2 = x + s*0.30 + i*s*0.028
-      ctx.beginPath(); ctx.moveTo(cx2, y+s*0.52); ctx.lineTo(cx2, y+s*0.90)
-      ctx.strokeStyle=`rgba(255,255,255,0.35)`; ctx.lineWidth=0.5; ctx.stroke()
-    }
-  } else {
-    // Flying V (expert — bico em V)
-    ctx.beginPath()
-    ctx.moveTo(x + s*0.38, y + s*0.00)
-    ctx.lineTo(x + s*0.70, y + s*0.50)
-    ctx.lineTo(x + s*0.55, y + s*0.50)
-    ctx.lineTo(x + s*0.45, y + s*0.95)
-    ctx.lineTo(x + s*0.32, y + s*0.95)
-    ctx.lineTo(x + s*0.22, y + s*0.50)
-    ctx.lineTo(x + s*0.05, y + s*0.50)
-    ctx.closePath()
-    ctx.fill(); ctx.stroke()
-    for (let i = 0; i < 4; i++) {
-      const cx2 = x + s*0.32 + i*s*0.030
-      ctx.beginPath(); ctx.moveTo(cx2, y+s*0.54); ctx.lineTo(cx2, y+s*0.90)
-      ctx.strokeStyle=`rgba(255,255,255,0.35)`; ctx.lineWidth=0.5; ctx.stroke()
-    }
-  }
-
-  // Pestana do braço
-  ctx.beginPath()
-  ctx.moveTo(x+s*0.22, y+s*0.94); ctx.lineTo(x+s*0.50, y+s*0.94)
-  ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke()
-
-  ctx.shadowBlur = 0; ctx.restore()
-}
-
-// Label de dificuldade
 function drawDiffLabel(ctx: CanvasRenderingContext2D, x: number, y: number, diff: number) {
   const labels = ["FÁCIL","FÁCIL","MÉDIO","MÉDIO","DIFÍCIL","DIFÍCIL","EXPERT"]
   const colors = ["#22c55e","#22c55e","#eab308","#eab308","#f97316","#f97316","#ef4444"]
@@ -1276,8 +1202,37 @@ function drawDiffLabel(ctx: CanvasRenderingContext2D, x: number, y: number, diff
 }
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────────────────────
+// Font string cache — uiScale rarely changes, avoid string creation every frame
+const _fontCache = new Map<string, string>()
+function cachedFont(weight: string|number, size: number, family: string): string {
+  const key = `${weight}:${size}:${family}`
+  if (!_fontCache.has(key)) _fontCache.set(key, `${weight} ${size}px ${family}`)
+  return _fontCache.get(key)!
+}
+
+// Gradient cache — avoid recreating static gradients every frame
+const _gradCache = new Map<string, CanvasGradient>()
+function getCachedGradient(
+  ctx: CanvasRenderingContext2D,
+  key: string,
+  create: () => CanvasGradient
+): CanvasGradient {
+  // Invalidate cache if canvas size changed
+  const sizeKey = `${ctx.canvas.width}x${ctx.canvas.height}`
+  const fullKey = `${key}:${sizeKey}`
+  if (!_gradCache.has(fullKey)) {
+    _gradCache.set(fullKey, create())
+    // Keep cache small
+    if (_gradCache.size > 40) {
+      const firstKey = _gradCache.keys().next().value
+      if (firstKey) _gradCache.delete(firstKey)
+    }
+  }
+  return _gradCache.get(fullKey)!
+}
+
 export function renderFrame(state: RenderState): void {
-  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true, topBarH = 0, lastMissTime = 0, displayScore } = state
+  const { canvas, ctx, notes, currentTime, stats, hitEffects, keysDown, speed, showGuide, keyLabels, difficulty = 2, laneCount: LC = LANE_COUNT, noteShape = "circle", highwayTheme = "default", cameraShake = true, starPowerLite = false, topBarH = 0, lastMissTime = 0, displayScore } = state
   // Usar dimensões CSS (não físicas) para que as coords batam com o ctx já escalado pelo dpr
   const dpr = (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1
   const w = canvas.width / dpr
@@ -1306,13 +1261,11 @@ export function renderFrame(state: RenderState): void {
     }
   }
 
-  // Qualidade de renderização
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = "medium"
+  // imageSmoothingEnabled set once on canvas init
 
   // ── Câmera shake (star power ativo) ────────────────────────────────────
   let shakeX = 0, shakeY = 0
-  if (cameraShake && starPower) {
+  if (cameraShake && starPower && !starPowerLite) {
     const t = performance.now()
     shakeX = (Math.sin(t * 0.041) * 2 + Math.sin(t * 0.073) * 1.5) * 0.8
     shakeY = (Math.cos(t * 0.031) * 1.5 + Math.cos(t * 0.059) * 1)  * 0.6
@@ -1322,7 +1275,7 @@ export function renderFrame(state: RenderState): void {
 
   // 1 – Fretboard (tema + star power integrados)
   ctx.shadowBlur = 0
-  ctx.drawImage(getFretboard(w,h,starPower,difficulty,LC,highwayTheme),0,0)
+  ctx.drawImage(getFretboard(w,h,starPower && !starPowerLite,difficulty,LC,highwayTheme),0,0)
 
   // 2 – Beat lines dinâmicas com glow pulsante
   const visMs=2200/ns
@@ -1339,12 +1292,7 @@ export function renderFrame(state: RenderState): void {
     ctx.beginPath(); ctx.moveTo(p0.x-hw0,p0.y); ctx.lineTo(p4.x+hw4,p4.y)
     ctx.strokeStyle=`rgba(${beatColor},${al})`
     ctx.lineWidth=Math.max(0.4, p0.scale * (ms < 600 ? 2.0 : 1.2))
-    if (ms < 600) {
-      ctx.shadowColor = `rgba(${beatColor},0.8)`
-      ctx.shadowBlur = 8 * beatPulse * distFrac
-    }
     ctx.stroke()
-    ctx.shadowBlur = 0
   }
   ctx.restore()
 
@@ -1362,17 +1310,13 @@ export function renderFrame(state: RenderState): void {
           ctx.save()
           const streakAlpha = (1 - streakProg) * 0.65
           const streakH = hitY * (0.15 + streakProg * 0.85)
-          // Coluna de luz subindo pela highway
+          // Coluna de luz subindo pela highway (solid for performance)
+          const milestoneRgb = combo >= 100 ? "255,200,0" : combo >= 50 ? "200,100,255" : "0,200,255"
+          const lw2 = laneWidthAt(w, 1) * 0.4
+          ctx.fillStyle = `rgba(${milestoneRgb},${streakAlpha * 0.5})`
           for (let lane = 0; lane < LC; lane++) {
             const { x: lx } = project(lane, 0, canvas, ns, LC)
-            const lw = laneWidthAt(w, 1) * 0.4
-            const lG = ctx.createLinearGradient(lx, hitY, lx, hitY - streakH)
-            const milestoneColor = combo >= 100 ? "255,200,0" : combo >= 50 ? "200,100,255" : "0,200,255"
-            lG.addColorStop(0, `rgba(${milestoneColor},${streakAlpha})`)
-            lG.addColorStop(0.4, `rgba(${milestoneColor},${streakAlpha * 0.4})`)
-            lG.addColorStop(1, "transparent")
-            ctx.fillStyle = lG
-            ctx.fillRect(lx - lw, hitY - streakH, lw * 2, streakH)
+            ctx.fillRect(lx - lw2, hitY - streakH, lw2 * 2, streakH)
           }
           // Texto do milestone no centro
           if (streakProg < 0.6) {
@@ -1383,7 +1327,7 @@ export function renderFrame(state: RenderState): void {
             ctx.fillStyle = milestoneColor
             ctx.font = `900 ${Math.round(22 * uiScale)}px 'Arial Black',Arial,sans-serif`
             ctx.textAlign = "center"; ctx.textBaseline = "middle"
-            ctx.shadowColor = milestoneColor; ctx.shadowBlur = 20
+            
             ctx.fillText(`${combo} COMBO!`, w / 2, textY)
             ctx.shadowBlur = 0; ctx.globalAlpha = 1
           }
@@ -1394,31 +1338,22 @@ export function renderFrame(state: RenderState): void {
   }
 
   // 3 – Star Power efeitos visuais completos
-  if (starPower) {
+  if (starPower && !starPowerLite) {
     const intensity = Math.min(1, (stats.combo - STAR_POWER_COMBO) / 25)
     const t = now * 0.001
     const sp = spPal
 
     ctx.save()
 
-    // ── Vinheta pulsante nas bordas da tela ─────────────────────────────
-    const vPulse = 0.18 + Math.sin(t * 2.8) * 0.06
-    const vL = ctx.createLinearGradient(0, 0, w * 0.22, 0)
-    vL.addColorStop(0, `rgba(${sp.primaryRgb},${vPulse * intensity})`)
-    vL.addColorStop(1, "transparent")
-    ctx.fillStyle = vL; ctx.fillRect(0, 0, w * 0.22, h)
-    const vR = ctx.createLinearGradient(w, 0, w * 0.78, 0)
-    vR.addColorStop(0, `rgba(${sp.primaryRgb},${vPulse * intensity})`)
-    vR.addColorStop(1, "transparent")
-    ctx.fillStyle = vR; ctx.fillRect(w * 0.78, 0, w * 0.22, h)
-    const vT = ctx.createLinearGradient(0, 0, 0, h * 0.15)
-    vT.addColorStop(0, `rgba(${sp.primaryRgb},${vPulse * 0.5 * intensity})`)
-    vT.addColorStop(1, "transparent")
-    ctx.fillStyle = vT; ctx.fillRect(0, 0, w, h * 0.15)
-    const vB = ctx.createLinearGradient(0, h, 0, h * 0.82)
-    vB.addColorStop(0, `rgba(${sp.primaryRgb},${vPulse * 0.4 * intensity})`)
-    vB.addColorStop(1, "transparent")
-    ctx.fillStyle = vB; ctx.fillRect(0, h * 0.82, w, h * 0.18)
+    // ── Vinheta nas bordas (solid strips - sem gradiente para performance) ──
+    const vPulse = 0.10 + Math.sin(t * 2.8) * 0.04
+    const vAlpha = vPulse * intensity
+    const trackLeft  = (w - w * 0.50) / 2  // borda esquerda da highway
+    const trackRight = trackLeft + w * 0.50  // borda direita
+    ctx.fillStyle = `rgba(${sp.primaryRgb},${vAlpha})`
+    // Só preenche FORA da highway (não interfere com as notas)
+    ctx.fillRect(0, 0, trackLeft * 0.6, h)
+    ctx.fillRect(trackRight + trackLeft * 0.4, 0, w - trackRight - trackLeft * 0.4, h)
 
     // ── Flash periódico de energia ───────────────────────────────────────
     const flashCycle = Math.sin(t * 4.5)
@@ -1429,7 +1364,7 @@ export function renderFrame(state: RenderState): void {
     }
 
     // ── Partículas de energia voando pela tela ───────────────────────────
-    for (let p = 0; p < 18; p++) {
+    for (let p = 0; p < 8; p++) {
       const seed = p * 137.5
       const px = (Math.sin(seed + t * (0.3 + p * 0.04)) * 0.5 + 0.5) * w
       const py = ((t * (0.08 + p * 0.012) + seed * 0.01) % 1.0) * h
@@ -1437,52 +1372,25 @@ export function renderFrame(state: RenderState): void {
       const pa = (0.3 + Math.abs(Math.sin(t * 3 + p * 0.7)) * 0.55) * intensity
       ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2)
       ctx.fillStyle = `rgba(${sp.primaryRgb},${pa})`
-      ctx.shadowColor = sp.primary; ctx.shadowBlur = pr * 3
       ctx.fill()
     }
-    ctx.shadowBlur = 0
 
-    // ── Ondas de energia horizontais varrendo a tela ─────────────────────
-    for (let w2 = 0; w2 < 3; w2++) {
-      const waveY = h * ((t * 0.35 + w2 * 0.33) % 1.0)
-      const wAlpha = (0.04 + Math.sin(t * 2 + w2) * 0.02) * intensity
-      const wG = ctx.createLinearGradient(0, waveY - 30, 0, waveY + 30)
-      wG.addColorStop(0, "transparent")
-      wG.addColorStop(0.5, `rgba(${sp.primaryRgb},${wAlpha})`)
-      wG.addColorStop(1, "transparent")
-      ctx.fillStyle = wG
-      ctx.fillRect(0, waveY - 30, w, 60)
-    }
+    // SP waves removed for performance
 
-    // ── Anéis de expansão (pulso de energia) ────────────────────────────
-    const ringPhase = (t * 1.2) % 1.0
-    const ringR = ringPhase * Math.min(w, h) * 0.6
-    const ringAlpha = (1 - ringPhase) * 0.12 * intensity
-    ctx.beginPath(); ctx.arc(w / 2, h * 0.5, ringR, 0, Math.PI * 2)
-    ctx.strokeStyle = `rgba(${sp.primaryRgb},${ringAlpha})`
-    ctx.lineWidth = 2
-    ctx.stroke()
-
-    const ring2Phase = ((t * 1.2) + 0.5) % 1.0
-    const ring2R = ring2Phase * Math.min(w, h) * 0.6
-    const ring2Alpha = (1 - ring2Phase) * 0.10 * intensity
-    ctx.beginPath(); ctx.arc(w / 2, h * 0.5, ring2R, 0, Math.PI * 2)
-    ctx.strokeStyle = `rgba(${sp.secondaryRgb},${ring2Alpha})`
-    ctx.lineWidth = 1.5
-    ctx.stroke()
+    // Rings removed for performance
 
     ctx.restore()
   }
 
   // 3b – Star Power efeitos TEMÁTICOS (partículas únicas por tema)
-  if (starPower) {
+  if (starPower && !starPowerLite) {
     const intensity = Math.min(1, (stats.combo - STAR_POWER_COMBO) / 25)
     const t2 = now * 0.001
     ctx.save()
 
     if (highwayTheme === "fire") {
       // 🔥 FOGO: faíscas + labaredas voando pela tela
-      for (let f = 0; f < 20; f++) {
+      for (let f = 0; f < 10; f++) {
         const seed = f * 73.13
         // Posição emergindo da hit line e subindo
         const phase = (t2 * (0.4 + f * 0.05) + seed * 0.02) % 1
@@ -1493,11 +1401,11 @@ export function renderFrame(state: RenderState): void {
         // Faísca
         ctx.beginPath(); ctx.arc(px2 + Math.sin(t2 * 3 + seed) * 20, py2, size, 0, Math.PI * 2)
         ctx.fillStyle = phase < 0.4 ? `rgba(255,255,100,${alpha})` : `rgba(255,80,0,${alpha})`
-        ctx.shadowColor = "#ff4400"; ctx.shadowBlur = size * 3
+        
         ctx.fill()
       }
       // Labaredas maiores na hit line
-      for (let f = 0; f < 8; f++) {
+      for (let f = 0; f < 5; f++) {
         const fx2 = tLB + trackBot * (0.05 + f * 0.13)
         const fh2 = (30 + Math.sin(t2 * 5 + f) * 15) * intensity
         const fa  = (0.3 + Math.sin(t2 * 3 + f * 1.3) * 0.15) * intensity
@@ -1512,12 +1420,11 @@ export function renderFrame(state: RenderState): void {
         ctx.quadraticCurveTo(fx2 + Math.sin(t2 * 3 + f) * 10, hitY - fh2, fx2 + 8, hitY)
         ctx.fill()
       }
-      ctx.shadowBlur = 0
-    }
+          }
 
     else if (highwayTheme === "ice") {
       // ❄️ GELO: flocos de neve caindo pela tela
-      for (let f = 0; f < 25; f++) {
+      for (let f = 0; f < 8; f++) {
         const seed = f * 61.7
         const phase = (t2 * (0.12 + f * 0.008) + seed * 0.015) % 1
         const px2 = w * (0.05 + (Math.sin(seed * 2.7) * 0.5 + 0.5) * 0.9)
@@ -1530,7 +1437,7 @@ export function renderFrame(state: RenderState): void {
         ctx.rotate(t2 * 0.8 + seed)
         ctx.strokeStyle = `rgba(200,240,255,${alpha})`
         ctx.lineWidth = 1
-        ctx.shadowColor = "#88eeff"; ctx.shadowBlur = size * 2
+        
         // Floco hexagonal de 6 pontas
         for (let i = 0; i < 6; i++) {
           const ang = (i / 6) * Math.PI * 2
@@ -1546,8 +1453,7 @@ export function renderFrame(state: RenderState): void {
         }
         ctx.restore()
       }
-      ctx.shadowBlur = 0
-    }
+          }
 
     else if (highwayTheme === "neon") {
       // ⚡ NEON: raios elétricos coloridos zigzag
@@ -1568,11 +1474,10 @@ export function renderFrame(state: RenderState): void {
         const useSecondary = b % 2 === 0
         ctx.strokeStyle = `rgba(${useSecondary ? "0,255,180" : "255,0,204"},${(0.4 + Math.sin(t2 * 4 + b) * 0.2) * intensity})`
         ctx.lineWidth = 1.5
-        ctx.shadowColor = useSecondary ? "#00ff88" : "#ff00cc"; ctx.shadowBlur = 8
+        
         ctx.stroke()
       }
-      ctx.shadowBlur = 0
-    }
+          }
 
     else if (highwayTheme === "space") {
       // 🌌 ESPAÇO: meteoros atravessando a tela
@@ -1595,13 +1500,12 @@ export function renderFrame(state: RenderState): void {
         ctx.beginPath(); ctx.moveTo(px2, py2)
         ctx.lineTo(px2 - Math.cos(angle) * tailLen, py2 - Math.sin(angle) * tailLen)
         ctx.strokeStyle = tG; ctx.lineWidth = 2 + m * 0.3
-        ctx.shadowColor = "#aa44ff"; ctx.shadowBlur = 8
+        
         ctx.stroke()
         ctx.beginPath(); ctx.arc(px2, py2, 2, 0, Math.PI * 2)
         ctx.fillStyle = `rgba(220,200,255,${alpha})`; ctx.fill()
       }
-      ctx.shadowBlur = 0
-    }
+          }
 
     else if (highwayTheme === "retro") {
       // 📼 RETRÔ: pixels coloridos explodindo
@@ -1617,15 +1521,75 @@ export function renderFrame(state: RenderState): void {
         const colors = ["255,20,147", "0,255,200", "255,200,0", "0,150,255"]
         const col   = colors[p3 % 4]
         ctx.fillStyle = `rgba(${col},${alpha})`
-        ctx.shadowColor = `rgba(${col},0.9)`; ctx.shadowBlur = size2 * 2
+        
         ctx.fillRect(cx2, cy2, size2, size2)
       }
-      ctx.shadowBlur = 0
+          }
+
+    else if (highwayTheme === "tiger") {
+      // 🐯 TIGRE: faíscas laranja e preto subindo pela highway
+      for (let p = 0; p < 10; p++) {
+        const seed = p * 47.3
+        const phase = (t2 * (0.25 + p * 0.04) + seed * 0.02) % 1.0
+        const px2 = tLB + trackBot * (0.05 + (Math.sin(seed * 1.5 + t2 * 0.3) * 0.5 + 0.5) * 0.9)
+        const py2 = hitY - phase * hitY * 0.92
+        const size = (1.5 + Math.abs(Math.sin(phase * 3 + seed)) * 3) * intensity
+        const isOrange = p % 3 !== 0
+        ctx.beginPath(); ctx.arc(px2, py2, size, 0, Math.PI * 2)
+        ctx.fillStyle = isOrange
+          ? `rgba(255,120,0,${(0.5 + Math.abs(Math.sin(phase * 2)) * 0.4) * intensity})`
+          : `rgba(40,15,0,${(0.6 + Math.abs(Math.sin(phase * 2)) * 0.3) * intensity})`
+        ctx.fill()
+      }
+      // Tiger stripe sweeps
+      for (let s = 0; s < 3; s++) {
+        const sy = hitY * ((t2 * 0.25 + s * 0.33) % 1.0)
+        ctx.fillStyle = `rgba(80,30,0,${0.04 * intensity})`
+        ctx.fillRect(tLB, sy - 2, trackBot, 4)
+      }
+    }
+
+    else if (highwayTheme === "tattoo") {
+      // 🐱 TATUAGEM: runas e partículas esverdeadas/douradas
+      for (let p = 0; p < 8; p++) {
+        const phase = t2 * (0.15 + p * 0.02) + p * 0.8
+        const px = tLB + trackBot * ((Math.sin(phase * 0.7) * 0.5 + 0.5) * 0.8 + 0.1)
+        const py = hitY - (phase % 1.0) * hitY * 0.9
+        const size = (2 + Math.abs(Math.sin(phase * 2)) * 3) * intensity
+        const isGold = p % 2 === 0
+        ctx.beginPath(); ctx.arc(px, py, size, 0, Math.PI * 2)
+        ctx.fillStyle = isGold
+          ? `rgba(200,160,40,${(0.4 + Math.abs(Math.sin(phase)) * 0.4) * intensity})`
+          : `rgba(0,200,150,${(0.4 + Math.abs(Math.sin(phase)) * 0.4) * intensity})`
+        ctx.fill()
+      }
+    }
+
+    else if (highwayTheme === "level200") {
+      // ✨ NÍVEL 200: partículas verde-neon e rosa dançando pela highway
+      for (let p = 0; p < 14; p++) {
+        const seed = p * 53.7
+        const phase = (t2 * (0.2 + p * 0.03) + seed * 0.015) % 1.0
+        const px2 = tLB + trackBot * (0.05 + (Math.sin(seed * 1.3 + t2 * 0.4) * 0.5 + 0.5) * 0.9)
+        const py2 = hitY - phase * hitY * 0.95
+        const size = (1.5 + Math.abs(Math.sin(phase * 3 + seed)) * 3.5) * intensity
+        const isPink = p % 3 === 0
+        const alpha = (0.5 + Math.abs(Math.sin(phase * 2 + seed)) * 0.45) * intensity
+        ctx.beginPath(); ctx.arc(px2 + Math.sin(t2 * 2 + seed) * 12, py2, size, 0, Math.PI * 2)
+        ctx.fillStyle = isPink ? `rgba(255,0,144,${alpha})` : `rgba(0,255,128,${alpha})`
+        ctx.fill()
+      }
+      // Horizontal pink scanlines
+      for (let s = 0; s < 3; s++) {
+        const sy = hitY * ((t2 * 0.3 + s * 0.33) % 1.0)
+        ctx.fillStyle = `rgba(255,0,144,${0.03 * intensity})`
+        ctx.fillRect(tLB, sy - 1, trackBot, 2)
+      }
     }
 
     else if (highwayTheme === "wood") {
       // 🪵 MADEIRA: notas musicais flutuando
-      for (let n = 0; n < 12; n++) {
+      for (let n = 0; n < 6; n++) {
         const seed = n * 41.9
         const phase = (t2 * (0.15 + n * 0.02) + seed * 0.02) % 1
         const px2 = w * 0.1 + Math.sin(seed * 1.8 + t2 * 0.5) * w * 0.4
@@ -1636,20 +1600,19 @@ export function renderFrame(state: RenderState): void {
         ctx.translate(px2, py2)
         ctx.rotate(Math.sin(t2 + seed) * 0.3)
         ctx.fillStyle = `rgba(255,200,80,${alpha})`
-        ctx.shadowColor = "#ffcc66"; ctx.shadowBlur = 6
+        
         ctx.font = `${size2 + 8}px serif`
         ctx.textAlign = "center"; ctx.textBaseline = "middle"
         ctx.fillText(n % 2 === 0 ? "♩" : "♪", 0, 0)
         ctx.restore()
       }
-      ctx.shadowBlur = 0
-    }
+          }
 
     ctx.restore()
   }
 
   // 3c – Star Power lightning (hit line + raios nas bordas)
-  drawStarPowerLightning(ctx,w,h,now,stats.combo,highwayTheme)
+  if (!starPowerLite) drawStarPowerLightning(ctx,w,h,now,stats.combo,highwayTheme)
 
   // 4 – Sustain tails
   for (const note of notes) {
@@ -1661,8 +1624,8 @@ export function renderFrame(state: RenderState): void {
     const isHeld = note.hit && keysDown.has(note.lane)  // sendo segurado agora
     const pulse  = isHeld ? (0.75 + Math.sin(now * 0.012) * 0.25) : 1  // pulsa enquanto segura
 
-    for (let s=0; s<14; s++) {
-      const a0=ca+(cb-ca)*(s/14), a1=ca+(cb-ca)*((s+1)/14)
+    for (let s=0; s<6; s++) {
+      const a0=ca+(cb-ca)*(s/6), a1=ca+(cb-ca)*((s+1)/6)
       const pp0=project(note.lane,a0,canvas,ns,LC), pp1=project(note.lane,a1,canvas,ns,LC)
       let ox0=0, ox1=0
       if (starPower) {
@@ -1682,7 +1645,7 @@ export function renderFrame(state: RenderState): void {
     if (starPower) {
       ctx.beginPath()
       const steps = 20
-      ctx.shadowColor=spPal.primary; ctx.shadowBlur=5
+      
       ctx.strokeStyle=color+"cc"; ctx.lineWidth=2.5*ps.scale
       for (let i=0; i<=steps; i++) {
         const t2=i/steps
@@ -1694,8 +1657,7 @@ export function renderFrame(state: RenderState): void {
     } else {
       ctx.beginPath(); ctx.moveTo(ps.x,ps.y); ctx.lineTo(pe.x,pe.y)
       if (isHeld) {
-        ctx.shadowColor = starPower ? spPal.primary : color; ctx.shadowBlur = 12 * pulse
-        ctx.strokeStyle=color+"ee"; ctx.lineWidth=3.0*ps.scale
+        ; ctx.lineWidth=3.0*ps.scale
       } else {
         ctx.strokeStyle=color+"99"; ctx.lineWidth=2.2*ps.scale
       }
@@ -1764,20 +1726,7 @@ export function renderFrame(state: RenderState): void {
     const rx=NRX*scale, ry=NRY*scale
     drawNoteGH(ctx,x,y,rx,ry,lane,starPower,now,noteShape,spPal.primary,spPal.primaryRgb)
 
-    // Reflexo especular na hit line (espelho vertical, rápido esmaece por distância)
-    if (y > hitY - NRY * 3) {
-      const reflectDist = y - hitY
-      const reflectAlpha = Math.max(0, 0.22 - reflectDist / (NRY * 40)) * (starPower ? 1.5 : 1)
-      if (reflectAlpha > 0.01) {
-        ctx.save()
-        ctx.globalAlpha = reflectAlpha
-        ctx.scale(1, -1)
-        ctx.translate(0, -(hitY * 2))
-        const reflY = -(y - hitY * 2)
-        drawNoteGH(ctx, x, reflY, rx * 0.85, ry * 0.5, lane, starPower, now, noteShape, spPal.primary, spPal.primaryRgb)
-        ctx.restore()
-      }
-    }
+    // reflection removed for performance
   }
 
   // 8 – Hit effects (explosão + feixe de luz vertical)
@@ -1798,14 +1747,14 @@ export function renderFrame(state: RenderState): void {
       const xs=NRX*(1.1+prog*0.35)
       ctx.strokeStyle="#ef4444"+Math.round(alpha*180).toString(16).padStart(2,"0")
       ctx.lineWidth=3.5*(1-prog*0.5); ctx.lineCap="round"
-      ctx.shadowColor="#ef4444"; ctx.shadowBlur=6*alpha
+      
       ctx.beginPath(); ctx.moveTo(x-xs,hitY-NRY); ctx.lineTo(x+xs,hitY+NRY); ctx.stroke()
       ctx.beginPath(); ctx.moveTo(x+xs,hitY-NRY); ctx.lineTo(x-xs,hitY+NRY); ctx.stroke()
       ctx.shadowBlur=0
     }
     const ty=hitY-Math.round(58*uiScale)-prog*Math.round(48*uiScale), fs=Math.round((isMiss?11:16+(1-prog)*7)*uiScale)
     ctx.globalAlpha=alpha*(isMiss?0.50:1); ctx.fillStyle=rc
-    ctx.shadowColor=rc; ctx.shadowBlur=isMiss?0:10
+    
     ctx.font=`900 ${fs}px 'Arial Black', Arial, sans-serif`; ctx.textAlign="center"; ctx.textBaseline="middle"
     ctx.fillText(fx.rating.toUpperCase(),x,ty)
     // Penalidade de pontos no miss: "-50", "-100", "-200" em vermelho flutuando acima
@@ -1819,7 +1768,7 @@ export function renderFrame(state: RenderState): void {
       ctx.scale(penaltyScale, penaltyScale)
       ctx.fillStyle = "#ff4444"
       ctx.shadowColor = "#ff0000"
-      ctx.shadowBlur = 8 * penaltyAlpha
+      
       ctx.font = `900 ${Math.round(13*uiScale)}px 'Arial Black', Arial, sans-serif`
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
@@ -1872,7 +1821,7 @@ export function renderFrame(state: RenderState): void {
       const gap      = Math.round(23 * uS)
       const sx0      = pX + (pW - 5 * gap) / 2
 
-      for (let s = 0; s < 5; s++) {
+      for (let s = 0; s < 3; s++) {
         const scx = sx0 + s * gap + starR
         const scy = cY + starR
         ctx.beginPath()
@@ -1885,8 +1834,7 @@ export function renderFrame(state: RenderState): void {
         ctx.closePath()
         if (s < filled) {
           ctx.fillStyle = sp ? spPal.starFill2 : "#f59e0b"
-          ctx.shadowColor = sp ? spPal.primary : "#fbbf24"; ctx.shadowBlur = 6
-        } else {
+          
           ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.shadowBlur = 0
         }
         ctx.fill()
@@ -1914,17 +1862,9 @@ export function renderFrame(state: RenderState): void {
       const name = state.songMeta?.name ?? ""
       ctx.fillStyle = "#ffffff"
       ctx.font = `900 ${Math.round(13*uS)}px 'Arial Black',Arial,sans-serif`
-      ctx.shadowColor = sp ? spPal.primary : "rgba(255,255,255,0.2)"; ctx.shadowBlur = sp ? 8 : 2
-      ctx.fillText(name, padX, cY, maxW)
-      ctx.shadowBlur = 0
-      cY += Math.round(17 * uS)
-    }
-
-    // ── Barra de progresso ─────────────────────────────────────────────
-    {
-      const bw = pW - Math.round(24 * uS)
-      const bh = Math.round(4 * uS)
-      ctx.fillStyle = "rgba(255,255,255,0.10)"
+      
+      const bw = maxW   // progress bar width
+      const bh = Math.round(4 * uS)  // progress bar height
       ctx.beginPath(); ctx.roundRect(padX, cY, bw, bh, bh/2); ctx.fill()
       const prog = state.songProgress ?? 0
       if (prog > 0) {
@@ -1932,7 +1872,7 @@ export function renderFrame(state: RenderState): void {
         pg.addColorStop(0, sp ? spPal.primary : "#e11d48")
         pg.addColorStop(1, sp ? spPal.secondary : "#f97316")
         ctx.fillStyle = pg
-        ctx.shadowColor = sp ? spPal.primary : "#e11d48"; ctx.shadowBlur = 4
+        
         ctx.beginPath(); ctx.roundRect(padX, cY, bw * prog, bh, bh/2); ctx.fill()
         ctx.shadowBlur = 0
       }
@@ -1941,6 +1881,10 @@ export function renderFrame(state: RenderState): void {
 
     // ── Label PONTUAÇÃO + score grande ────────────────────────────────
     {
+      const mw = maxW                      // rock meter bar width
+      const mh = Math.round(6 * uS)        // rock meter bar height
+      const mc = stats.rockMeter > 66 ? "#22c55e" : stats.rockMeter > 33 ? "#f59e0b" : "#ef4444"
+
       ctx.textAlign = "left"; ctx.textBaseline = "top"
       ctx.fillStyle = "rgba(255,255,255,0.32)"
       ctx.font = `700 ${Math.round(8*uS)}px 'Inter',Arial,sans-serif`
@@ -1950,18 +1894,7 @@ export function renderFrame(state: RenderState): void {
       const sc = (displayScore ?? stats.score).toLocaleString()
       ctx.fillStyle = "#ffffff"
       ctx.font = `900 ${Math.round(30*uS)}px 'Arial Black',Arial,sans-serif`
-      ctx.shadowColor = sp ? spPal.primary : "rgba(255,255,255,0.3)"; ctx.shadowBlur = sp ? 16 : 3
-      ctx.fillText(sc, padX, cY, maxW)
-      ctx.shadowBlur = 0
-      cY += Math.round(35 * uS)
-    }
-
-    // ── Rock meter ─────────────────────────────────────────────────────
-    {
-      const mw = pW - Math.round(24 * uS)
-      const mh = Math.round(6 * uS)
-      const mc = stats.rockMeter > 60 ? "#22c55e" : stats.rockMeter > 30 ? "#f59e0b" : "#ef4444"
-      ctx.fillStyle = "rgba(255,255,255,0.07)"
+      
       ctx.beginPath(); ctx.roundRect(padX, cY, mw, mh, mh/2); ctx.fill()
       if (stats.rockMeter > 0) {
         const fg = ctx.createLinearGradient(padX, 0, padX + mw, 0)
@@ -2019,7 +1952,7 @@ export function renderFrame(state: RenderState): void {
           oG.addColorStop(1, sp ? spPal.secondary : "#1d4ed8")
           ctx.fillStyle = oG
           ctx.shadowColor = sp ? spPal.primary : "#60a5fa"
-          ctx.shadowBlur = sp ? (8 + Math.sin(now * 0.008 + o) * 4) : 6
+          ctx.shadowBlur = 0
           ctx.fill()
           ctx.shadowBlur = 0
         }
@@ -2076,7 +2009,7 @@ export function renderFrame(state: RenderState): void {
     ctx.fillStyle = mg; ctx.fill()
     ctx.strokeStyle = sp2 ? spPal.primary : "#38bdf8"
     ctx.lineWidth = 2.5
-    ctx.shadowColor = sp2 ? spPal.primary : "#38bdf8"; ctx.shadowBlur = 20
+    
     ctx.stroke(); ctx.shadowBlur = 0
     // Anel externo decorativo
     ctx.beginPath(); ctx.arc(mulX, mulY2, mulR + 4, 0, Math.PI*2)
@@ -2086,7 +2019,7 @@ export function renderFrame(state: RenderState): void {
     ctx.fillStyle = "#ffffff"
     ctx.font = `900 ${Math.round(17*uiScale)}px 'Arial Black',Arial,sans-serif`
     ctx.textAlign = "center"; ctx.textBaseline = "middle"
-    ctx.shadowColor = sp2 ? spPal.primary : "#38bdf8"; ctx.shadowBlur = 6
+    
     ctx.fillText(`${stats.multiplier}x`, mulX, mulY2)
     ctx.shadowBlur = 0
     if (stats.combo > 1) {
@@ -2178,7 +2111,7 @@ export function renderFrame(state: RenderState): void {
         const sa = (0.3 + Math.sin(t * 3 + s) * 0.2) * spMult * 0.6
         ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2)
         ctx.fillStyle = `rgba(150,100,255,${sa})`
-        if (starPower) { ctx.shadowColor = "#aa44ff"; ctx.shadowBlur = sr * 4 }
+        if (false) { ctx.shadowColor = "#aa44ff"; ctx.shadowBlur = sr * 4 }
         ctx.fill(); ctx.shadowBlur = 0
       }
       // Nebulosa pulsante em SP
@@ -2211,7 +2144,7 @@ export function renderFrame(state: RenderState): void {
         ctx.translate(cx2, cy2)
         ctx.rotate(t * 0.5 + c)
         ctx.fillStyle = `rgba(160,230,255,${ca})`
-        if (starPower) { ctx.shadowColor = "#88eeff"; ctx.shadowBlur = 12 }
+        
         ctx.beginPath()
         for (let i = 0; i < 6; i++) {
           const a = (i / 6) * Math.PI * 2

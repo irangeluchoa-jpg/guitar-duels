@@ -1,5 +1,6 @@
 "use client"
 
+import { PlayerAvatar } from "@/components/ui/player-avatar"
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Copy, Check, Play, Loader2, Crown, Music, Clock, Zap, Signal } from "lucide-react"
@@ -7,13 +8,14 @@ import type { SongListItem } from "@/lib/songs/types"
 import { playClickSound, playHoverSound } from "@/lib/game/sounds"
 import { loadSettings } from "@/lib/settings"
 import { getSocket } from "@/lib/multiplayer/socket-client"
+import { loadProfile, getActiveBorder, getUnlockedTitles } from "@/lib/progression"
 
 function getVol() { try { const s=loadSettings(); return (s.masterVolume/100)*(s.sfxVolume/100) } catch { return .5 } }
 function fmt(ms: number) { const s=Math.floor(ms/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}` }
 
-interface Player { id:string; name:string; score:number; combo:number; rockMeter:number; ready:boolean }
+interface Player { id:string; name:string; title?:string; border?:string; score:number; combo:number; rockMeter:number; ready:boolean }
 interface RoomData {
-  code:string; hostId:string; songId:string|null
+  code:string; roomName?:string; hostId:string; songId:string|null
   state:"waiting"|"playing"|"paused"|"ended"; pausedBy:string|null
   startTime:number|null; maxPlayers:number; players:Player[]
 }
@@ -41,6 +43,7 @@ function Waveform({ color }: { color:string }) {
   )
 }
 
+
 function PlayerSlot({ p, idx, hostId, playerId }: { p:Player|null; idx:number; hostId:string; playerId:string }) {
   const color=PC[idx%4], isMe=p?.id===playerId, isHost=p?.id===hostId
   if (!p) return (
@@ -54,15 +57,26 @@ function PlayerSlot({ p, idx, hostId, playerId }: { p:Player|null; idx:number; h
   )
   return (
     <div className="flex flex-col items-center gap-2" style={{animation:"fade-up 0.3s ease both"}}>
-      <div className="relative w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg"
-        style={{background:`linear-gradient(135deg,${color}33,${color}11)`,border:`1px solid ${color}55`,
-          boxShadow:isMe?`0 0 20px ${color}44`:"none",color,fontFamily:"'Impact',sans-serif"}}>
-        {isHost&&<Crown className="absolute -top-2 -right-2 w-3.5 h-3.5 drop-shadow-sm" style={{color:"#fbbf24"}}/>}
-        {p.name.charAt(0).toUpperCase()}
+      <div className="relative">
+        <PlayerAvatar
+          avatar={isMe ? undefined : p.name.charAt(0).toUpperCase()}
+          size={52}
+          borderId={isMe
+            ? ((typeof window !== "undefined" ? (window as any).__myProfileData?.border : null) ?? p.border ?? "none")
+            : (p.border ?? "none")}
+          animated={true}
+        />
+        {isHost&&<Crown className="w-3.5 h-3.5" style={{color:"#fbbf24",position:"absolute",top:"-6px",right:"-4px",filter:"drop-shadow(0 0 4px #fbbf24)"}}/>}
+        {isMe&&<div style={{position:"absolute",bottom:"-4px",left:"50%",transform:"translateX(-50%)",fontSize:"8px",fontWeight:900,color:color,fontFamily:"Impact,sans-serif",background:"#0d0b08",padding:"0 3px",borderRadius:"4px",border:`1px solid ${color}44`,whiteSpace:"nowrap"}}>VOCÊ</div>}
       </div>
       <div className="text-center">
-        <p className="text-[10px] font-bold text-white truncate max-w-[72px]">{isMe?"Você":p.name}</p>
-        <p className="text-[9px]" style={{color:`${color}88`}}>{isHost?"host":`p${idx+1}`}</p>
+        <p className="text-[10px] font-bold text-white truncate max-w-[80px]">{isMe?"Você":p.name}</p>
+        {(() => {
+          const myData = isMe && typeof window !== "undefined" ? (window as any).__myProfileData : null
+          const titleText = myData?.title || p.title
+          return titleText ? <p className="text-[8px] truncate max-w-[80px]" style={{color:`${color}99`}}>{titleText}</p> : null
+        })()}
+        <p className="text-[9px]" style={{color:`${color}66`}}>{isHost?"host":`p${idx+1}`}</p>
       </div>
     </div>
   )
@@ -92,6 +106,23 @@ export default function RoomPage() {
     const id=sessionStorage.getItem("playerId")
     if(!id){router.push("/lobby");return}
     setPlayerId(id)
+    // Sync local profile data into socket player data
+    try {
+      const profile = loadProfile()
+      const avatar = localStorage.getItem("guitar-duels-avatar") ?? "🎸"
+      const border = getActiveBorder(profile)
+      const titles = getUnlockedTitles(profile)
+      const activeTitle = profile.selectedTitle
+        ? titles.find(t => t.id === profile.selectedTitle)
+        : null
+      // Store locally so PlayerSlot can use it
+      ;(window as any).__myProfileData = {
+        border: profile.selectedBorder ?? "none",
+        title: activeTitle?.label ?? "",
+        avatar,
+        level: profile.level,
+      }
+    } catch {}
   },[router])
 
   useEffect(()=>{ fetch("/api/songs").then(r=>r.json()).then(setSongs).catch(()=>{}) },[])
@@ -264,7 +295,12 @@ export default function RoomPage() {
           style={{borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{background:"#e11d48"}}/>
-            <p className="bebas text-sm tracking-[0.35em]" style={{color:"rgba(255,120,60,0.7)"}}>SALA DE BATALHA</p>
+            <div>
+              <p className="bebas text-sm tracking-[0.35em]" style={{color:"rgba(255,120,60,0.7)"}}>SALA DE BATALHA</p>
+              {room?.roomName && room.roomName !== room.code && (
+                <p className="text-xs font-bold text-white/60" style={{fontFamily:"Arial,sans-serif"}}>{room.roomName}</p>
+              )}
+            </div>
           </div>
           <button onClick={()=>{playClickSound(getVol());copyCode()}}
             className="group flex items-center gap-2.5 px-4 py-2 rounded-xl transition-all hover:scale-105 active:scale-95"

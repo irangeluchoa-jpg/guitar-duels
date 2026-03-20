@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { playClickSound, playHoverSound } from "@/lib/game/sounds"
 import { loadSettings, DEFAULT_KEY_BINDINGS } from "@/lib/settings"
-import { loadProfile, levelProgress } from "@/lib/progression"
+import { loadProfile, levelProgress, getActiveTitle } from "@/lib/progression"
 
 function getVol() {
   try { const s = loadSettings(); return (s.masterVolume/100)*(s.sfxVolume/100) } catch { return 0.5 }
@@ -34,7 +34,7 @@ export function MainMenu() {
   const [selected, setSelected] = useState(0)
   const [pressed,  setPressed]  = useState<number | null>(null)
   const [fretLit,  setFretLit]  = useState([false,false,false,false,false])
-  const [profile,  setProfile]  = useState<{level:number;totalXP:number;displayName:string}|null>(null)
+  const [profile,  setProfile]  = useState<{level:number;totalXP:number;displayName:string;selectedTitle?:string;selectedBorder?:string}|null>(null)
   const [bindings, setBindings] = useState<string[]>([...DEFAULT_KEY_BINDINGS])
   const [avatar,   setAvatar]   = useState("🎸")
   const [tick,     setTick]     = useState(0)
@@ -432,6 +432,15 @@ export function MainMenu() {
                   color:"rgba(220,185,110,0.9)",fontFamily:"Arial,sans-serif"}}>
                   {profile.displayName}
                 </span>
+                {(() => {
+                  const t = getActiveTitle(profile as any)
+                  return t ? (
+                    <span style={{fontSize:"clamp(6px,.8vw,9px)",padding:"1px 5px",borderRadius:"8px",
+                      background:`${t.color}22`,color:t.color,fontWeight:900,border:`1px solid ${t.color}44`}}>
+                      {t.icon} {t.label}
+                    </span>
+                  ) : null
+                })()}
                 <span style={{fontSize:"clamp(7px,.9vw,10px)",padding:"1px 5px",borderRadius:"8px",
                   background:"rgba(168,85,247,0.3)",color:"#c084fc",fontWeight:900}}>
                   Nv.{profile.level}

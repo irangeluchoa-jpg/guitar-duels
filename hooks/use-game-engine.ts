@@ -94,6 +94,7 @@ export function useGameEngine({
   const gameTimeRef     = useRef(0)
   const gameStartWallRef = useRef(0)
   const displayScoreRef = useRef(0)    // score animado suave
+  const lastRenderedScore = useRef(0)  // throttle setStats re-renders
   const lastMissTimeRef = useRef(0)    // timestamp do último miss para flash vermelho
 
   // Mantém refs de speed/showGuide/calibration para o game loop sem re-criar callbacks
@@ -116,7 +117,6 @@ export function useGameEngine({
   }, [highwayTheme])
   useEffect(() => { cameraShakeRef.current = cameraShake }, [cameraShake])
 
-  useEffect(() => { statsRef.current = stats }, [stats])
   useEffect(() => { gameStateRef.current = gameState }, [gameState])
 
   /**
@@ -232,7 +232,8 @@ export function useGameEngine({
           note.missed = true
           const newStats = applyHit(statsRef.current, "miss")
           statsRef.current = newStats
-          setStats(newStats)
+          lastRenderedScore.current = newStats.score
+          setStats(newStats) // always re-render on miss (important feedback)
           onScoreUpdate?.(newStats)
           lastMissTimeRef.current = performance.now()  // para flash vermelho
 

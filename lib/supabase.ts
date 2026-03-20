@@ -130,3 +130,84 @@ export async function getDailyLeaderboard(day: string, limit = 50): Promise<Dail
     return (data ?? []) as DailyScore[]
   } catch { return [] }
 }
+
+// ── Avatar Storage ─────────────────────────────────────────────────────────
+// Uses Supabase Storage bucket "avatars"
+
+async function sbStorage(path: string, options?: RequestInit) {
+  if (!isConfigured()) return null
+  const res = await fetch(`${SUPABASE_URL}/storage/v1${path}`, {
+    ...options,
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      ...(options?.headers ?? {}),
+    },
+  })
+  return res
+}
+
+export async function uploadAvatar(userId: string, file: File): Promise<string | null> {
+  if (!isConfigured()) return null
+  try {
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg"
+    const path = `${userId}.${ext}`
+
+    // Delete old avatar files for this user first
+    await deleteOldAvatars(userId, path)
+
+    // Upload new avatar
+    const formData = new FormData()
+    formData.append("", file)
+
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/avatars/${path}`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "x-upsert": "true",
+      },
+      body: file,
+    })
+
+    if (!res.ok) {
+      console.error("Avatar upload failed:", await res.text())
+      return null
+    }
+
+    // Return public URL
+    return `${SUPABASE_URL}/storage/v1/object/public/avatars/${path}`
+  } catch (e) {
+    console.error("Avatar upload error:", e)
+    return null
+  }
+}
+
+async function deleteOldAvatars(userId: string, keepPath: string) {
+  if (!isConfigured()) return
+  try {
+    // List files for this user
+    const res = await sbStorage(`/object/list/avatars`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prefix: userId, limit: 10 }),
+    })
+    if (!res?.ok) return
+    const files: Array<{ name: string }> = await res.json()
+    const toDelete = files
+      .map(f => `avatars/${f.name}`)
+      .filter(p => !p.endsWith(keepPath))
+
+    if (toDelete.length === 0) return
+    await sbStorage(`/object`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prefixes: toDelete }),
+    })
+  } catch {}
+}
+
+export function getAvatarUrl(userId: string): string | null {
+  if (!isConfigured()) return null
+  return `${SUPABASE_URL}/storage/v1/object/public/avatars/${userId}`
+}

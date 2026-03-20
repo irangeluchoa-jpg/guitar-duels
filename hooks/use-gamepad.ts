@@ -196,7 +196,7 @@ export function useGamepad({
     scanGamepads()
 
     // Polling BT — Chrome só expõe gamepad BT após primeiro input do usuário
-    const scanTimer = setInterval(scanGamepads, 200)
+    const scanTimer = setInterval(scanGamepads, 1000)
 
     // Scan em pointer (toque/clique) — NÃO keydown para não interferir no jogo
     const onPointer = () => scanGamepads()

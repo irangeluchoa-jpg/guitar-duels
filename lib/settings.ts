@@ -14,10 +14,10 @@ export interface GameSettings {
   keyBindings5: string[]     // 5 teclas (modo normal)
   keyboardEnabled: boolean
   gamepadEnabled: boolean
-  highwayTheme: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice"
+  highwayTheme: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice" | "random" | "level200"
   noteShape: "circle" | "square" | "diamond"
   cameraShake: boolean
-  showArtist: boolean
+  starPowerLite: boolean   // modo leve: só muda cor das notas, sem efeitos visuais
   audioOutputDeviceId: string  // "" = default
 }
 
@@ -40,7 +40,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   highwayTheme: "default",
   noteShape: "circle",
   cameraShake: true,
-  showArtist: true,
+  starPowerLite: false,
   audioOutputDeviceId: "",
 }
 
@@ -60,10 +60,10 @@ export function loadSettings(): GameSettings {
         keyBindings5: Array.isArray(parsed.keyBindings5) && parsed.keyBindings5.length === 5 ? parsed.keyBindings5 : [...DEFAULT_KEY_BINDINGS5],
         keyboardEnabled: parsed.keyboardEnabled ?? true,
         gamepadEnabled:  parsed.gamepadEnabled  ?? true,
-        highwayTheme:    (["default","neon","fire","space","wood","retro","ice"].includes(parsed.highwayTheme) ? parsed.highwayTheme : "default") as GameSettings["highwayTheme"],
+        highwayTheme:    (["default","neon","fire","space","wood","retro","ice","random","level200"].includes(parsed.highwayTheme) ? parsed.highwayTheme : "default") as GameSettings["highwayTheme"],
         noteShape:       parsed.noteShape       ?? "circle",
         cameraShake:     parsed.cameraShake     ?? true,
-        showArtist:      parsed.showArtist      ?? true,
+        starPowerLite:   parsed.starPowerLite   ?? false,
         audioOutputDeviceId: parsed.audioOutputDeviceId ?? "",
       }
     }

@@ -2,14 +2,16 @@
 
 import React, { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Star, Trophy, Target, Zap, Clock, Music2, Edit2, Check, Download, Upload, RefreshCw } from "lucide-react"
+import { ArrowLeft, Star, Trophy, Target, Zap, Clock, Music2, Edit2, Check, Download, Upload, RefreshCw, Camera } from "lucide-react"
 import { HISTORY_KEY } from "@/app/history/page"
+import { PlayerAvatar } from "@/components/ui/player-avatar"
 import {
   loadProfile, saveProfile, type PlayerProfile, type Achievement,
   ACHIEVEMENTS, RARITY_COLORS, RARITY_LABELS,
   levelFromXP, levelProgress, xpToNextLevel, levelTitle, formatXP, formatTime,
-  SPECIAL_TITLES, getUnlockedTitles, getBestTitle, type SpecialTitle,
+  SPECIAL_TITLES, getUnlockedTitles, getBestTitle, getActiveTitle, type SpecialTitle,
   HIGHWAY_THEMES, isThemeUnlocked,
+  PROFILE_BORDERS, getUnlockedBorders, getActiveBorder, type ProfileBorder,
 } from "@/lib/progression"
 
 const AVATARS = ["🎸", "🎵", "🎤", "🥁", "🎹", "🎺", "🎻", "🤘", "⚡", "🔥", "💎", "👑"]
@@ -38,7 +40,9 @@ function XPBar({ profile }: { profile: PlayerProfile }) {
       style={{ background: "linear-gradient(135deg,rgba(168,85,247,0.12),rgba(99,102,241,0.08))", border: "1px solid rgba(168,85,247,0.25)" }}>
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(168,85,247,0.7)" }}>Nível {profile.level}</p>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "rgba(168,85,247,0.7)" }}>
+            {profile.level >= 200 ? "NÍVEL MÁXIMO ⭐" : `Nível ${profile.level}`}
+          </p>
           <p className="text-2xl font-black text-white">{title}</p>
         </div>
         <div className="text-right">
@@ -59,7 +63,7 @@ function XPBar({ profile }: { profile: PlayerProfile }) {
         </div>
         <div className="flex justify-between mt-1.5 text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>
           <span>{formatXP(profile.totalXP - Math.floor(profile.totalXP * (1 - progress)))} XP</span>
-          <span>{toNext > 0 ? `${formatXP(toNext)} para nível ${profile.level + 1}` : "Nível máximo!"}</span>
+          <span>{toNext > 0 ? `${formatXP(toNext)} para nível ${profile.level + 1}` : "🏆 Nível Máximo 200!"}</span>
         </div>
       </div>
     </div>
@@ -165,11 +169,14 @@ export default function ProfilePage() {
   const router = useRouter()
   const [profile, setProfile] = useState<PlayerProfile | null>(null)
   const [avatar, setAvatar] = useState("🎸")
+  const [photoUrl, setPhotoUrl] = useState<string|null>(null)
+  const [uploading, setUploading] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState("")
   const [showAvatarPicker, setShowAvatarPicker] = useState(false)
   const [backupMsg, setBackupMsg] = useState<string | null>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleExport = () => {
     const ok = exportBackup()
@@ -212,6 +219,29 @@ export default function ProfilePage() {
     if (achRarity !== "all" && a.rarity !== achRarity) return false
     return true
   })
+
+  const removePhoto = () => {
+    setPhotoUrl(null)
+    localStorage.removeItem("guitar-duels-photo-url")
+    window.dispatchEvent(new StorageEvent("storage", { key: "guitar-duels-photo-url", newValue: null }))
+  }
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith("image/")) return
+    setUploading(true)
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const url = ev.target?.result as string
+      setPhotoUrl(url)
+      localStorage.setItem("guitar-duels-photo-url", url)
+      // Notify all PlayerAvatar components across the app
+      window.dispatchEvent(new StorageEvent("storage", { key: "guitar-duels-photo-url", newValue: url }))
+      setUploading(false)
+    }
+    reader.readAsDataURL(file)
+  }
 
   const saveName = () => {
     const name = nameInput.trim() || "Guitarrista"
@@ -261,24 +291,63 @@ export default function ProfilePage() {
         {/* Perfil Header */}
         <div className="flex items-center gap-5 p-5 rounded-3xl"
           style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-          {/* Avatar */}
+          {/* Avatar com borda + upload de foto */}
           <div className="relative flex-shrink-0">
+            <div className="transition-all hover:scale-105">
+              <PlayerAvatar
+                avatar={photoUrl ?? avatar}
+                size={80}
+                borderId={profile.selectedBorder ?? "none"}
+                isPhoto={!!photoUrl}
+              />
+            </div>
+
+            {/* Camera button - upload photo */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+              style={{ background: "rgba(168,85,247,0.9)", border: "2px solid #060608", boxShadow: "0 0 8px rgba(168,85,247,0.5)" }}
+              title="Trocar foto">
+              {uploading
+                ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/>
+                : <Camera className="w-3.5 h-3.5 text-white"/>}
+            </button>
+
+            {/* Remove photo button */}
+            {photoUrl && (
+              <button
+                onClick={removePhoto}
+                className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black"
+                style={{ background: "rgba(239,68,68,0.9)", border: "1.5px solid #060608", color: "#fff" }}
+                title="Remover foto">
+                ✕
+              </button>
+            )}
+
+            {/* Emoji picker toggle */}
             <button
               onClick={() => setShowAvatarPicker((v: boolean) => !v)}
-              className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl transition-all hover:scale-105"
-              style={{ background: "rgba(168,85,247,0.15)", border: "2px solid rgba(168,85,247,0.4)", boxShadow: "0 0 20px rgba(168,85,247,0.2)" }}>
-              {avatar}
+              className="absolute -bottom-1 left-0 w-6 h-6 rounded-full flex items-center justify-center text-sm transition-all hover:scale-110"
+              style={{ background: "rgba(30,20,60,0.9)", border: "1.5px solid rgba(168,85,247,0.5)" }}
+              title="Escolher emoji">
+              😊
             </button>
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg flex items-center justify-center"
-              style={{ background: "rgba(168,85,247,0.8)", border: "2px solid #060608" }}>
-              <Edit2 className="w-3 h-3 text-white"/>
-            </div>
-            {/* Avatar picker */}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={handlePhotoUpload}
+            />
+
+            {/* Emoji picker */}
             {showAvatarPicker && (
               <div className="absolute top-full left-0 mt-2 p-2 rounded-2xl z-10 grid grid-cols-6 gap-1.5"
                 style={{ background: "rgba(15,10,30,0.98)", border: "1px solid rgba(168,85,247,0.3)", boxShadow: "0 16px 40px rgba(0,0,0,0.8)" }}>
                 {AVATARS.map(em => (
-                  <button key={em} onClick={() => { setAvatar(em); saveAvatar(em); setShowAvatarPicker(false) }}
+                  <button key={em} onClick={() => { setAvatar(em); saveAvatar(em); setPhotoUrl(null); localStorage.removeItem("guitar-duels-photo-url"); setShowAvatarPicker(false) }}
                     className="w-9 h-9 rounded-lg flex items-center justify-center text-xl transition-all hover:scale-110"
                     style={{ background: avatar === em ? "rgba(168,85,247,0.3)" : "rgba(255,255,255,0.05)" }}>
                     {em}
@@ -321,7 +390,7 @@ export default function ProfilePage() {
               </span>
               {/* Melhor título especial */}
               {(() => {
-                const t = getBestTitle(profile)
+                const t = getActiveTitle(profile)
                 return (
                   <span className="text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
                     style={{ background: `${t.color}18`, color: t.color, border: `1px solid ${t.color}44` }}>
@@ -393,7 +462,7 @@ export default function ProfilePage() {
         {/* ── Títulos Especiais ───────────────────────────────────────── */}
         {(() => {
           const unlockedTitles = getUnlockedTitles(profile)
-          const bestTitle = getBestTitle(profile)
+          const bestTitle = getActiveTitle(profile)
           return (
             <div>
               <div className="flex items-center justify-between mb-3">
@@ -406,29 +475,110 @@ export default function ProfilePage() {
                   <span className="text-xs font-bold" style={{ color: bestTitle.color }}>{bestTitle.label}</span>
                 </div>
               </div>
+              <p className="text-[10px] mb-2" style={{color:"rgba(255,255,255,0.3)"}}>
+                Clique em um título desbloqueado para equipá-lo
+              </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {SPECIAL_TITLES.map(title => {
                   const has = title.check(profile)
+                  const isActive = (profile.selectedTitle ?? "") === title.id
                   return (
                     <div key={title.id}
+                      onClick={() => {
+                        if (!has) return
+                        const updated = { ...profile, selectedTitle: title.id }
+                        saveProfile(updated)
+                        setProfile(updated)
+                        localStorage.setItem("guitar-duels-active-title", JSON.stringify({ id: title.id, label: title.label, icon: title.icon, color: title.color }))
+                      }}
                       className="flex items-center gap-2.5 p-3 rounded-xl transition-all"
                       style={{
-                        background: has ? `${title.color}12` : "rgba(255,255,255,0.02)",
-                        border: has ? `1px solid ${title.color}35` : "1px solid rgba(255,255,255,0.05)",
+                        background: isActive ? `${title.color}25` : has ? `${title.color}12` : "rgba(255,255,255,0.02)",
+                        border: isActive ? `2px solid ${title.color}` : has ? `1px solid ${title.color}35` : "1px solid rgba(255,255,255,0.05)",
                         opacity: has ? 1 : 0.45,
+                        cursor: has ? "pointer" : "default",
+                        boxShadow: isActive ? `0 0 12px ${title.color}44` : "none",
                       }}>
                       <span className="text-2xl">{has ? title.icon : "🔒"}</span>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-xs font-black truncate" style={{ color: has ? title.color : "rgba(255,255,255,0.25)" }}>
                           {title.label}
                         </p>
                         <p className="text-[9px] truncate" style={{ color: "rgba(255,255,255,0.25)" }}>
                           {title.description}
                         </p>
-                        <span className="text-[8px] font-bold uppercase tracking-wide"
-                          style={{ color: has ? RARITY_COLORS[title.rarity] : "rgba(255,255,255,0.15)" }}>
-                          {RARITY_LABELS[title.rarity]}
-                        </span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[8px] font-bold uppercase tracking-wide"
+                            style={{ color: has ? RARITY_COLORS[title.rarity] : "rgba(255,255,255,0.15)" }}>
+                            {RARITY_LABELS[title.rarity]}
+                          </span>
+                          {isActive && <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full" style={{background:`${title.color}33`,color:title.color}}>ATIVO</span>}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ── Bordas de Perfil ──────────────────────────────────────── */}
+        {(() => {
+          const unlockedBorders = getUnlockedBorders(profile.level)
+          const activeBorder = getActiveBorder(profile)
+          return (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="bebas text-lg tracking-widest" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  BORDAS DE PERFIL <span style={{ color: "rgba(255,255,255,0.2)" }}>({unlockedBorders.length}/{PROFILE_BORDERS.length})</span>
+                </h3>
+                {activeBorder.id !== "none" && (
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full"
+                    style={{ background: `${activeBorder.glow}22`, border: `1px solid ${activeBorder.glow}55` }}>
+                    <span className="text-xs font-bold" style={{ color: activeBorder.glow }}>{activeBorder.name}</span>
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] mb-3" style={{color:"rgba(255,255,255,0.3)"}}>
+                Clique para equipar. Bordas são desbloqueadas por nível.
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                {PROFILE_BORDERS.map(border => {
+                  const unlocked = profile.level >= border.minLevel
+                  const isActive = activeBorder.id === border.id
+                  return (
+                    <div key={border.id}
+                      onClick={() => {
+                        if (!unlocked) return
+                        const updated = { ...profile, selectedBorder: border.id }
+                        saveProfile(updated)
+                        setProfile(updated)
+                      }}
+                      className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all"
+                      style={{
+                        background: isActive ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)",
+                        border: isActive ? `2px solid ${border.glow}` : "1px solid rgba(255,255,255,0.07)",
+                        cursor: unlocked ? "pointer" : "default",
+                        opacity: unlocked ? 1 : 0.4,
+                        boxShadow: isActive ? `0 0 16px ${border.glow}55` : "none",
+                      }}>
+                      {/* Border preview */}
+                      <PlayerAvatar
+                        avatar={unlocked ? "😎" : "🔒"}
+                        size={52}
+                        borderId={border.id}
+                        borderData={unlocked ? border : null}
+                        animated={unlocked}
+                      />
+                      <div className="text-center">
+                        <p className="text-[11px] font-black" style={{ color: unlocked ? border.glow : "rgba(255,255,255,0.25)" }}>
+                          {border.name}
+                        </p>
+                        <p className="text-[9px]" style={{ color: "rgba(255,255,255,0.3)" }}>
+                          {border.id === "none" ? "Padrão" : `Nv.${border.minLevel}`}
+                        </p>
+                        {isActive && <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full" style={{background:`${border.glow}33`,color:border.glow}}>ATIVA</span>}
                       </div>
                     </div>
                   )

@@ -90,51 +90,16 @@ export function playHitSound(lane: number, rating: "perfect" | "great" | "good" 
     osc.connect(env); env.connect(gain)
     osc.start(now); osc.stop(now + decay + 0.05)
 
-    // --- Harmônico 2x (brilho) ---
-    const osc2 = ac.createOscillator()
-    const env2 = ac.createGain()
-    osc2.type  = "sine"
-    osc2.frequency.value = freq * 2
-    env2.gain.setValueAtTime(0, now)
-    env2.gain.linearRampToValueAtTime(0.35, now + 0.005)
-    env2.gain.exponentialRampToValueAtTime(0.001, now + 0.14)
-    osc2.connect(env2); env2.connect(gain)
-    osc2.start(now); osc2.stop(now + 0.15)
-
     // --- Clique de palheta (transiente percussivo) ---
     const click = ac.createOscillator()
     const cEnv  = ac.createGain()
     click.type  = "square"
     click.frequency.setValueAtTime(freq * 4, now)
     click.frequency.exponentialRampToValueAtTime(freq * 1.5, now + 0.02)
-    cEnv.gain.setValueAtTime(0.7, now)
+    cEnv.gain.setValueAtTime(rating === "perfect" ? 0.9 : 0.5, now)
     cEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.022)
     click.connect(cEnv); cEnv.connect(gain)
     click.start(now); click.stop(now + 0.025)
-
-    // --- Perfect: faísca brilhante + shimmer ---
-    if (rating === "perfect") {
-      const spark = ac.createOscillator()
-      const sEnv  = ac.createGain()
-      spark.type  = "sine"
-      spark.frequency.setValueAtTime(freq * 5, now + 0.008)
-      spark.frequency.exponentialRampToValueAtTime(freq * 8, now + 0.22)
-      sEnv.gain.setValueAtTime(0.25, now + 0.008)
-      sEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.28)
-      spark.connect(sEnv); sEnv.connect(gain)
-      spark.start(now + 0.008); spark.stop(now + 0.3)
-
-      // Shimmer (LFO rápido)
-      const shimmer = ac.createOscillator()
-      const shimEnv = ac.createGain()
-      shimmer.type = "sine"
-      shimmer.frequency.setValueAtTime(freq * 3, now + 0.015)
-      shimmer.frequency.linearRampToValueAtTime(freq * 6, now + 0.15)
-      shimEnv.gain.setValueAtTime(0.15, now + 0.015)
-      shimEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.2)
-      shimmer.connect(shimEnv); shimEnv.connect(gain)
-      shimmer.start(now + 0.015); shimmer.stop(now + 0.22)
-    }
   } catch {}
 }
 

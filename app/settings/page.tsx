@@ -469,11 +469,10 @@ export default function SettingsPage() {
               description="Leve tremor de câmera durante Star Power ativo"
               value={settings.cameraShake ?? true} onChange={v => update({ cameraShake: v })} color="#a855f7" />
 
-            <ToggleRow label="Animação de Artista"
-              description="Silhueta de guitarrista animada durante o jogo — reage ao combo e Star Power"
-              value={settings.showArtist ?? true} onChange={v => update({ showArtist: v })} color="#a855f7" />
-
-            {/* Tema da Highway */}
+            <ToggleRow label="⚡ Star Power Leve"
+              description="Desativa partículas, raios e tremedeiras do Star Power — só muda a cor das notas. Ideal para PCs mais fracos."
+              value={settings.starPowerLite ?? false} onChange={v => update({ starPowerLite: v })} color="#f97316" />
+{/* Tema da Highway */}
             <div className="space-y-2">
               <p className="text-sm text-white font-medium">Tema da Highway</p>
               <div className="grid grid-cols-4 sm:grid-cols-4 gap-2" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>

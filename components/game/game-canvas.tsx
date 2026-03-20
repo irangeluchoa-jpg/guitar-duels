@@ -1,8 +1,8 @@
 "use client"
 
+import React from "react"
 import { useRef, useEffect, useCallback, useState } from "react"
 import type { ChartData as Chart, SongMeta } from "@/lib/songs/types"
-import { ArtistSilhouette } from "@/components/game/artist-silhouette"
 import { useAudioOutput } from "@/hooks/use-audio-output"
 import type { GameStats } from "@/lib/game/engine"
 import { useGameEngine } from "@/hooks/use-game-engine"
@@ -41,7 +41,7 @@ interface GameCanvasProps {
   hideTopBar?: boolean
 }
 
-export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused, frozen = false, laneCount = 5, isDaily = false, onNextSong, playlistCount = 0, playlistPosition = 0, hideTopBar = false }: GameCanvasProps) {
+export const GameCanvas = React.memo(function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused, frozen = false, laneCount = 5, isDaily = false, onNextSong, playlistCount = 0, playlistPosition = 0, hideTopBar = false }: GameCanvasProps) {
   // Unlock audio on first interaction (browser autoplay policy)
   useEffect(() => {
     const unlock = () => {
@@ -69,6 +69,16 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
   // Carrega configurações salvas — relê do localStorage a cada montagem
   // para garantir que mudanças feitas nas settings sejam aplicadas
   const [settings] = useState(() => loadSettings())
+  // Resolve random theme client-side only (avoid SSR hydration mismatch)
+  const [resolvedTheme, setResolvedTheme] = useState(settings.highwayTheme)
+  useEffect(() => {
+    if (settings.highwayTheme === "random") {
+      const themes = ["default","neon","fire","space","wood","retro","ice","tattoo","level200"] as const
+      setResolvedTheme(themes[Math.floor(Math.random() * themes.length)])
+    } else {
+      setResolvedTheme(settings.highwayTheme)
+    }
+  }, [])
 
   // Aplicar dispositivo de saída de áudio em todos os elementos
   useAudioOutput(
@@ -116,8 +126,9 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       calibrationOffset: settings.calibrationOffset,
       laneCount,
       noteShape: settings.noteShape,
-      highwayTheme: settings.highwayTheme,
+      highwayTheme: resolvedTheme as any,
       cameraShake: settings.cameraShake,
+      starPowerLite: settings.starPowerLite,
       onSongEnd: (stats) => { onSongEnd?.(stats) },
       onScoreUpdate,
     })
@@ -196,15 +207,17 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
     const dpr = window.devicePixelRatio || 1
     const w = container.clientWidth
     const h = container.clientHeight
-    // Dimensão real em pixels físicos (resolve o blur em telas Retina/4K)
     canvas.width  = Math.round(w * dpr)
     canvas.height = Math.round(h * dpr)
-    // Tamanho CSS continua igual
     canvas.style.width  = w + "px"
     canvas.style.height = h + "px"
-    // Escalar o contexto para que o renderer continue usando coordenadas CSS
     const ctx = canvas.getContext("2d")
-    if (ctx) ctx.scale(dpr, dpr)
+    if (ctx) {
+      ctx.scale(dpr, dpr)
+      // Set once — no need to set every frame in renderer
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = "medium"
+    }
   }, [])
 
   useEffect(() => {
@@ -248,8 +261,9 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
   // Aplica volume quando os elementos carregam
   useEffect(() => { applyVolumes() }, [applyVolumes])
 
-  const [progress, setProgress] = useState(0)
-  const [timeInfo, setTimeInfo] = useState(() => ({ current: 0, total: meta.songLength ? meta.songLength / 1000 : 0 }))
+  const progressRef = useRef(0)
+  const timeInfoRef = useRef({ current: 0, total: meta.songLength ? meta.songLength / 1000 : 0 })
+  const [displayTime, setDisplayTime] = useState({ current: 0, total: meta.songLength ? meta.songLength / 1000 : 0 })
 
   // Pegar duração de qualquer audio disponível (primaryAudio pode não existir)
   const allAudioRefs = [primaryAudioRef, guitarAudioRef, rhythmAudioRef, vocalsAudioRef, crowdAudioRef, keysAudioRef]
@@ -275,34 +289,36 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       if (!el) continue
       const fn = () => {
         if (isFinite(el.duration) && el.duration > 0) {
-          setTimeInfo((t: {current:number;total:number}) => ({ ...t, total: el.duration }))
+          timeInfoRef.current = { ...timeInfoRef.current, total: el.duration }
         }
       }
       el.addEventListener("loadedmetadata", fn)
       handlers.push({ el, fn })
       // Se já carregou
       if (isFinite(el.duration) && el.duration > 0) {
-        setTimeInfo((t: {current:number;total:number}) => ({ ...t, total: el.duration }))
+        timeInfoRef.current = { ...timeInfoRef.current, total: el.duration }
       }
     }
-    if (totalFromMeta > 0) setTimeInfo((t: {current:number;total:number}) => ({ ...t, total: totalFromMeta }))
+    if (totalFromMeta > 0) timeInfoRef.current = { ...timeInfoRef.current, total: totalFromMeta }
     return () => handlers.forEach(({ el, fn }) => el.removeEventListener("loadedmetadata", fn))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta.songLength])
 
   useEffect(() => {
     if (gameState !== "playing" && gameState !== "paused") return
+    // Update refs every 100ms without re-render
+    // Only trigger React re-render every 1s for the display timer
+    let displayTick = 0
     const interval = setInterval(() => {
       const audio = getBestAudioSource()
       if (!audio) return
-      const dur = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : timeInfo.total
+      const dur = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : timeInfoRef.current.total
       const cur = audio.currentTime || 0
-      if (dur > 0) {
-        setProgress(cur / dur)
-        setTimeInfo({ current: cur, total: dur })
-      } else {
-        setTimeInfo((t: {current:number;total:number}) => ({ ...t, current: cur }))
-      }
+      progressRef.current = dur > 0 ? cur / dur : 0
+      timeInfoRef.current = { current: cur, total: dur > 0 ? dur : timeInfoRef.current.total }
+      // Only re-render for timer display every ~1s
+      displayTick++
+      if (displayTick % 2 === 0) setDisplayTime({ current: cur, total: timeInfoRef.current.total })
     }, 500)
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -394,11 +410,11 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
               <div style={{ width: "210px" }} />
               <div className="flex items-baseline gap-0.5 sm:gap-1">
                 <span className="text-sm sm:text-lg font-black font-mono text-white leading-none">
-                  {formatTime(timeInfo.current)}
+                  {formatTime(displayTime.current)}
                 </span>
                 <span className="text-[9px] sm:text-xs text-white/25 font-mono">/</span>
                 <span className="text-[10px] sm:text-sm font-bold font-mono" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  {timeInfo.total > 0 ? formatTime(timeInfo.total) : "--:--"}
+                  {displayTime.total > 0 ? formatTime(displayTime.total) : "--:--"}
                 </span>
               </div>
               <div className="flex items-center gap-1 sm:gap-2">
@@ -414,7 +430,7 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
             <div className="h-0.5 sm:h-1 w-full" style={{ background: "rgba(255,255,255,0.04)" }}>
               <div className="h-full"
                 style={{
-                  width: `${progress * 100}%`,
+                  width: `${progressRef.current * 100}%`,
                   background: "linear-gradient(90deg,#be123c,#e11d48,#f97316)",
                   boxShadow: "0 0 8px rgba(225,29,72,0.8)",
                 }} />
@@ -451,4 +467,4 @@ export function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBac
       )}
     </div>
   )
-}
+})

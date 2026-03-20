@@ -1,3 +1,4 @@
+// v2.1 - borders + level200
 /**
  * progression.ts — Sistema de XP, Níveis e Conquistas
  */
@@ -22,6 +23,8 @@ export interface PlayerProfile {
   songsPerDifficulty: { 4: number; 5: number; 6: number }
   totalPlaytimeMs: number
   unlockedAchievements: string[]  // IDs
+  selectedTitle: string           // ID do título ativo
+  selectedBorder: string          // ID da borda ativa
   createdAt: number
   lastPlayedAt: number
 }
@@ -73,8 +76,32 @@ export interface SessionResult {
 // ── XP & Níveis ────────────────────────────────────────────────────────────
 
 export const LEVEL_NAMES = [
-  "Iniciante", "Aprendiz", "Guitarrista", "Músico", "Veterano",
-  "Profissional", "Virtuoso", "Lenda", "Ícone", "Deus do Rock",
+  // 1-10
+  "Iniciante", "Aprendiz",
+  // 11-20
+  "Guitarrista", "Músico",
+  // 21-30
+  "Veterano", "Profissional",
+  // 31-40
+  "Virtuoso", "Mestre",
+  // 41-50
+  "Lenda", "Ícone",
+  // 51-60
+  "Semideus", "Astro",
+  // 61-70
+  "Estrela do Rock", "Titã",
+  // 71-80
+  "Imortal", "Campeão",
+  // 81-90
+  "Escolhido", "Épico",
+  // 91-100
+  "Deus do Rock", "Lenda Suprema",
+  // 101-200 (cada 10 níveis)
+  "Além da Lenda", "Transcendente",
+  "Cósmico", "Celestial",
+  "Eterno", "Infinito",
+  "Além do Infinito", "Singular",
+  "Absoluto", "Orion",
 ]
 
 /** XP total necessário para atingir um nível (curva suave) */
@@ -96,12 +123,13 @@ export function totalXPForLevel(level: number): number {
 export function levelFromXP(xp: number): number {
   let level = 1
   while (xpForLevel(level + 1) <= xp) level++
-  return Math.min(level, 99)
+  return Math.min(level, 200)
 }
 
 /** Progresso dentro do nível atual (0–1) */
 export function levelProgress(xp: number): number {
   const level = levelFromXP(xp)
+  if (level >= 200) return 1
   const start = xpForLevel(level)
   const end   = xpForLevel(level + 1)
   if (end <= start) return 1
@@ -111,6 +139,7 @@ export function levelProgress(xp: number): number {
 /** XP faltando para o próximo nível */
 export function xpToNextLevel(xp: number): number {
   const level = levelFromXP(xp)
+  if (level >= 200) return 0
   return Math.max(0, xpForLevel(level + 1) - xp)
 }
 
@@ -303,6 +332,18 @@ export const ACHIEVEMENTS: Achievement[] = [
     xpReward: 0, rarity: "epic",
     check: (p) => p.level >= 50,
   },
+  {
+    id: "level_100", title: "Centurião", icon: "💯",
+    description: "Alcance o nível 100",
+    xpReward: 2000, rarity: "legendary",
+    check: (p) => p.level >= 100,
+  },
+  {
+    id: "level_200", title: "Transcendente", icon: "🌌",
+    description: "Alcance o nível 200 — o limite absoluto",
+    xpReward: 5000, rarity: "legendary",
+    check: (p) => p.level >= 200,
+  },
   // Precisão
   {
     id: "perfect_accuracy", title: "Perfeição Absoluta", icon: "✨",
@@ -365,6 +406,8 @@ function createProfile(): PlayerProfile {
     songsPerDifficulty: { 4: 0, 5: 0, 6: 0 },
     totalPlaytimeMs: 0,
     unlockedAchievements: [],
+    selectedTitle: "newcomer",
+    selectedBorder: "none",
     createdAt: Date.now(),
     lastPlayedAt: Date.now(),
   }
@@ -525,6 +568,24 @@ export const HIGHWAY_THEMES: HighwayThemeInfo[] = [
     border: "#00d4ff",
     icon: "❄️",
   },
+  {
+    id: "random",
+    label: "Aleatório",
+    description: "Muda o tema a cada música automaticamente",
+    unlockLevel: 10,
+    preview: "linear-gradient(135deg,#ff0080,#7700ff,#0080ff,#00ff80,#ffff00)",
+    border: "#ffffff",
+    icon: "🎲",
+  },
+  {
+    id: "level200",
+    label: "??? (Secreto)",
+    description: "Desbloqueado ao atingir o nível 200",
+    unlockLevel: 200,
+    preview: "linear-gradient(135deg,#001a0d,#00ff80,#ff0090,#001a0d)",
+    border: "#00ff80",
+    icon: "✨",
+  },
 ]
 
 /** Retorna true se o jogador pode usar o tema dado seu perfil */
@@ -574,7 +635,7 @@ export const SPECIAL_TITLES: SpecialTitle[] = [
   {
     id: "rock_god",
     label: "Deus do Rock",
-    description: "Atingiu nível 99",
+    description: "Atingiu o nível 99",
     icon: "🤘", color: "#f59e0b", rarity: "legendary",
     check: p => p.level >= 99,
   },
@@ -630,6 +691,104 @@ export const SPECIAL_TITLES: SpecialTitle[] = [
 ]
 
 /** Retorna todos os títulos que o jogador desbloqueou */
+// ── Bordas de Perfil ────────────────────────────────────────────────────────
+
+export interface ProfileBorder {
+  id: string
+  name: string
+  description: string
+  minLevel: number
+  gradient: string     // CSS gradient string
+  glow: string         // CSS glow color
+  animated: boolean
+}
+
+export const PROFILE_BORDERS: ProfileBorder[] = [
+  {
+    id: "none",
+    name: "Sem Borda",
+    description: "Padrão",
+    minLevel: 0,
+    gradient: "none",
+    glow: "transparent",
+    animated: false,
+  },
+  {
+    id: "bronze",
+    name: "Bronze",
+    description: "Nível 10",
+    minLevel: 10,
+    gradient: "conic-gradient(#cd7f32,#a0522d,#e8a855,#8b4513,#cd7f32)",
+    glow: "#cd7f32",
+    animated: false,
+  },
+  {
+    id: "prata",
+    name: "Prata",
+    description: "Nível 25",
+    minLevel: 25,
+    gradient: "conic-gradient(#c0c0c0,#888,#e8e8e8,#aaa,#c0c0c0)",
+    glow: "#d0d0d0",
+    animated: false,
+  },
+  {
+    id: "ouro",
+    name: "Ouro",
+    description: "Nível 50",
+    minLevel: 50,
+    gradient: "conic-gradient(#ffd700,#ffb300,#ffe566,#ff9900,#ffd700)",
+    glow: "#ffd700",
+    animated: true,
+  },
+  {
+    id: "platina",
+    name: "Platina",
+    description: "Nível 75",
+    minLevel: 75,
+    gradient: "conic-gradient(#e8e8ff,#a0c8f0,#ffffff,#80b0e8,#c0d8ff,#e8e8ff)",
+    glow: "#a0d0ff",
+    animated: true,
+  },
+  {
+    id: "orion",
+    name: "Orion",
+    description: "Nível 100 — tema galáxia",
+    minLevel: 100,
+    gradient: "conic-gradient(#6600ff,#00aaff,#ff00cc,#6600ff,#00aaff,#6600ff)",
+    glow: "#6600ff",
+    animated: true,
+  },
+  {
+    id: "transcendente",
+    name: "Transcendente",
+    description: "Nível 200 — o limite absoluto",
+    minLevel: 200,
+    gradient: "conic-gradient(#ff0090,#ff69b4,#ff00cc,#ff1493,#ff69b4,#ff0090)",
+    glow: "#ff0090",
+    animated: true,
+  },
+]
+
+/** Retorna o título atualmente selecionado pelo jogador (ou o melhor se nenhum selecionado) */
+export function getActiveTitle(profile: PlayerProfile): SpecialTitle {
+  if (profile.selectedTitle) {
+    const found = SPECIAL_TITLES.find(t => t.id === profile.selectedTitle && t.check(profile))
+    if (found) return found
+  }
+  return getBestTitle(profile)
+}
+
+export function getUnlockedBorders(level: number): ProfileBorder[] {
+  return PROFILE_BORDERS.filter(b => level >= b.minLevel)
+}
+
+export function getActiveBorder(profile: PlayerProfile): ProfileBorder {
+  const found = PROFILE_BORDERS.find(b => b.id === profile.selectedBorder)
+  if (found && profile.level >= found.minLevel) return found
+  return PROFILE_BORDERS[0]
+}
+
+
 export function getUnlockedTitles(profile: PlayerProfile): SpecialTitle[] {
   return SPECIAL_TITLES.filter(t => t.check(profile))
 }

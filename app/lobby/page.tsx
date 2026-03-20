@@ -1,45 +1,67 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { GHBackground, GHLogo, GHBackButton, GHCard, GHSectionTitle, GHInput, GHButton, GHBottomBar } from "@/components/ui/gh-layout"
 import { getSocket } from "@/lib/multiplayer/socket-client"
-import { playClickSound } from "@/lib/game/sounds"
-import { loadSettings } from "@/lib/settings"
-
-function getVol() { try { const s=loadSettings(); return (s.masterVolume/100)*(s.sfxVolume/100) } catch { return .5 } }
+import { loadProfile, getActiveBorder, getActiveTitle } from "@/lib/progression"
+import { PlayerAvatar } from "@/components/ui/player-avatar"
 
 export default function LobbyPage() {
   const router = useRouter()
-  const [playerName, setPlayerName] = useState(() => typeof window!=="undefined" ? sessionStorage.getItem("playerName")||"" : "")
+  const [roomName,   setRoomName]   = useState("")
   const [joinCode,   setJoinCode]   = useState("")
   const [maxPlayers, setMaxPlayers] = useState<2|3|4>(2)
   const [loading,    setLoading]    = useState<"create"|"join"|null>(null)
   const [error,      setError]      = useState("")
+  const [profile,    setProfile]    = useState<{displayName:string;level:number;selectedTitle?:string;selectedBorder?:string}|null>(null)
+  const [avatar,     setAvatar]     = useState("🎸")
+
+  useEffect(() => {
+    try {
+      const p = loadProfile()
+      setProfile(p)
+      const savedPhoto = localStorage.getItem("guitar-duels-photo-url")
+    setAvatar(savedPhoto || localStorage.getItem("guitar-duels-avatar") || "🎸")
+    } catch {}
+  }, [])
+
+  const playerName = profile?.displayName ?? "Guitarrista"
+  const activeBorder = profile ? getActiveBorder(profile as any) : null
+  const activeTitle = profile ? getActiveTitle(profile as any) : null
 
   function handleCreate() {
-    if (!playerName.trim()) { setError("Digite seu nome"); return }
     setLoading("create"); setError("")
     const socket = getSocket()
-    socket.emit("create-room", { playerName: playerName.trim(), maxPlayers }, (res: any) => {
+    socket.emit("create-room", {
+      playerName,
+      maxPlayers,
+      roomName: roomName.trim() || `Sala de ${playerName}`,
+      playerTitle: activeTitle?.label ?? "",
+      playerBorder: profile?.selectedBorder ?? "none",
+    }, (res: any) => {
       setLoading(null)
       if (!res?.success) { setError(res?.error || "Erro ao criar sala"); return }
       sessionStorage.setItem("playerId", res.playerId)
-      sessionStorage.setItem("playerName", playerName.trim())
+      sessionStorage.setItem("playerName", playerName)
       router.push(`/room/${res.room.code}`)
     })
   }
 
   function handleJoin() {
-    if (!playerName.trim()) { setError("Digite seu nome"); return }
-    if (!joinCode.trim())   { setError("Digite o código da sala"); return }
+    if (!joinCode.trim()) { setError("Digite o código da sala"); return }
     setLoading("join"); setError("")
     const socket = getSocket()
-    socket.emit("join-room", { code: joinCode.trim().toUpperCase(), playerName: playerName.trim() }, (res: any) => {
+    socket.emit("join-room", {
+      code: joinCode.trim().toUpperCase(),
+      playerName,
+      playerTitle: activeTitle?.label ?? "",
+      playerBorder: profile?.selectedBorder ?? "none",
+    }, (res: any) => {
       setLoading(null)
       if (!res?.success) { setError(res?.error || "Sala não encontrada"); return }
       sessionStorage.setItem("playerId", res.playerId)
-      sessionStorage.setItem("playerName", playerName.trim())
+      sessionStorage.setItem("playerName", playerName)
       router.push(`/room/${res.room.code}`)
     })
   }
@@ -53,13 +75,52 @@ export default function LobbyPage() {
       </div>
 
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 16px"}}>
-        <div style={{width:"min(400px,90vw)",animation:"gh3-in .4s cubic-bezier(.34,1.56,.64,1) .05s both"}}>
+        <div style={{width:"min(420px,90vw)",animation:"gh3-in .4s cubic-bezier(.34,1.56,.64,1) .05s both"}}>
+
           <GHSectionTitle>⚔️ MULTIPLAYER</GHSectionTitle>
+
+          {/* Profile preview */}
+          {profile && (
+            <div style={{
+              display:"flex",alignItems:"center",gap:"10px",
+              padding:"10px 14px",marginBottom:"12px",borderRadius:"8px",
+              background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",
+            }}>
+              <PlayerAvatar
+                avatar={avatar}
+                size={46}
+                borderId={profile?.selectedBorder ?? "none"}
+                borderData={activeBorder}
+                level={profile?.level}
+                isPhoto={avatar?.startsWith("http")}
+              />
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}>
+                  <span style={{fontSize:"14px",fontWeight:900,color:"#fff",fontFamily:"Arial,sans-serif"}}>{playerName}</span>
+                  {activeTitle && (
+                    <span style={{fontSize:"10px",fontWeight:700,padding:"1px 6px",borderRadius:"10px",
+                      background:`${activeTitle.color}22`,color:activeTitle.color,border:`1px solid ${activeTitle.color}44`}}>
+                      {activeTitle.icon} {activeTitle.label}
+                    </span>
+                  )}
+                </div>
+                <p style={{fontSize:"11px",color:"rgba(255,255,255,0.35)",fontFamily:"Arial,sans-serif",margin:0}}>
+                  Nível {profile.level} · Jogando como este perfil
+                </p>
+              </div>
+              <button onClick={()=>router.push("/profile")}
+                style={{fontSize:"10px",color:"rgba(200,160,60,.6)",background:"none",border:"none",cursor:"pointer",fontFamily:"Arial,sans-serif",whiteSpace:"nowrap"}}>
+                Editar ›
+              </button>
+            </div>
+          )}
+
           <GHCard>
             <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
-              <GHInput label="Seu Nome" value={playerName}
-                onChange={e=>setPlayerName(e.target.value)}
-                placeholder="Ex: RockStar99" maxLength={16}
+
+              <GHInput label="Nome da Sala (opcional)"
+                value={roomName} onChange={e=>setRoomName(e.target.value)}
+                placeholder={`Sala de ${playerName}`} maxLength={24}
                 onKeyDown={e=>e.key==="Enter"&&handleCreate()} />
 
               <div>

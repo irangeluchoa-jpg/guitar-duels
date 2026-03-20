@@ -34,6 +34,7 @@ function generateCode() {
 function serializeRoom(room) {
   return {
     code: room.code,
+    roomName: room.roomName || room.code,
     hostId: room.hostId,
     songId: room.songId,
     state: room.state,
@@ -63,19 +64,21 @@ app.prepare().then(() => {
   io.on("connection", (socket) => {
 
     // ── CREATE ROOM ──────────────────────────────────────────────────────────
-    socket.on("create-room", ({ playerName, maxPlayers }, cb) => {
+    socket.on("create-room", ({ playerName, maxPlayers, roomName, playerTitle, playerBorder }, cb) => {
       const playerId = nanoid(8)
       let code = generateCode()
       while (rooms.has(code)) code = generateCode()
 
       const room = {
         code, hostId: playerId,
+        roomName: roomName || `Sala de ${playerName || "Jogador"}`,
         songId: null, state: "waiting",
         pausedBy: null, startTime: null,
         maxPlayers: maxPlayers || 4,
         createdAt: Date.now(),
         players: new Map([[playerId, {
           id: playerId, name: playerName || "Jogador",
+          title: playerTitle || "", border: playerBorder || "none",
           score: 0, combo: 0, rockMeter: 50,
           ready: false, socketId: socket.id,
         }]]),
@@ -88,7 +91,7 @@ app.prepare().then(() => {
     })
 
     // ── JOIN ROOM ────────────────────────────────────────────────────────────
-    socket.on("join-room", ({ code, playerName }, cb) => {
+    socket.on("join-room", ({ code, playerName, playerTitle, playerBorder }, cb) => {
       const room = rooms.get(code?.toUpperCase())
       if (!room) return cb?.({ success: false, error: "Sala não encontrada" })
       if (room.players.size >= room.maxPlayers) return cb?.({ success: false, error: "Sala cheia" })
@@ -97,6 +100,7 @@ app.prepare().then(() => {
       const playerId = nanoid(8)
       room.players.set(playerId, {
         id: playerId, name: playerName || "Jogador",
+        title: playerTitle || "", border: playerBorder || "none",
         score: 0, combo: 0, rockMeter: 50,
         ready: false, socketId: socket.id,
       })
