@@ -33,6 +33,13 @@ export default function LobbyPage() {
   function handleCreate() {
     setLoading("create"); setError("")
     const socket = getSocket()
+
+    // Timeout de 8s — se não responder, provavelmente o socket não conectou
+    const timeout = setTimeout(() => {
+      setLoading(null)
+      setError("Servidor não respondeu. Verifique sua conexão e tente novamente.")
+    }, 8000)
+
     const avatarUrl = localStorage.getItem("guitar-duels-photo-url") ?? ""
     socket.emit("create-room", {
       playerName,
@@ -42,6 +49,7 @@ export default function LobbyPage() {
       playerBorder: profile?.selectedBorder ?? "none",
       avatarUrl,
     }, (res: any) => {
+      clearTimeout(timeout)
       setLoading(null)
       if (!res?.success) { setError(res?.error || "Erro ao criar sala"); return }
       sessionStorage.setItem("playerId", res.playerId)
@@ -54,6 +62,12 @@ export default function LobbyPage() {
     if (!joinCode.trim()) { setError("Digite o código da sala"); return }
     setLoading("join"); setError("")
     const socket = getSocket()
+
+    const timeout = setTimeout(() => {
+      setLoading(null)
+      setError("Servidor não respondeu. Verifique sua conexão e tente novamente.")
+    }, 8000)
+
     const avatarUrl = localStorage.getItem("guitar-duels-photo-url") ?? ""
     socket.emit("join-room", {
       code: joinCode.trim().toUpperCase(),
@@ -62,6 +76,7 @@ export default function LobbyPage() {
       playerBorder: profile?.selectedBorder ?? "none",
       avatarUrl,
     }, (res: any) => {
+      clearTimeout(timeout)
       setLoading(null)
       if (!res?.success) { setError(res?.error || "Sala não encontrada"); return }
       sessionStorage.setItem("playerId", res.playerId)

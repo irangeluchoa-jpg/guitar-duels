@@ -59,16 +59,8 @@ app.prepare().then(() => {
   const io = new Server(httpServer, {
     cors: { origin: "*", methods: ["GET", "POST"] },
     transports: ["websocket", "polling"],
-    // Compressão de mensagens WebSocket (reduz dados transmitidos ~60-70%)
-    perMessageDeflate: {
-      threshold: 256,       // comprime mensagens > 256 bytes
-      zlibDeflateOptions: { level: 3 },  // nível 3: rápido o suficiente
-    },
-    // Reduzir heartbeat para detectar desconexão mais rápido
-    pingInterval: 10000,  // 10s entre pings
-    pingTimeout: 5000,    // 5s sem resposta = desconectado
-    // Buffer menor para reduzir latência
-    httpCompression: true,
+    pingInterval: 10000,
+    pingTimeout: 5000,
   })
 
   io.on("connection", (socket) => {

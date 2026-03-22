@@ -207,6 +207,14 @@ export default function ProfilePage() {
   useEffect(() => {
     setProfile(loadProfile())
     setAvatar(loadAvatar())
+    // Carregar foto/vídeo salvo
+    const saved = localStorage.getItem("guitar-duels-photo-url")
+    if (saved) {
+      setPhotoUrl(saved)
+      // Detectar se é vídeo pelo prefixo data:video ou extensão
+      const isVid = saved.startsWith("data:video/") || /\.(mp4|webm|mov|avi)$/i.test(saved)
+      setMediaType(isVid ? "video" : "image")
+    }
   }, [])
 
   if (!profile) return null
@@ -350,8 +358,8 @@ export default function ProfilePage() {
         <div className="flex items-center gap-5 p-5 rounded-3xl"
           style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
           {/* Avatar com borda + upload de foto/vídeo */}
-          <div className="relative flex-shrink-0">
-            <div className="transition-all hover:scale-105">
+          <div className="relative flex-shrink-0" style={{ zIndex: 10 }}>
+            <div className="transition-all hover:scale-105" style={{ position: "relative", zIndex: 1 }}>
               <PlayerAvatar
                 avatar={photoUrl ?? avatar}
                 size={80}
@@ -367,7 +375,7 @@ export default function ProfilePage() {
                   border: "1.5px solid #060608",
                   borderRadius: 6, padding: "1px 5px",
                   fontSize: 7, fontWeight: 700, color: "#fff",
-                  whiteSpace: "nowrap",
+                  whiteSpace: "nowrap", zIndex: 5,
                 }}>▶ VÍDEO</div>
               )}
             </div>
@@ -377,7 +385,7 @@ export default function ProfilePage() {
               onClick={() => { setUploadError(null); fileInputRef.current?.click() }}
               disabled={uploading}
               className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
-              style={{ background: "rgba(168,85,247,0.9)", border: "2px solid #060608", boxShadow: "0 0 8px rgba(168,85,247,0.5)" }}
+              style={{ background: "rgba(168,85,247,0.9)", border: "2px solid #060608", boxShadow: "0 0 8px rgba(168,85,247,0.5)", zIndex: 20 }}
               title="Foto ou Vídeo (MP4, WebM, GIF)">
               {uploading
                 ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/>
@@ -389,7 +397,7 @@ export default function ProfilePage() {
               <button
                 onClick={removePhoto}
                 className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black"
-                style={{ background: "rgba(239,68,68,0.9)", border: "1.5px solid #060608", color: "#fff" }}
+                style={{ background: "rgba(239,68,68,0.9)", border: "1.5px solid #060608", color: "#fff", zIndex: 20 }}
                 title="Remover foto">
                 ✕
               </button>
@@ -399,7 +407,7 @@ export default function ProfilePage() {
             <button
               onClick={() => setShowAvatarPicker((v: boolean) => !v)}
               className="absolute -bottom-1 left-0 w-6 h-6 rounded-full flex items-center justify-center text-sm transition-all hover:scale-110"
-              style={{ background: "rgba(30,20,60,0.9)", border: "1.5px solid rgba(168,85,247,0.5)" }}
+              style={{ background: "rgba(30,20,60,0.9)", border: "1.5px solid rgba(168,85,247,0.5)", zIndex: 20 }}
               title="Escolher emoji">
               😊
             </button>

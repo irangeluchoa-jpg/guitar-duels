@@ -4,12 +4,23 @@ import { io, Socket } from "socket.io-client"
 let socket: Socket | null = null
 
 export function getSocket(): Socket {
-  if (!socket) {
+  if (!socket || socket.disconnected) {
+    // Se socket existe mas está desconectado, tentar reconectar
+    if (socket?.disconnected) {
+      socket.connect()
+      return socket
+    }
     socket = io({
       transports: ["websocket", "polling"],
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: 15,
       reconnectionDelay: 500,
+      reconnectionDelayMax: 3000,
+      timeout: 10000,
+    })
+
+    socket.on("connect_error", (err) => {
+      console.warn("[Socket] Erro de conexão:", err.message)
     })
   }
   return socket
