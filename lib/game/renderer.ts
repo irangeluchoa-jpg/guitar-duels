@@ -1840,8 +1840,15 @@ export function renderFrame(state: RenderState): void {
 
     // ── Estrelas (topo do painel, estilo Fortnite) ──────────────────────
     {
-      const totalEst = Math.max(stats.totalNotes * 100 * 4, 1)
-      const filled   = Math.min(5, Math.floor((stats.score / totalEst) * 5))
+      // Score máximo: todas as notas Perfect com multiplicador 4x
+      // Perfect = 100pts × 4 combo × 4 multiplier = 1600pts por nota em média
+      // Mas na prática o multiplicador cresce gradualmente, então ~50% do tempo é 4x
+      // Estimativa conservadora: 100 × (1 + 2 + 3 + 4) / 4 = 250 pts médios por nota
+      const totalEst = Math.max(stats.totalNotes * 250, 1)
+      // Estrelas baseadas em % do score máximo possível
+      // 1★ = 20%, 2★ = 40%, 3★ = 60%, 4★ = 80%, 5★ = 95%+
+      const pct = stats.score / totalEst
+      const filled = pct >= 0.95 ? 5 : pct >= 0.80 ? 4 : pct >= 0.60 ? 3 : pct >= 0.40 ? 2 : pct >= 0.20 ? 1 : 0
       const starR    = Math.round(11 * uS)
       const gap      = Math.round(23 * uS)
       const sx0      = pX + (pW - 5 * gap) / 2
@@ -1919,7 +1926,12 @@ export function renderFrame(state: RenderState): void {
       const sc = (displayScore ?? stats.score).toLocaleString()
       ctx.fillStyle = "#ffffff"
       ctx.font = `900 ${Math.round(30*uS)}px 'Arial Black',Arial,sans-serif`
-      
+      ctx.shadowColor = sp ? spPal.primary : "rgba(255,255,255,0.3)"
+      ctx.shadowBlur = sp ? 16 : 3
+      ctx.fillText(sc, padX, cY, maxW)
+      ctx.shadowBlur = 0
+      cY += Math.round(35 * uS)
+
       ctx.beginPath(); ctx.roundRect(padX, cY, mw, mh, mh/2); ctx.fill()
       if (stats.rockMeter > 0) {
         const fg = ctx.createLinearGradient(padX, 0, padX + mw, 0)

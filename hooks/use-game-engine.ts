@@ -20,7 +20,7 @@ import {
   LANE_COUNT,
 } from "@/lib/game/engine"
 import { renderFrame, getHitLineY, clearFretCache } from "@/lib/game/renderer"
-import { playComboSound, playPauseSound, playResumeSound, playGameOverSound } from "@/lib/game/sounds"
+import { playComboSound, playPauseSound, playResumeSound, playGameOverSound, playCountdownBeep } from "@/lib/game/sounds"
 import { loadSettings, getKeyBindingsForLanes } from "@/lib/settings"
 import { useGamepad } from "@/hooks/use-gamepad"
 
@@ -378,13 +378,20 @@ export function useGameEngine({
     setGameState("countdown")
     gameStateRef.current = "countdown"
     setCountdown(3)
+    // Tocar beep inicial do 3
+    playCountdownBeep(3, sfxVolRef.current)
 
     let count = 3
     const interval = setInterval(() => {
       count -= 1
       setCountdown(count)
+      if (count > 0) {
+        playCountdownBeep(count, sfxVolRef.current)
+      }
       if (count <= 0) {
         clearInterval(interval)
+        // Beep final (1 = GO!) com tom diferente
+        playCountdownBeep(0, sfxVolRef.current)
         setGameState("playing")
         gameStateRef.current = "playing"
         gameStartWallRef.current = performance.now()
@@ -396,7 +403,10 @@ export function useGameEngine({
           })
         }
 
-        animFrameRef.current = requestAnimationFrame(gameLoop)
+        // Usar setTimeout(0) para garantir que o estado já foi setado antes do primeiro frame
+        setTimeout(() => {
+          animFrameRef.current = requestAnimationFrame(gameLoop)
+        }, 0)
       }
     }, 1000)
   }, [chart, audioRef, gameLoop])

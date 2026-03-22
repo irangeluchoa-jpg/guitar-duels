@@ -110,10 +110,10 @@ export function playCountdownBeep(number: number, volume = 1) {
     const now = ac.currentTime
     const gain = compressedMaster(volume * 0.75)
 
-    // Frequências dramáticas: 3=Dó, 2=Mi, 1=Sol (acorde crescente)
-    const freqMap: Record<number, number> = { 3: 261.63, 2: 329.63, 1: 392 }
+    // Frequências dramáticas: 3=Dó, 2=Mi, 1=Sol, 0=Dó alto (GO!)
+    const freqMap: Record<number, number> = { 3: 261.63, 2: 329.63, 1: 392, 0: 523.25 }
     const freq = freqMap[number] ?? 440
-    const duration = number === 1 ? 0.7 : 0.35
+    const duration = number === 0 ? 0.9 : number === 1 ? 0.7 : 0.35
 
     // --- Beep principal com corpo encorpado ---
     const osc = ac.createOscillator()

@@ -37,6 +37,15 @@ export function PauseOverlay({ onResume, onRestart, onQuit }: PauseOverlayProps)
 
   useEffect(() => { setSettings(loadSettings()) }, [])
 
+  // ESC despausar
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); onResume() }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onResume])
+
   return (
     <div
       className="absolute inset-0 z-20 flex items-center justify-center"
@@ -72,6 +81,7 @@ export function PauseOverlay({ onResume, onRestart, onQuit }: PauseOverlayProps)
               className="flex items-center justify-center gap-2 h-12 rounded-xl font-bold text-sm transition-all hover:scale-[1.03] active:scale-[0.97]"
               style={{ background: "linear-gradient(135deg,#e11d48,#be123c)", color: "#fff", boxShadow: "0 0 24px rgba(225,29,72,0.35)" }}>
               <Play className="w-4 h-4 fill-current" /> Continuar
+              <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 4 }}>[ESC]</span>
             </button>
 
             {/* Velocidade rápida — direto no pause sem entrar em configurações */}
@@ -164,6 +174,24 @@ export function PauseOverlay({ onResume, onRestart, onQuit }: PauseOverlayProps)
                 style={{ background: settings.showGuide ? "#e11d48" : "rgba(255,255,255,0.12)" }}>
                 <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
                   style={{ left: settings.showGuide ? "calc(100% - 18px)" : "2px" }} />
+              </button>
+            </div>
+
+            {/* 🥔 Modo Batata */}
+            <div className="flex items-center justify-between rounded-xl px-3 py-2.5"
+              style={{ background: "rgba(245,158,11,0.06)", border: `1px solid ${settings.potatoMode ? "rgba(245,158,11,0.35)" : "rgba(255,255,255,0.08)"}` }}>
+              <div className="flex items-center gap-2">
+                <span style={{ fontSize: 14 }}>🥔</span>
+                <div>
+                  <span className="text-xs font-semibold" style={{ color: settings.potatoMode ? "#fbbf24" : "rgba(255,255,255,0.5)" }}>Modo Batata</span>
+                  <p className="text-[9px]" style={{ color: "rgba(255,255,255,0.25)" }}>Remove efeitos pesados</p>
+                </div>
+              </div>
+              <button onClick={() => update("potatoMode", !settings.potatoMode)}
+                className="w-10 h-5 rounded-full transition-all relative"
+                style={{ background: settings.potatoMode ? "#f59e0b" : "rgba(255,255,255,0.12)" }}>
+                <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
+                  style={{ left: settings.potatoMode ? "calc(100% - 18px)" : "2px" }} />
               </button>
             </div>
 
