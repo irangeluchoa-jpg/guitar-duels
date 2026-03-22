@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { GHBackground, GHLogo, GHBackButton, GHCard, GHSectionTitle, GHInput, GHButton, GHBottomBar } from "@/components/ui/gh-layout"
-import { getSocket } from "@/lib/multiplayer/socket-client"
+import { getSocket, waitForConnection, isSocketConnected } from "@/lib/multiplayer/socket-client"
 import { loadProfile, getActiveBorder, getActiveTitle } from "@/lib/progression"
 import { PlayerAvatar } from "@/components/ui/player-avatar"
 
@@ -16,22 +16,49 @@ export default function LobbyPage() {
   const [error,      setError]      = useState("")
   const [profile,    setProfile]    = useState<{displayName:string;level:number;selectedTitle?:string;selectedBorder?:string}|null>(null)
   const [avatar,     setAvatar]     = useState("🎸")
+  const [socketReady, setSocketReady] = useState(false)
+  const [connecting,  setConnecting]  = useState(false)
 
   useEffect(() => {
     try {
       const p = loadProfile()
       setProfile(p)
       const savedPhoto = localStorage.getItem("guitar-duels-photo-url")
-    setAvatar(savedPhoto || localStorage.getItem("guitar-duels-avatar") || "🎸")
+      setAvatar(savedPhoto || localStorage.getItem("guitar-duels-avatar") || "🎸")
     } catch {}
+
+    // Iniciar conexão socket imediatamente ao entrar no lobby
+    getSocket()
+    if (isSocketConnected()) {
+      setSocketReady(true)
+    } else {
+      setConnecting(true)
+      waitForConnection(15000).then(ok => {
+        setSocketReady(ok)
+        setConnecting(false)
+        if (!ok) setError("Servidor offline. Tente novamente em instantes.")
+      })
+    }
   }, [])
 
   const playerName = profile?.displayName ?? "Guitarrista"
   const activeBorder = profile ? getActiveBorder(profile as any) : null
   const activeTitle = profile ? getActiveTitle(profile as any) : null
 
-  function handleCreate() {
+  async function handleCreate() {
     setLoading("create"); setError("")
+
+    // Aguardar conexão se ainda não conectou
+    if (!isSocketConnected()) {
+      setError("Conectando ao servidor...")
+      const ok = await waitForConnection(15000)
+      if (!ok) {
+        setLoading(null)
+        setError("Servidor não respondeu. O Railway pode estar acordando (aguarde 15s e tente novamente).")
+        return
+      }
+    }
+
     const socket = getSocket()
 
     // Timeout de 8s — se não responder, provavelmente o socket não conectou
@@ -58,9 +85,20 @@ export default function LobbyPage() {
     })
   }
 
-  function handleJoin() {
+  async function handleJoin() {
     if (!joinCode.trim()) { setError("Digite o código da sala"); return }
     setLoading("join"); setError("")
+
+    if (!isSocketConnected()) {
+      setError("Conectando ao servidor...")
+      const ok = await waitForConnection(15000)
+      if (!ok) {
+        setLoading(null)
+        setError("Servidor não respondeu. Tente novamente em instantes.")
+        return
+      }
+    }
+
     const socket = getSocket()
 
     const timeout = setTimeout(() => {
@@ -97,6 +135,42 @@ export default function LobbyPage() {
         <div style={{width:"min(420px,90vw)",animation:"gh3-in .4s cubic-bezier(.34,1.56,.64,1) .05s both"}}>
 
           <GHSectionTitle>⚔️ MULTIPLAYER</GHSectionTitle>
+
+          {/* Status de conexão */}
+          {connecting && !socketReady && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "8px 12px", borderRadius: 10, marginBottom: 12,
+              background: "rgba(251,191,36,0.10)",
+              border: "1px solid rgba(251,191,36,0.25)",
+            }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: "50%",
+                background: "#fbbf24",
+                boxShadow: "0 0 6px #fbbf24",
+                animation: "pulse 1s ease-in-out infinite",
+              }} />
+              <span style={{ fontSize: 12, color: "rgba(251,191,36,0.9)", fontWeight: 600 }}>
+                Conectando ao servidor... (Railway pode demorar até 15s para acordar)
+              </span>
+            </div>
+          )}
+          {socketReady && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "6px 12px", borderRadius: 10, marginBottom: 10,
+              background: "rgba(34,197,94,0.08)",
+              border: "1px solid rgba(34,197,94,0.20)",
+            }}>
+              <div style={{
+                width: 7, height: 7, borderRadius: "50%",
+                background: "#22c55e", boxShadow: "0 0 5px #22c55e",
+              }} />
+              <span style={{ fontSize: 11, color: "rgba(34,197,94,0.8)", fontWeight: 600 }}>
+                Servidor online
+              </span>
+            </div>
+          )}
 
           {/* Profile preview */}
           {profile && (
