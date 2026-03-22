@@ -59,8 +59,13 @@ app.prepare().then(() => {
   const io = new Server(httpServer, {
     cors: { origin: "*", methods: ["GET", "POST"] },
     transports: ["websocket", "polling"],
-    pingInterval: 10000,
-    pingTimeout: 5000,
+    // Railway tem latência de 3-4s — aumentar timeouts para evitar reconexões
+    pingInterval: 25000,   // 25s entre pings
+    pingTimeout:  20000,   // 20s para responder ping (era 5s — causava reconexões!)
+    connectTimeout: 30000, // 30s para estabelecer conexão inicial
+    // Desabilitar compressão — Railway proxy não suporta bem
+    perMessageDeflate: false,
+    httpCompression: false,
   })
 
   io.on("connection", (socket) => {

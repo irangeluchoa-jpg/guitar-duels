@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { GHBackground, GHLogo, GHBackButton, GHCard, GHSectionTitle, GHInput, GHButton, GHBottomBar } from "@/components/ui/gh-layout"
-import { getSocket, waitForConnection, isSocketConnected } from "@/lib/multiplayer/socket-client"
+import { getSocket, waitForConnection, isSocketConnected, emitWithRetry } from "@/lib/multiplayer/socket-client"
 import { loadProfile, getActiveBorder, getActiveTitle } from "@/lib/progression"
 import { PlayerAvatar } from "@/components/ui/player-avatar"
 
@@ -59,30 +59,25 @@ export default function LobbyPage() {
       }
     }
 
-    const socket = getSocket()
-
-    // Timeout de 8s — se não responder, provavelmente o socket não conectou
-    const timeout = setTimeout(() => {
-      setLoading(null)
-      setError("Servidor não respondeu. Verifique sua conexão e tente novamente.")
-    }, 8000)
-
     const avatarUrl = localStorage.getItem("guitar-duels-photo-url") ?? ""
-    socket.emit("create-room", {
-      playerName,
-      maxPlayers,
-      roomName: roomName.trim() || `Sala de ${playerName}`,
-      playerTitle: activeTitle?.label ?? "",
-      playerBorder: profile?.selectedBorder ?? "none",
-      avatarUrl,
-    }, (res: any) => {
-      clearTimeout(timeout)
+    try {
+      const res = await emitWithRetry<any>("create-room", {
+        playerName,
+        maxPlayers,
+        roomName: roomName.trim() || `Sala de ${playerName}`,
+        playerTitle: activeTitle?.label ?? "",
+        playerBorder: profile?.selectedBorder ?? "none",
+        avatarUrl,
+      }, 12000, 2)
       setLoading(null)
       if (!res?.success) { setError(res?.error || "Erro ao criar sala"); return }
       sessionStorage.setItem("playerId", res.playerId)
       sessionStorage.setItem("playerName", playerName)
       router.push(`/room/${res.room.code}`)
-    })
+    } catch (e: any) {
+      setLoading(null)
+      setError(e?.message || "Servidor não respondeu. Tente novamente.")
+    }
   }
 
   async function handleJoin() {
@@ -99,28 +94,24 @@ export default function LobbyPage() {
       }
     }
 
-    const socket = getSocket()
-
-    const timeout = setTimeout(() => {
-      setLoading(null)
-      setError("Servidor não respondeu. Verifique sua conexão e tente novamente.")
-    }, 8000)
-
     const avatarUrl = localStorage.getItem("guitar-duels-photo-url") ?? ""
-    socket.emit("join-room", {
-      code: joinCode.trim().toUpperCase(),
-      playerName,
-      playerTitle: activeTitle?.label ?? "",
-      playerBorder: profile?.selectedBorder ?? "none",
-      avatarUrl,
-    }, (res: any) => {
-      clearTimeout(timeout)
+    try {
+      const res = await emitWithRetry<any>("join-room", {
+        code: joinCode.trim().toUpperCase(),
+        playerName,
+        playerTitle: activeTitle?.label ?? "",
+        playerBorder: profile?.selectedBorder ?? "none",
+        avatarUrl,
+      }, 12000, 2)
       setLoading(null)
       if (!res?.success) { setError(res?.error || "Sala não encontrada"); return }
       sessionStorage.setItem("playerId", res.playerId)
       sessionStorage.setItem("playerName", playerName)
       router.push(`/room/${res.room.code}`)
-    })
+    } catch (e: any) {
+      setLoading(null)
+      setError(e?.message || "Servidor não respondeu. Tente novamente.")
+    }
   }
 
   return (
