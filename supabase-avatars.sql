@@ -9,13 +9,13 @@ values (
   'avatars',
   'avatars',
   true,                          -- público: qualquer um pode VER as fotos
-  2097152,                       -- limite: 2 MB por foto
-  array['image/jpeg','image/png','image/webp','image/gif']
+  20971520,                      -- limite: 20 MB (vídeos até 20MB, fotos até 8MB)
+  array['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm','video/quicktime','video/x-msvideo']
 )
 on conflict (id) do update set
   public = true,
   file_size_limit = 2097152,
-  allowed_mime_types = array['image/jpeg','image/png','image/webp','image/gif'];
+  allowed_mime_types = array['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm','video/quicktime','video/x-msvideo'];
 
 -- =============================================================================
 -- 2. Policies de Storage (usando anon key, sem autenticação obrigatória)

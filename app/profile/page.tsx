@@ -172,6 +172,8 @@ export default function ProfilePage() {
   const [avatar, setAvatar] = useState("🎸")
   const [photoUrl, setPhotoUrl] = useState<string|null>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string|null>(null)
+  const [mediaType, setMediaType] = useState<"image"|"video"|null>(null)
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState("")
   const [showAvatarPicker, setShowAvatarPicker] = useState(false)
@@ -240,11 +242,27 @@ export default function ProfilePage() {
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!file.type.startsWith("image/")) return
+    setUploadError(null)
+
+    const isVid = file.type.startsWith("video/")
+    const isImg = file.type.startsWith("image/")
+
+    if (!isVid && !isImg) {
+      setUploadError("Formato não suportado. Use imagem ou vídeo.")
+      return
+    }
+
+    // Limite: 8MB para imagens, 20MB para vídeos
+    const maxSize = isVid ? 20 * 1024 * 1024 : 8 * 1024 * 1024
+    if (file.size > maxSize) {
+      setUploadError(isVid ? "Vídeo muito grande. Máximo 20MB." : "Imagem muito grande. Máximo 8MB.")
+      return
+    }
+
     setUploading(true)
+    setMediaType(isVid ? "video" : "image")
 
     try {
-      // Obter ou gerar playerId estável
       let pid = sessionStorage.getItem("playerId")
       if (!pid) {
         pid = `anon_${Math.random().toString(36).slice(2, 10)}`
@@ -255,12 +273,16 @@ export default function ProfilePage() {
       const remoteUrl = await uploadAvatar(pid, file)
 
       if (remoteUrl) {
-        // ✅ Upload Supabase funcionou — usar URL remota
         setPhotoUrl(remoteUrl)
         localStorage.setItem("guitar-duels-photo-url", remoteUrl)
         window.dispatchEvent(new StorageEvent("storage", { key: "guitar-duels-photo-url", newValue: remoteUrl }))
       } else {
-        // ⚠️ Supabase não configurado — fallback para base64 local
+        // Fallback: base64 local (funciona para imagens; vídeos podem ficar grandes)
+        if (isVid && file.size > 5 * 1024 * 1024) {
+          setUploadError("Configure o Supabase para usar vídeos. Sem Supabase, use vídeos < 5MB.")
+          setUploading(false)
+          return
+        }
         const reader = new FileReader()
         reader.onload = (ev) => {
           const url = ev.target?.result as string
@@ -271,17 +293,11 @@ export default function ProfilePage() {
         reader.readAsDataURL(file)
       }
     } catch {
-      // Fallback base64
-      const reader = new FileReader()
-      reader.onload = (ev) => {
-        const url = ev.target?.result as string
-        setPhotoUrl(url)
-        localStorage.setItem("guitar-duels-photo-url", url)
-        window.dispatchEvent(new StorageEvent("storage", { key: "guitar-duels-photo-url", newValue: url }))
-      }
-      reader.readAsDataURL(file)
+      setUploadError("Erro ao fazer upload. Tente novamente.")
     } finally {
       setUploading(false)
+      // Limpar input para permitir re-selecionar o mesmo arquivo
+      if (e.target) e.target.value = ""
     }
   }
 
@@ -333,7 +349,7 @@ export default function ProfilePage() {
         {/* Perfil Header */}
         <div className="flex items-center gap-5 p-5 rounded-3xl"
           style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-          {/* Avatar com borda + upload de foto */}
+          {/* Avatar com borda + upload de foto/vídeo */}
           <div className="relative flex-shrink-0">
             <div className="transition-all hover:scale-105">
               <PlayerAvatar
@@ -342,15 +358,27 @@ export default function ProfilePage() {
                 borderId={profile.selectedBorder ?? "none"}
                 isPhoto={!!photoUrl}
               />
+              {/* Indicador de tipo de mídia */}
+              {mediaType === "video" && photoUrl && (
+                <div style={{
+                  position: "absolute", bottom: -2, left: "50%",
+                  transform: "translateX(-50%)",
+                  background: "rgba(168,85,247,0.9)",
+                  border: "1.5px solid #060608",
+                  borderRadius: 6, padding: "1px 5px",
+                  fontSize: 7, fontWeight: 700, color: "#fff",
+                  whiteSpace: "nowrap",
+                }}>▶ VÍDEO</div>
+              )}
             </div>
 
-            {/* Camera button - upload photo */}
+            {/* Camera button - upload foto ou vídeo */}
             <button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => { setUploadError(null); fileInputRef.current?.click() }}
               disabled={uploading}
               className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
               style={{ background: "rgba(168,85,247,0.9)", border: "2px solid #060608", boxShadow: "0 0 8px rgba(168,85,247,0.5)" }}
-              title="Trocar foto">
+              title="Foto ou Vídeo (MP4, WebM, GIF)">
               {uploading
                 ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/>
                 : <Camera className="w-3.5 h-3.5 text-white"/>}
@@ -379,7 +407,7 @@ export default function ProfilePage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,video/mp4,video/webm,video/quicktime,video/x-msvideo"
               style={{ display: "none" }}
               onChange={handlePhotoUpload}
             />
@@ -398,6 +426,29 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+
+          {/* Erro de upload */}
+          {uploadError && (
+            <div style={{
+              position: "absolute", top: "100%", left: 0, marginTop: 6,
+              background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.35)",
+              borderRadius: 8, padding: "4px 10px",
+              fontSize: 9, color: "#fca5a5", whiteSpace: "nowrap",
+              zIndex: 20,
+            }}>
+              ⚠️ {uploadError}
+            </div>
+          )}
+
+          {/* Dica discreta: formatos aceitos */}
+          {!photoUrl && !uploadError && (
+            <div style={{
+              position: "absolute", top: "100%", left: 0, marginTop: 6,
+              fontSize: 8, color: "rgba(255,255,255,0.18)", whiteSpace: "nowrap",
+            }}>
+              📷 foto · 🎬 vídeo
+            </div>
+          )}
 
           {/* Nome e stats rápidas */}
           <div className="flex-1 min-w-0">

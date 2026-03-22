@@ -77,16 +77,41 @@ export function PlayerAvatar({
     return () => window.removeEventListener("storage", onStorage)
   }, [])
 
+  const isVideo = resolvedIsPhoto && (
+    resolvedAvatar.includes("video/") ||
+    resolvedAvatar.endsWith(".mp4") ||
+    resolvedAvatar.endsWith(".webm") ||
+    resolvedAvatar.endsWith(".mov") ||
+    resolvedAvatar.endsWith(".gif") ||
+    resolvedAvatar.startsWith("data:video/")
+  )
+
   const innerContent = resolvedIsPhoto ? (
-    <img
-      src={resolvedAvatar}
-      alt="avatar"
-      style={{
-        width: "100%", height: "100%",
-        borderRadius: "50%",
-        objectFit: "cover",
-      }}
-    />
+    isVideo ? (
+      <video
+        src={resolvedAvatar}
+        autoPlay
+        loop
+        muted
+        playsInline
+        style={{
+          width: "100%", height: "100%",
+          borderRadius: "50%",
+          objectFit: "cover",
+          pointerEvents: "none",
+        }}
+      />
+    ) : (
+      <img
+        src={resolvedAvatar}
+        alt="avatar"
+        style={{
+          width: "100%", height: "100%",
+          borderRadius: "50%",
+          objectFit: "cover",
+        }}
+      />
+    )
   ) : (
     <span style={{ fontSize: size * 0.42, lineHeight: 1, userSelect: "none" }}>
       {resolvedAvatar}
