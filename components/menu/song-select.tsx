@@ -701,27 +701,6 @@ export function SongSelect() {
         @keyframes wave-2 { from { height: 8px } to { height: 20px } }
         @keyframes wave-3 { from { height: 5px } to { height: 16px } }
       `}</style>
-
-      {/* Card do jogador — canto inferior esquerdo, estilo GH:Live */}
-      {localPlayer && (
-        <div className="fixed bottom-4 left-4 z-20 pointer-events-none"
-          style={{ animation: "fade-up 0.4s ease both" }}>
-          <PlayerCardGH
-            name={localPlayer.name}
-            avatarUrl={localPlayer.avatarUrl || undefined}
-            level={localPlayer.level}
-            title={localPlayer.title}
-            titleColor={localPlayer.titleColor}
-            titleIcon={localPlayer.titleIcon}
-            borderId={localPlayer.borderId}
-            achievements={localPlayer.achievements}
-            isMe={true}
-            color="#e11d48"
-            size="md"
-            showStats={false}
-          />
-        </div>
-      )}
     </GHBackground>
   )
 }

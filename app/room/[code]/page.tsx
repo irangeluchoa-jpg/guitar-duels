@@ -45,40 +45,136 @@ function Waveform({ color }: { color:string }) {
 
 
 function PlayerSlot({ p, idx, hostId, playerId }: { p:Player|null; idx:number; hostId:string; playerId:string }) {
-  const color=PC[idx%4], isMe=p?.id===playerId, isHost=p?.id===hostId
+  const color = PC[idx%4], isMe = p?.id===playerId, isHost = p?.id===hostId
+
+  // Slot vazio
   if (!p) return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
-        style={{border:"1px dashed rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.02)"}}>
-        <Loader2 className="w-4 h-4 animate-spin" style={{color:"rgba(255,255,255,0.1)"}}/>
-      </div>
-      <p className="text-[9px] tracking-widest uppercase" style={{color:"rgba(255,255,255,0.15)"}}>Slot {idx+1}</p>
+    <div style={{
+      width: 200, height: 90,
+      border: "1px dashed rgba(255,255,255,0.08)",
+      borderRadius: 14,
+      background: "rgba(255,255,255,0.02)",
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", gap: 6,
+    }}>
+      <Loader2 className="w-5 h-5 animate-spin" style={{ color: "rgba(255,255,255,0.12)" }}/>
+      <span style={{ fontSize: 9, letterSpacing: "0.15em", color: "rgba(255,255,255,0.15)", textTransform: "uppercase" }}>
+        Aguardando
+      </span>
     </div>
   )
+
+  const myData = isMe && typeof window !== "undefined" ? (window as any).__myProfileData : null
+  const titleText = myData?.title || p.title || ""
+  const levelNum  = myData?.level || (p as Player & { level?: number }).level
+  const photoSrc  = isMe
+    ? (typeof window !== "undefined" ? localStorage.getItem("guitar-duels-photo-url") : null) || undefined
+    : (p.avatarUrl && p.avatarUrl.startsWith("http") ? p.avatarUrl : undefined)
+  const borderToUse = isMe ? (myData?.border ?? p.border ?? "none") : (p.border ?? "none")
+
   return (
-    <div className="flex flex-col items-center gap-2" style={{animation:"fade-up 0.3s ease both"}}>
-      <div className="relative">
-        <PlayerAvatar
-          avatar={isMe ? undefined : (p.avatarUrl && p.avatarUrl.startsWith("http") ? p.avatarUrl : p.name.charAt(0).toUpperCase())}
-          isPhoto={!isMe && !!(p.avatarUrl && p.avatarUrl.startsWith("http"))}
-          size={52}
-          borderId={isMe
-            ? ((typeof window !== "undefined" ? (window as any).__myProfileData?.border : null) ?? p.border ?? "none")
-            : (p.border ?? "none")}
-          animated={true}
-        />
-        {isHost&&<Crown className="w-3.5 h-3.5" style={{color:"#fbbf24",position:"absolute",top:"-6px",right:"-4px",filter:"drop-shadow(0 0 4px #fbbf24)"}}/>}
-        {isMe&&<div style={{position:"absolute",bottom:"-4px",left:"50%",transform:"translateX(-50%)",fontSize:"8px",fontWeight:900,color:color,fontFamily:"Impact,sans-serif",background:"#0d0b08",padding:"0 3px",borderRadius:"4px",border:`1px solid ${color}44`,whiteSpace:"nowrap"}}>VOCÊ</div>}
+    <div style={{
+      width: 200,
+      background: isMe
+        ? `linear-gradient(135deg, rgba(10,5,5,0.95), rgba(25,8,8,0.90))`
+        : "rgba(0,0,0,0.72)",
+      backdropFilter: "blur(20px)",
+      borderRadius: 14,
+      border: `1px solid ${isMe ? color + "60" : "rgba(255,255,255,0.09)"}`,
+      overflow: "hidden",
+      boxShadow: isMe ? `0 0 24px ${color}28, inset 0 0 0 1px ${color}18` : "none",
+      animation: "fade-up 0.3s ease both",
+    }}>
+      {/* Stripe topo */}
+      <div style={{
+        height: 3,
+        background: `linear-gradient(90deg, ${color}, ${color}55)`,
+        boxShadow: `0 0 6px ${color}88`,
+      }} />
+
+      <div style={{ padding: "10px 12px 10px", display: "flex", alignItems: "center", gap: 10 }}>
+        {/* Avatar com borda */}
+        <div style={{ flexShrink: 0, position: "relative" }}>
+          <PlayerAvatar
+            avatar={photoSrc ?? (isMe ? undefined : p.name.charAt(0).toUpperCase())}
+            isPhoto={!!photoSrc}
+            size={54}
+            borderId={borderToUse}
+            animated={true}
+            showLevel={false}
+          />
+          {isHost && (
+            <Crown style={{
+              position: "absolute", top: -6, right: -6,
+              width: 14, height: 14,
+              color: "#fbbf24",
+              filter: "drop-shadow(0 0 4px #fbbf24)",
+            }}/>
+          )}
+        </div>
+
+        {/* Infos */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Level + nome */}
+          <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginBottom: 2 }}>
+            {levelNum !== undefined && (
+              <span style={{
+                fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.3)",
+                letterSpacing: "0.12em", textTransform: "uppercase",
+              }}>Nv.</span>
+            )}
+            {levelNum !== undefined && (
+              <span style={{
+                fontSize: 17, fontWeight: 900, lineHeight: 1,
+                color: "#22c55e",
+                fontFamily: "'Arial Black',Arial,sans-serif",
+                textShadow: "0 0 8px #22c55e66",
+              }}>{levelNum}</span>
+            )}
+          </div>
+
+          {/* Nome */}
+          <div style={{
+            fontSize: 13, fontWeight: 900, color: "#fff",
+            fontFamily: "'Arial Black',Arial,sans-serif",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            textShadow: isMe ? `0 0 8px ${color}88` : "none",
+          }}>
+            {isMe ? "Você" : p.name}
+          </div>
+
+          {/* Título */}
+          {titleText ? (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 3, marginTop: 2,
+            }}>
+              <span style={{
+                fontSize: 9, fontWeight: 700, color: color,
+                letterSpacing: "0.05em",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                maxWidth: 108,
+                textShadow: `0 0 6px ${color}66`,
+              }}>
+                ⚡ {titleText.toUpperCase()}
+              </span>
+            </div>
+          ) : (
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.2)", marginTop: 2 }}>
+              {isHost ? "Anfitrião" : `Jogador ${idx + 1}`}
+            </div>
+          )}
+        </div>
       </div>
-      <div className="text-center">
-        <p className="text-[10px] font-bold text-white truncate max-w-[80px]">{isMe?"Você":p.name}</p>
-        {(() => {
-          const myData = isMe && typeof window !== "undefined" ? (window as any).__myProfileData : null
-          const titleText = myData?.title || p.title
-          return titleText ? <p className="text-[8px] truncate max-w-[80px]" style={{color:`${color}99`}}>{titleText}</p> : null
-        })()}
-        <p className="text-[9px]" style={{color:`${color}66`}}>{isHost?"host":`p${idx+1}`}</p>
-      </div>
+
+      {/* Barra inferior: status pronto */}
+      <div style={{
+        height: 3,
+        background: p.ready
+          ? `linear-gradient(90deg, #22c55e, #4ade80)`
+          : "rgba(255,255,255,0.05)",
+        transition: "background 0.4s ease",
+        boxShadow: p.ready ? "0 0 6px #22c55e" : "none",
+      }} />
     </div>
   )
 }
@@ -390,12 +486,12 @@ export default function RoomPage() {
         </div>
 
         {/* Players */}
-        <div className="relative z-10 px-6 py-4 flex-shrink-0"
-          style={{borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-          <p className="bebas text-xs tracking-[0.35em] mb-4" style={{color:"rgba(255,180,60,0.4)"}}>
+        <div className="relative z-10 px-6 py-5 flex-shrink-0"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <p className="bebas text-xs tracking-[0.35em] mb-4" style={{ color: "rgba(255,180,60,0.4)" }}>
             JOGADORES — {(room.players?.length??0)} / {room.maxPlayers}
           </p>
-          <div className="flex gap-6">
+          <div className="flex gap-4 flex-wrap">
             {slots.map((p,idx)=>(
               <PlayerSlot key={idx} p={p} idx={idx} hostId={room.hostId} playerId={playerId!}/>
             ))}
