@@ -19,9 +19,6 @@ function nanoid(size = 8) {
 }
 
 // ── In-memory room store ─────────────────────────────────────────────────────
-// Works because Socket.io guarantees single process (no multi-instance issue)
-// Supabase still used for global leaderboard / scores
-
 const rooms = new Map()
 
 function generateCode() {
@@ -29,6 +26,10 @@ function generateCode() {
   let code = ""
   for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)]
   return code
+}
+
+function normalizeCode(code) {
+  return (code ?? "").toUpperCase().trim()
 }
 
 function serializeRoom(room) {
@@ -53,18 +54,18 @@ function cleanRooms() {
 }
 setInterval(cleanRooms, 10 * 60 * 1000)
 
+// Salas "dormentes" — mantidas por 30s após ficarem vazias
+const _emptyRoomTimers = new Map()
+
 // ── Boot ─────────────────────────────────────────────────────────────────────
 app.prepare().then(() => {
   const httpServer = createServer(handler)
   const io = new Server(httpServer, {
     cors: { origin: "*", methods: ["GET", "POST"] },
+    // Configuração simples e robusta — sem customizações que causam problemas
     transports: ["websocket", "polling"],
-    // Railway fecha WebSocket idle após ~30s — pingar a cada 15s para manter vivo
-    pingInterval: 15000,   // 15s entre pings (bem abaixo do limite de 30s do Railway)
-    pingTimeout:  10000,   // 10s para responder
-    connectTimeout: 30000,
-    perMessageDeflate: false,
-    httpCompression: false,
+    pingInterval: 25000,
+    pingTimeout: 20000,
   })
 
   io.on("connection", (socket) => {
@@ -123,7 +124,7 @@ app.prepare().then(() => {
 
     // ── SET SONG ─────────────────────────────────────────────────────────────
     socket.on("set-song", ({ code, songId }) => {
-      const room = rooms.get(code)
+      const room = rooms.get(normalizeCode(code))
       if (!room) return
       room.songId = songId
       io.to(code).emit("room-update", serializeRoom(room))
@@ -131,7 +132,7 @@ app.prepare().then(() => {
 
     // ── PLAYER READY ─────────────────────────────────────────────────────────
     socket.on("player-ready", ({ code, playerId, laneCount }) => {
-      const room = rooms.get(code)
+      const room = rooms.get(normalizeCode(code))
       if (!room) return
       const player = room.players.get(playerId)
       if (!player) return
@@ -140,7 +141,6 @@ app.prepare().then(() => {
       const serialized = serializeRoom(room)
       io.to(code).emit("room-update", serialized)
 
-      // Auto-start when ALL players are ready (minimum 2)
       const players = Array.from(room.players.values())
       if (players.length >= 2 && players.every(p => p.ready) && room.state === "waiting") {
         room.state = "playing"
@@ -151,23 +151,21 @@ app.prepare().then(() => {
 
     // ── START GAME (manual by host) ───────────────────────────────────────────
     socket.on("start-game", ({ code }) => {
-      const room = rooms.get(code)
+      const room = rooms.get(normalizeCode(code))
       if (!room) return
       room.state = "playing"
       room.startTime = Date.now()
-      // Reset ready states
       for (const p of room.players.values()) p.ready = false
       io.to(code).emit("game-start", serializeRoom(room))
     })
 
     // ── SCORE UPDATE ─────────────────────────────────────────────────────────
     socket.on("score-update", ({ code, playerId, score, combo, rockMeter }) => {
-      const room = rooms.get(code)
+      const room = rooms.get(normalizeCode(code))
       if (!room) return
       const player = room.players.get(playerId)
       if (!player) return
       player.score = score; player.combo = combo; player.rockMeter = rockMeter
-      // Broadcast to others in room (not sender)
       socket.to(code).emit("scores-update", {
         players: Array.from(room.players.values()),
       })
@@ -175,14 +173,14 @@ app.prepare().then(() => {
 
     // ── PAUSE ────────────────────────────────────────────────────────────────
     socket.on("pause-game", ({ code, playerId }) => {
-      const room = rooms.get(code)
+      const room = rooms.get(normalizeCode(code))
       if (!room || room.state !== "playing") return
       room.state = "paused"; room.pausedBy = playerId
       io.to(code).emit("game-paused", { pausedBy: playerId, players: Array.from(room.players.values()) })
     })
 
     socket.on("resume-game", ({ code, playerId }) => {
-      const room = rooms.get(code)
+      const room = rooms.get(normalizeCode(code))
       if (!room || room.state !== "paused") return
       if (room.pausedBy !== playerId && room.hostId !== playerId) return
       room.state = "playing"; room.pausedBy = null
@@ -191,7 +189,7 @@ app.prepare().then(() => {
 
     // ── END GAME ─────────────────────────────────────────────────────────────
     socket.on("end-game", ({ code }) => {
-      const room = rooms.get(code)
+      const room = rooms.get(normalizeCode(code))
       if (!room) return
       room.state = "ended"
       io.to(code).emit("room-update", serializeRoom(room))
@@ -199,58 +197,59 @@ app.prepare().then(() => {
 
     // ── LEAVE ────────────────────────────────────────────────────────────────
     socket.on("leave-room", ({ code, playerId }) => {
-      handleLeave(socket, io, code, playerId)
+      handleLeave(socket, io, normalizeCode(code), playerId)
     })
 
     socket.on("disconnect", () => {
       const { roomCode, playerId } = socket.data
-      if (roomCode && playerId) handleLeave(socket, io, roomCode, playerId)
+      if (roomCode && playerId) handleLeave(socket, io, normalizeCode(roomCode), playerId)
     })
 
-    // ── GET ROOM (for reconnects/refreshes) ────────────────────────────────────
+    // ── GET ROOM ────────────────────────────────────────────────────────────
     socket.on("get-room", ({ code }, cb) => {
-      const room = rooms.get(code?.toUpperCase())
+      const nc = normalizeCode(code)
+      const room = rooms.get(nc)
       if (!room) return cb?.(null)
+      // Re-join no socket.io room caso tenha reconectado
+      socket.join(nc)
+      socket.data.roomCode = nc
+      // Atualizar socketId do player se ele já está na sala
+      const pid = socket.data.playerId
+      if (pid && room.players.has(pid)) {
+        room.players.get(pid).socketId = socket.id
+      }
       cb?.(serializeRoom(room))
     })
-
-    // ── REST API bridge ──────────────────────────────────────────────────────
-    // /api/rooms kept for backward compat but WS is primary
   })
 
   const PORT = process.env.PORT || 3000
   httpServer.listen(PORT, () => {
-    console.log(`> Guitar Duels ready on http://localhost:${PORT}`)
+    console.log(`> Guitar Duels ready on port ${PORT}`)
   })
 })
 
-// Salas "dormentes" aguardando host voltar (deletadas após timeout)
-const _emptyRoomTimers = new Map()
-
 function handleLeave(socket, io, code, playerId) {
-  const room = rooms.get(code)
+  const nc = normalizeCode(code)
+  const room = rooms.get(nc)
   if (!room) return
   room.players.delete(playerId)
-  socket.leave(code)
+  socket.leave(nc)
 
   if (room.players.size === 0) {
-    // Não deletar imediatamente — dar 30s para o host voltar ao lobby
-    if (_emptyRoomTimers.has(code)) clearTimeout(_emptyRoomTimers.get(code))
+    if (_emptyRoomTimers.has(nc)) clearTimeout(_emptyRoomTimers.get(nc))
     const timer = setTimeout(() => {
-      if (rooms.get(code)?.players.size === 0) rooms.delete(code)
-      _emptyRoomTimers.delete(code)
+      if (rooms.get(nc)?.players.size === 0) rooms.delete(nc)
+      _emptyRoomTimers.delete(nc)
     }, 30000)
-    _emptyRoomTimers.set(code, timer)
+    _emptyRoomTimers.set(nc, timer)
     return
   }
 
-  // Cancelar timer de deleção se alguém voltou
-  if (_emptyRoomTimers.has(code)) {
-    clearTimeout(_emptyRoomTimers.get(code))
-    _emptyRoomTimers.delete(code)
+  if (_emptyRoomTimers.has(nc)) {
+    clearTimeout(_emptyRoomTimers.get(nc))
+    _emptyRoomTimers.delete(nc)
   }
 
-  // Promote new host if needed
   if (room.hostId === playerId) {
     room.hostId = room.players.keys().next().value
   }
@@ -258,7 +257,7 @@ function handleLeave(socket, io, code, playerId) {
     room.state = "playing"; room.pausedBy = null
   }
 
-  io.to(code).emit("player-left", { playerId, room: {
+  io.to(nc).emit("player-left", { playerId, room: {
     code: room.code, hostId: room.hostId, songId: room.songId,
     state: room.state, pausedBy: room.pausedBy, startTime: room.startTime,
     maxPlayers: room.maxPlayers, players: Array.from(room.players.values()),

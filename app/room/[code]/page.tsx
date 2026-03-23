@@ -251,17 +251,23 @@ export default function RoomPage() {
     socket.on("game-start",  onGameStart)
     socket.on("player-left", onPlayerLeft)
 
-    // Get initial room state — emit join again to get current state
-    // (player already joined via lobby, just need current snapshot)
-    socket.emit("get-room", { code }, (r: RoomData | null) => {
-      if (!r) { setError("Sala não encontrada"); return }
-      setRoom(r)
-    })
+    // Obter estado inicial da sala
+    const fetchRoom = () => {
+      socket.emit("get-room", { code }, (r: RoomData | null) => {
+        if (!r) { setError("Sala não encontrada"); return }
+        setRoom(r)
+      })
+    }
+    fetchRoom()
+
+    // Re-sincronizar após reconexão (socket perde o join automaticamente)
+    socket.on("connect", fetchRoom)
 
     return ()=>{
       socket.off("room-update", onRoomUpdate)
       socket.off("game-start",  onGameStart)
       socket.off("player-left", onPlayerLeft)
+      socket.off("connect", fetchRoom)
     }
   },[code, router])
 

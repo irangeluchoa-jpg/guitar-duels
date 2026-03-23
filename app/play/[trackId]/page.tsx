@@ -438,18 +438,23 @@ function PlayInner() {
   useEffect(() => {
     if (!roomCode) return
     const socket = getSocket()
-    socket.emit("get-room", { code: roomCode }, (room: RoomSnapshot | null) => {
-      if (!room) return
-      setRoomSnapshot(room)
-      if (room.state === "playing") setGameStarted(true)
-    })
+    const fetchRoom = () => {
+      socket.emit("get-room", { code: roomCode }, (room: RoomSnapshot | null) => {
+        if (!room) return
+        setRoomSnapshot(room)
+        if (room.state === "playing") setGameStarted(true)
+      })
+    }
+    fetchRoom()
     // Listen for game-start from host
     const onGameStart = (room: RoomSnapshot) => {
       setRoomSnapshot(room)
       setGameStarted(true)
     }
     socket.on("game-start", onGameStart)
-    return () => { socket.off("game-start", onGameStart) }
+    // Re-sincronizar após reconexão
+    socket.on("connect", fetchRoom)
+    return () => { socket.off("game-start", onGameStart); socket.off("connect", fetchRoom) }
   }, [roomCode])
 
   // WebSocket multiplayer sync
@@ -627,23 +632,21 @@ function PlayInner() {
     }
   }, [meta, laneCount])
 
-  const handleBack = useCallback(async () => {
+  const handleBack = useCallback(() => {
     if (isLeavingRef.current) return
     isLeavingRef.current = true
     if (roomCode && playerId) {
       getSocket().emit("leave-room", { code: roomCode, playerId })
     }
     if (roomCode) {
-      // Verificar se a sala ainda existe antes de redirecionar
-      try {
-        const res = await fetch(`/api/rooms/${roomCode}`)
-        if (res.ok) {
+      // Verificar via socket se a sala ainda existe
+      getSocket().emit("get-room", { code: roomCode }, (room: any) => {
+        if (room) {
           router.push(`/room/${roomCode}`)
-          return
+        } else {
+          router.push("/lobby")
         }
-      } catch {}
-      // Sala não existe mais — ir direto ao lobby
-      router.push("/lobby")
+      })
     } else {
       router.push("/songs")
     }
