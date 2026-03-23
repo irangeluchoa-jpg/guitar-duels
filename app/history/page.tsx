@@ -2,8 +2,10 @@
 
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Trophy, Star, Music2, Target } from "lucide-react"
+import { Trophy, Star, Music2, Target, Flame, Zap } from "lucide-react"
 import { loadSettings } from "@/lib/settings"
+import { GHBackground, GHBackButton } from "@/components/ui/gh-layout"
+import { useNav } from "@/lib/use-nav"
 
 function fmtDate(ts: number) {
   const d = new Date(ts)
@@ -78,12 +80,16 @@ export default function HistoryPage() {
     return true
   })
 
+  useNav({
+    onCancel: () => router.push("/"),
+  })
+
   const bestScore   = history.reduce((m,r) => Math.max(m, r.score), 0)
   const avgAccuracy = history.length ? Math.round(history.reduce((s,r) => s+r.accuracy, 0) / history.length) : 0
   const fcCount     = history.filter((r: GameRecord) => r.miss === 0).length
 
   return (
-    <div className="min-h-screen overflow-y-auto" style={{ background:"#060608", fontFamily:"'Inter',sans-serif" }}>
+    <GHBackground>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800;900&display=swap');
         .bebas { font-family:'Bebas Neue','Impact',sans-serif !important; }
@@ -91,16 +97,23 @@ export default function HistoryPage() {
       `}</style>
 
       {/* Header */}
-      <div className="sticky top-0 z-20 flex items-center gap-4 px-6 py-4"
-        style={{ background:"rgba(6,6,8,0.92)", backdropFilter:"blur(16px)", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-        <button onClick={() => router.push("/")}
-          className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl transition-all hover:scale-105"
-          style={{ background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.5)" }}>
-          <ArrowLeft className="w-4 h-4" /> Voltar
-        </button>
-        <h1 className="bebas text-2xl tracking-[0.2em]" style={{ color:"rgba(255,180,60,0.8)" }}>HISTÓRICO DE PARTIDAS</h1>
-        <span className="text-xs px-2 py-0.5 rounded-full" style={{ background:"rgba(255,255,255,0.06)", color:"rgba(255,255,255,0.3)" }}>
-          {history.length} partidas
+      <div className="flex items-center justify-between px-6 py-4">
+        <GHBackButton label="Menu" href="/" />
+        <div style={{ textAlign:"center" }}>
+          <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.35em", color:"rgba(255,180,60,0.45)", textTransform:"uppercase" }}>
+            Seus Recordes
+          </div>
+          <h1 style={{ fontSize:26, fontWeight:900, fontFamily:"'Arial Black',Arial,sans-serif",
+            background:"linear-gradient(135deg,#ffd700,#f59e0b,#dc2626)",
+            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+            filter:"drop-shadow(0 0 16px rgba(255,180,0,0.3))", margin:0, letterSpacing:"0.05em" }}>
+            📋 HISTÓRICO
+          </h1>
+        </div>
+        <span style={{ fontSize:10, padding:"4px 10px", borderRadius:20,
+          background:"rgba(255,255,255,0.06)", color:"rgba(255,255,255,0.3)",
+          border:"1px solid rgba(255,255,255,0.08)", fontWeight:700 }}>
+          {history.length} músicas
         </span>
       </div>
 
@@ -203,6 +216,6 @@ export default function HistoryPage() {
           </div>
         )}
       </div>
-    </div>
+    </GHBackground>
   )
 }

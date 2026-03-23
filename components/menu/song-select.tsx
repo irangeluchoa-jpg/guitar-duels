@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Play, Music, Clock, Star, Zap, ChevronRight, Heart, History, ListPlus, ListX, PlayCircle } from "lucide-react"
 import type { SongListItem } from "@/lib/songs/types"
@@ -8,6 +8,7 @@ import { playClickSound, playHoverSound } from "@/lib/game/sounds"
 import { loadSettings, saveSettings, DEFAULT_KEY_BINDINGS, getKeyBindingsForLanes } from "@/lib/settings"
 import { GHBackground, GHLogo, GHBackButton, GHCard, GHSectionTitle, GHButton } from "@/components/ui/gh-layout"
 import { PlayerCardGH, useLocalPlayerCard } from "@/components/ui/player-card-gh"
+import { startGamepadNav, stopGamepadNav } from "@/lib/gamepad-nav"
 
 function getVol() { try { const s=loadSettings(); return (s.masterVolume/100)*(s.sfxVolume/100) } catch { return .5 } }
 
@@ -83,6 +84,8 @@ export function SongSelect() {
   const [songs, setSongs]             = useState<SongListItem[]>([])
   const [sel, setSel]                 = useState(0)
   const localPlayer = useLocalPlayerCard()
+  // Ref para usar filteredSongs dentro de callbacks sem depender da ordem de declaração
+  const filteredSongsRef = React.useRef<typeof songs>([])
   const [query, setQuery]              = useState("")
   const [filterDiff, setFilterDiff]    = useState<number | null>(null)
   const [sortBy, setSortBy]            = useState<"name" | "difficulty" | "duration">("name")
@@ -153,7 +156,7 @@ export function SongSelect() {
 
   // Probe: quando uma música sem songLength é selecionada, carrega seu audio para pegar duração
   useEffect(() => {
-    const song = filteredSongs[sel] ?? songs[sel]
+    const song = (filteredSongsRef.current.length > 0 ? filteredSongsRef.current[sel] : null) ?? songs[sel]
     if (!song) return
     if (song.songLength && song.songLength > 0) return
     if (resolvedDurations[song.id] !== undefined) return
@@ -230,15 +233,30 @@ export function SongSelect() {
 
   useEffect(() => () => { previewAudio?.pause() }, [previewAudio])
 
+  // Navegação por controle
+  useEffect(() => {
+    startGamepadNav((action) => {
+      const isTyping = document.activeElement?.tagName === "INPUT"
+      if (isTyping) return
+      if (action === "up")      setSel(p => Math.max(0, p - 1))
+      if (action === "down")    setSel(p => Math.min(filteredSongsRef.current.length - 1, p + 1))
+      if (action === "confirm" && filteredSongsRef.current[sel]) { previewAudio?.pause(); router.push(`/play/${encodeURIComponent(filteredSongsRef.current[sel].id)}?lanes=${laneCount}`) }
+      if (action === "cancel")  { previewAudio?.pause(); router.push("/") }
+    })
+    return () => stopGamepadNav()
+  }, [sel, laneCount, router, previewAudio])
+
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (e.key === "ArrowUp" || e.key === "w") { e.preventDefault(); setSel(p => Math.max(0, p - 1)) }
-      else if (e.key === "ArrowDown" || e.key === "s") { e.preventDefault(); setSel(p => Math.min(filteredSongs.length - 1, p + 1)) }
-      else if (e.key === "Enter" && filteredSongs[sel]) { previewAudio?.pause(); router.push(`/play/${encodeURIComponent(filteredSongs[sel].id)}?lanes=${laneCount}`) }
-      else if (e.key === "Escape") { previewAudio?.pause(); router.push("/") }
+      // Não interceptar W/S/Enter quando usuário está digitando no input de busca
+      const isTyping = document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA"
+      if (e.key === "ArrowUp" || (!isTyping && e.key === "w")) { e.preventDefault(); setSel(p => Math.max(0, p - 1)) }
+      else if (e.key === "ArrowDown" || (!isTyping && e.key === "s")) { e.preventDefault(); setSel(p => Math.min(filteredSongs.length - 1, p + 1)) }
+      else if (e.key === "Enter" && !isTyping && filteredSongsRef.current[sel]) { previewAudio?.pause(); router.push(`/play/${encodeURIComponent(filteredSongsRef.current[sel].id)}?lanes=${laneCount}`) }
+      else if (e.key === "Escape") { if (isTyping) (document.activeElement as HTMLElement)?.blur(); else { previewAudio?.pause(); router.push("/") } }
     }
     window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h)
-  }, [songs, sel, router, previewAudio])
+  }, [songs, sel, router, previewAudio, laneCount])
 
   function toggleFavorite(id: string, e: React.MouseEvent) {
     e.stopPropagation()
@@ -251,9 +269,16 @@ export function SongSelect() {
   // Filtro + ordenação
   const filteredSongs = songs
     .filter(s => {
-      const q = query.toLowerCase()
-      const matchText = !q || s.name.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q) || (s.genre ?? "").toLowerCase().includes(q)
-      const matchDiff = filterDiff === null || s.difficulty === filterDiff
+      // Normalizar acento: "café" encontra "cafe" e vice-versa
+      const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      const q = normalize(query)
+      const matchText = !q
+        || normalize(s.name).includes(q)
+        || normalize(s.artist).includes(q)
+        || normalize(s.genre ?? "").includes(q)
+      // Fácil (d=1) agrupa Beginner (0) e Easy (1) — mesma experiência para o jogador
+      const matchDiff = filterDiff === null
+        || (filterDiff === 1 ? (s.difficulty ?? 0) <= 1 : s.difficulty === filterDiff)
       const matchTab = activeTab === "all" || (activeTab === "fav" && favorites.has(s.id)) || (activeTab === "recent" && recentIds.includes(s.id))
       return matchText && matchDiff && matchTab
     })
@@ -265,6 +290,7 @@ export function SongSelect() {
     })
 
   const selected  = filteredSongs[sel] ?? songs[sel]
+  filteredSongsRef.current = filteredSongs
   const diffIdx   = Math.min(selected?.difficulty ?? 0, DIFF_COLORS.length - 1)
   const diffColor = DIFF_COLORS[diffIdx]
   const diffLabel = DIFF_LABELS[diffIdx]
@@ -324,6 +350,13 @@ export function SongSelect() {
               <div className="relative">
                 <input
                   value={query} onChange={e => { setQuery(e.target.value); setSel(0) }}
+                  onKeyDown={e => {
+                    // Bloquear teclas de navegação para não mover seleção enquanto digita
+                    if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","w","s","a","d","W","S","A","D","Enter"].includes(e.key)) {
+                      if (e.key === "Enter" && filteredSongs[sel]) return // Enter ainda confirma
+                      e.stopPropagation()
+                    }
+                  }}
                   placeholder="Buscar por nome, artista, gênero..."
                   className="w-full text-xs rounded-lg pl-3 pr-3 py-2 outline-none"
                   style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}

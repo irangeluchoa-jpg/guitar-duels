@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { GHBackground, GHLogo, GHBackButton, GHCard, GHSectionTitle, GHInput, GHButton, GHBottomBar } from "@/components/ui/gh-layout"
 import { getSocket, waitForConnection, isSocketConnected, emitWithRetry } from "@/lib/multiplayer/socket-client"
+import { useNav } from "@/lib/use-nav"
 import { loadProfile, getActiveBorder, getActiveTitle } from "@/lib/progression"
 import { PlayerAvatar } from "@/components/ui/player-avatar"
 
@@ -40,6 +41,11 @@ export default function LobbyPage() {
       })
     }
   }, [])
+
+  useNav({
+    onConfirm: () => { if (!loading) handleCreate() },
+    onCancel:  () => router.push("/"),
+  })
 
   const playerName = profile?.displayName ?? "Guitarrista"
   const activeBorder = profile ? getActiveBorder(profile as any) : null

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { playClickSound, playHoverSound } from "@/lib/game/sounds"
 import { loadSettings, DEFAULT_KEY_BINDINGS } from "@/lib/settings"
 import { loadProfile, levelProgress, getActiveTitle } from "@/lib/progression"
+import { startGamepadNav, stopGamepadNav } from "@/lib/gamepad-nav"
 
 function getVol() {
   try { const s = loadSettings(); return (s.masterVolume/100)*(s.sfxVolume/100) } catch { return 0.5 }
@@ -47,15 +48,28 @@ export function MainMenu() {
     try { setAvatar(localStorage.getItem("guitar-duels-avatar") ?? "🎸") } catch {}
   }, [])
 
-  // Keyboard nav
+  // Keyboard + Gamepad nav
   useEffect(() => {
+    const navigate = (dir: "up" | "down") => {
+      if (dir === "down") setSelected(s => (s+1)%MENU_ITEMS.length)
+      else                setSelected(s => (s-1+MENU_ITEMS.length)%MENU_ITEMS.length)
+    }
+    const confirm = (i: number) => {
+      setPressed(i); playClickSound(getVol())
+      setTimeout(() => { setPressed(null); router.push(MENU_ITEMS[i].path) }, 130)
+    }
+
+    startGamepadNav((action) => {
+      if (action === "up")      navigate("up")
+      if (action === "down")    navigate("down")
+      if (action === "confirm") confirm(selected)
+    })
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowDown") { e.preventDefault(); setSelected(s => (s+1)%MENU_ITEMS.length) }
-      if (e.key === "ArrowUp")   { e.preventDefault(); setSelected(s => (s-1+MENU_ITEMS.length)%MENU_ITEMS.length) }
+      if (e.key === "ArrowDown") { e.preventDefault(); navigate("down") }
+      if (e.key === "ArrowUp")   { e.preventDefault(); navigate("up") }
       if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault()
-        const i = selected; setPressed(i); playClickSound(getVol())
-        setTimeout(() => { setPressed(null); router.push(MENU_ITEMS[i].path) }, 130)
+        e.preventDefault(); confirm(selected)
       }
       const fi = bindings.map(k=>k.toLowerCase()).indexOf(e.key.toLowerCase())
       if (fi >= 0 && fi < 5) {
@@ -64,7 +78,7 @@ export function MainMenu() {
       }
     }
     window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    return () => { window.removeEventListener("keydown", onKey); stopGamepadNav() }
   }, [selected, router, bindings])
 
   // Background canvas — sepia stage with smoke, flying embers
@@ -81,11 +95,59 @@ export function MainMenu() {
     }
     resize(); window.addEventListener("resize", resize)
 
-    type P = {x:number;y:number;vx:number;vy:number;r:number;a:number;life:number;max:number;type:string}
+    const MUSIC_NOTES = ["♩","♪","♫","♬","🎵","🎶"]
+    type P = {x:number;y:number;vx:number;vy:number;r:number;a:number;life:number;max:number;type:string;note?:string;hue?:number;spin?:number}
     const particles: P[] = []
 
     const spawn = () => {
-      const type = Math.random() < 0.3 ? "ember" : "smoke"
+      const roll = Math.random()
+      let type = "smoke"
+      if (roll < 0.18) type = "ember"
+      else if (roll < 0.30) type = "laser"
+      else if (roll < 0.42) type = "note"
+      else if (roll < 0.52) type = "star"
+
+      if (type === "laser") {
+        // Raios de luz verticais do palco
+        particles.push({
+          x: W*(0.15 + Math.random()*0.70),
+          y: 0, vx: 0, vy: 0,
+          r: 0.5 + Math.random()*1.5,
+          a: 0.15 + Math.random()*0.25,
+          life: 0, max: 120 + Math.random()*80,
+          type: "laser",
+          hue: 0 + Math.floor(Math.random()*3)*40, // vermelho, laranja, amarelo
+        })
+        return
+      }
+      if (type === "note") {
+        particles.push({
+          x: W*(0.1 + Math.random()*0.8),
+          y: H*(0.5 + Math.random()*0.3),
+          vx: (Math.random()-0.5)*0.8,
+          vy: -(0.6 + Math.random()*1.2),
+          r: 14 + Math.random()*8,
+          a: 0.7 + Math.random()*0.3,
+          life: 0, max: 100 + Math.random()*80,
+          type: "note",
+          note: MUSIC_NOTES[Math.floor(Math.random()*MUSIC_NOTES.length)],
+          spin: (Math.random()-0.5)*0.05,
+        })
+        return
+      }
+      if (type === "star") {
+        particles.push({
+          x: Math.random()*W,
+          y: Math.random()*H*0.7,
+          vx: 0, vy: 0,
+          r: 1 + Math.random()*2.5,
+          a: 0, life: 0,
+          max: 80 + Math.random()*120,
+          type: "star",
+          hue: Math.random()*60,
+        })
+        return
+      }
       particles.push({
         x: W*(0.05 + Math.random()*0.9),
         y: H*(0.75 + Math.random()*0.15),
@@ -189,10 +251,103 @@ export function MainMenu() {
       ctx.fillStyle = redTop; ctx.fillRect(0,0,W,H*0.3)
     }
 
+    // Spotlights state
+    let spotAngle1 = 0, spotAngle2 = Math.PI/3
+
+    const drawSpotlights = () => {
+      // Dois refletores de palco oscilantes
+      const floorY = H * 0.72
+      spotAngle1 += 0.008; spotAngle2 -= 0.006
+      const spots = [
+        { ox: W*0.2, angle: spotAngle1, color: "255,80,80" },
+        { ox: W*0.8, angle: spotAngle2, color: "80,120,255" },
+      ]
+      for (const sp of spots) {
+        const tx = W/2 + Math.sin(sp.angle) * W * 0.35
+        const ty = H * 0.15
+        // Cone de luz
+        ctx.save(); ctx.globalAlpha = 0.06
+        const grad = ctx.createLinearGradient(sp.ox, floorY, tx, ty)
+        grad.addColorStop(0, `rgba(${sp.color},0.8)`)
+        grad.addColorStop(1, `rgba(${sp.color},0)`)
+        ctx.beginPath()
+        const spread = 0.08
+        ctx.moveTo(sp.ox, floorY)
+        ctx.lineTo(tx - W * spread, ty)
+        ctx.lineTo(tx + W * spread, ty)
+        ctx.closePath()
+        ctx.fillStyle = grad; ctx.fill()
+        ctx.restore()
+        // Ponto de luz no topo
+        ctx.save(); ctx.globalAlpha = 0.35
+        const glow = ctx.createRadialGradient(tx, ty, 0, tx, ty, 30)
+        glow.addColorStop(0, `rgba(${sp.color},0.9)`)
+        glow.addColorStop(1, "transparent")
+        ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(tx, ty, 30, 0, Math.PI*2); ctx.fill()
+        ctx.restore()
+      }
+    }
+
+    const drawCrowd = () => {
+      // Silhuetas de multidão na parte inferior
+      ctx.save()
+      ctx.globalAlpha = 0.18
+      const floorY = H * 0.73
+      const crowdCount = Math.floor(W / 22)
+      for (let i = 0; i < crowdCount; i++) {
+        const cx = (i / crowdCount) * W + 11
+        const sway = Math.sin(t * 1.5 + i * 0.7) * 3
+        const h = 28 + Math.sin(i * 1.3) * 8
+        // Corpo
+        ctx.fillStyle = "#0a0501"
+        ctx.beginPath()
+        ctx.ellipse(cx, floorY + sway, 7, h * 0.55, 0, 0, Math.PI * 2)
+        ctx.fill()
+        // Cabeça
+        ctx.beginPath()
+        ctx.arc(cx + sway * 0.3, floorY - h * 0.55 + sway, 5, 0, Math.PI * 2)
+        ctx.fill()
+        // Braços levantados alternando
+        if (Math.floor(t * 1.2 + i * 0.5) % 2 === 0) {
+          ctx.beginPath()
+          ctx.moveTo(cx - 4, floorY - h * 0.2 + sway)
+          ctx.lineTo(cx - 12, floorY - h * 0.55 + sway - 8)
+          ctx.lineWidth = 2; ctx.strokeStyle = "#0a0501"; ctx.stroke()
+        } else {
+          ctx.beginPath()
+          ctx.moveTo(cx + 4, floorY - h * 0.2 + sway)
+          ctx.lineTo(cx + 12, floorY - h * 0.55 + sway - 8)
+          ctx.lineWidth = 2; ctx.strokeStyle = "#0a0501"; ctx.stroke()
+        }
+      }
+      ctx.restore()
+    }
+
+    const drawLightning = () => {
+      // Relâmpagos aleatórios ocasionais
+      if (Math.random() > 0.015) return
+      ctx.save(); ctx.globalAlpha = 0.7
+      ctx.strokeStyle = Math.random() > 0.5 ? "#ffcc44" : "#ff6644"
+      ctx.lineWidth = 1.5
+      ctx.shadowColor = "#ff8800"; ctx.shadowBlur = 12
+      const sx = Math.random() * W
+      let lx = sx, ly = H * 0.05
+      ctx.beginPath(); ctx.moveTo(lx, ly)
+      while (ly < H * 0.45) {
+        lx += (Math.random() - 0.5) * 40
+        ly += 15 + Math.random() * 20
+        ctx.lineTo(lx, ly)
+      }
+      ctx.stroke(); ctx.restore()
+    }
+
     const draw = (ts: number) => {
       t = ts * 0.001
       ctx.clearRect(0,0,W,H)
       drawBg()
+      drawSpotlights()
+      drawCrowd()
+      drawLightning()
 
       if (Math.random() < 0.14) spawn()
 
