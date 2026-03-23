@@ -84,6 +84,34 @@ const SP_PALETTES: Record<string, SPPalette> = {
     glowColor: "rgba(136,238,255,0.16)",
     starFill1: "#ffffff", starFill2: "#88eeff", starFill3: "#2299bb",
   },
+  kawaii: {
+    primary: "#ff69b4", primaryRgb: "255,105,180",
+    secondary: "#ff1493", secondaryRgb: "255,20,147",
+    sustainColor: "#ffb6d9",
+    glowColor: "rgba(255,105,180,0.20)",
+    starFill1: "#ffe0f0", starFill2: "#ff69b4", starFill3: "#cc0066",
+  },
+  tattoo: {
+    primary: "#00c896", primaryRgb: "0,200,150",
+    secondary: "#ffcc44", secondaryRgb: "255,204,68",
+    sustainColor: "#88ffdd",
+    glowColor: "rgba(0,200,150,0.16)",
+    starFill1: "#ccffe8", starFill2: "#00c896", starFill3: "#006644",
+  },
+  tiger: {
+    primary: "#ff8c20", primaryRgb: "255,140,32",
+    secondary: "#ffee44", secondaryRgb: "255,238,68",
+    sustainColor: "#ffcc88",
+    glowColor: "rgba(255,140,32,0.18)",
+    starFill1: "#fff2cc", starFill2: "#ff8c20", starFill3: "#884400",
+  },
+  level200: {
+    primary: "#ff69b4", primaryRgb: "255,105,180",
+    secondary: "#ff1493", secondaryRgb: "255,20,147",
+    sustainColor: "#ffb6d9",
+    glowColor: "rgba(255,105,180,0.20)",
+    starFill1: "#ffe0f0", starFill2: "#ff69b4", starFill3: "#cc0066",
+  },
 }
 
 function getSPPalette(theme: string): SPPalette {
@@ -213,7 +241,7 @@ interface RenderState {
   difficulty?: number
   laneCount?: number
   noteShape?: "circle" | "square" | "diamond"
-  highwayTheme?: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice" | "random" | "level200"
+  highwayTheme?: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice" | "random" | "level200" | "kawaii"
   cameraShake?: boolean
   starPowerLite?: boolean
   topBarH?: number
@@ -442,18 +470,30 @@ const HIGHWAY_THEME_CONFIG: Record<string, {
     fogColor: "rgba(10,4,0,0.97)",
   },
   level200: {
-    bgTop: "rgba(0,8,4,1.0)", bgMid: "rgba(0,12,6,1.0)", bgBot: "rgba(0,8,3,1.0)",
-    imgAlpha: 0.4,
+    imgAlpha: 0.35,
     overlayStops: [
-      ["rgba(0,255,128,0.10)", 0],
-      ["rgba(255,0,144,0.06)", 0.5],
-      ["rgba(0,255,128,0.08)", 1],
+      ["rgba(255,105,180,0.25)", 0],
+      ["rgba(255,20,147,0.15)", 0.5],
+      ["rgba(255,182,193,0.18)", 1],
     ],
-    gridColor: "0,255,128",
-    divColor: "rgba(0,255,128,0.45)",
-    borderColor: "rgba(0,255,128,0.95)",
-    borderGlow: "rgba(0,255,128,1.0)",
-    fogColor: "rgba(0,8,3,0.97)",
+    gridColor: "255,105,180",
+    divColor: "rgba(255,20,147,0.40)",
+    borderColor: "rgba(255,105,180,0.95)",
+    borderGlow: "rgba(255,20,147,1.0)",
+    fogColor: "rgba(20,0,10,0.97)",
+  },
+  kawaii: {
+    imgAlpha: 0.35,
+    overlayStops: [
+      ["rgba(255,105,180,0.25)", 0],
+      ["rgba(255,20,147,0.15)", 0.5],
+      ["rgba(255,182,193,0.18)", 1],
+    ],
+    gridColor: "255,105,180",
+    divColor: "rgba(255,20,147,0.40)",
+    borderColor: "rgba(255,105,180,0.95)",
+    borderGlow: "rgba(255,20,147,1.0)",
+    fogColor: "rgba(20,0,10,0.97)",
   },
 }
 
@@ -1070,6 +1110,80 @@ function drawLightBeam(ctx: CanvasRenderingContext2D, x: number, hitY: number, h
 }
 
 // ── Explosão ao acertar — estilo GH:WoR: burst de energia + sparks laterais ──
+// ── Explosão kawaii: corações saindo ao acertar nota ──────────────────────────
+function drawKawaiiHit(
+  ctx: CanvasRenderingContext2D, x: number, hitY: number,
+  progress: number, alpha: number, rating: string, rx: number, ry: number
+) {
+  const isPerfect = rating === "perfect"
+  const heartCount = isPerfect ? 7 : rating === "great" ? 5 : 3
+  const colors = ["#ff69b4","#ff1493","#ffb6d9","#ff69b4","#ff45a0","#ff1493","#ffcce0"]
+
+  ctx.save()
+
+  // Flash rosa inicial
+  if (progress < 0.3) {
+    const fp = progress / 0.3
+    const fR = rx * 5 * fp
+    const flash = ctx.createRadialGradient(x, hitY, 0, x, hitY, fR)
+    flash.addColorStop(0,    `rgba(255,105,180,${(1-fp)*0.9})`)
+    flash.addColorStop(0.4,  `rgba(255,20,147,${(1-fp)*0.5})`)
+    flash.addColorStop(1,    "transparent")
+    ctx.fillStyle = flash
+    ctx.beginPath(); ctx.ellipse(x, hitY, fR, fR*0.6, 0, 0, Math.PI*2); ctx.fill()
+  }
+
+  // Corações voando
+  for (let i = 0; i < heartCount; i++) {
+    const angle  = (i / heartCount) * Math.PI * 2 + progress * 1.5
+    const dist   = rx * (1.5 + progress * 5)
+    const hx     = x + Math.cos(angle) * dist
+    const hy     = hitY + Math.sin(angle) * dist * 0.6 - progress * ry * 8
+    const hAlpha = Math.max(0, alpha * (1 - progress * 1.2))
+    const sz     = rx * 0.45 * (1 - progress * 0.5) * (isPerfect ? 1.3 : 1)
+    if (sz <= 0 || hAlpha <= 0) continue
+    const col = colors[i % colors.length]
+
+    ctx.save()
+    ctx.globalAlpha = hAlpha
+    ctx.translate(hx, hy)
+    ctx.rotate(Math.sin(progress * 4 + i) * 0.4)
+    ctx.fillStyle = col
+    ctx.shadowColor = col; ctx.shadowBlur = 12
+    // Coração bezier
+    ctx.beginPath()
+    ctx.moveTo(0, sz * 0.25)
+    ctx.bezierCurveTo(0, -sz*0.1,  sz*0.65, -sz*0.65, sz*0.65, -sz*0.15)
+    ctx.bezierCurveTo(sz*0.65, sz*0.35, 0, sz*0.85, 0, sz*1.1)
+    ctx.bezierCurveTo(0, sz*0.85, -sz*0.65, sz*0.35, -sz*0.65, -sz*0.15)
+    ctx.bezierCurveTo(-sz*0.65, -sz*0.65, 0, -sz*0.1, 0, sz*0.25)
+    ctx.closePath(); ctx.fill()
+    ctx.restore()
+  }
+
+  // Estrelinhas sparkle no perfect
+  if (isPerfect && progress < 0.6) {
+    for (let s = 0; s < 4; s++) {
+      const sa = (s/4)*Math.PI*2 + Math.PI/4
+      const sd = rx * (1 + progress * 3.5)
+      const sx2 = x + Math.cos(sa)*sd
+      const sy2 = hitY + Math.sin(sa)*sd*0.7
+      const sAlpha = Math.max(0, (1-progress/0.6)*alpha)
+      const ssz = rx * 0.3 * (1-progress)
+      ctx.save()
+      ctx.globalAlpha = sAlpha
+      ctx.fillStyle = "#ffe0f0"
+      ctx.shadowColor = "#ff69b4"; ctx.shadowBlur = 8
+      ctx.translate(sx2, sy2)
+      ctx.fillRect(-ssz*0.2, -ssz, ssz*0.4, ssz*2)
+      ctx.fillRect(-ssz, -ssz*0.2, ssz*2, ssz*0.4)
+      ctx.restore()
+    }
+  }
+
+  ctx.restore()
+}
+
 function drawHitExplosion(
   ctx: CanvasRenderingContext2D, x: number, hitY: number,
   color: string, progress: number, alpha: number, rating: string,
@@ -1578,25 +1692,51 @@ export function renderFrame(state: RenderState): void {
       }
     }
 
-    else if (highwayTheme === "level200") {
-      // ✨ NÍVEL 200: partículas verde-neon e rosa dançando pela highway
-      for (let p = 0; p < 14; p++) {
-        const seed = p * 53.7
-        const phase = (t2 * (0.2 + p * 0.03) + seed * 0.015) % 1.0
-        const px2 = tLB + trackBot * (0.05 + (Math.sin(seed * 1.3 + t2 * 0.4) * 0.5 + 0.5) * 0.9)
-        const py2 = hitY - phase * hitY * 0.95
-        const size = (1.5 + Math.abs(Math.sin(phase * 3 + seed)) * 3.5) * intensity
-        const isPink = p % 3 === 0
-        const alpha = (0.5 + Math.abs(Math.sin(phase * 2 + seed)) * 0.45) * intensity
-        ctx.beginPath(); ctx.arc(px2 + Math.sin(t2 * 2 + seed) * 12, py2, size, 0, Math.PI * 2)
-        ctx.fillStyle = isPink ? `rgba(255,0,144,${alpha})` : `rgba(0,255,128,${alpha})`
-        ctx.fill()
+    else if (highwayTheme === "level200" || highwayTheme === "kawaii") {
+      // 💕 KAWAII: corações e estrelinhas flutuando pela highway
+      const heartSizes  = [8, 6, 10, 7, 9, 5, 8, 6, 11, 7]
+      const heartColors = ["255,105,180","255,20,147","255,182,193","220,80,160","255,140,200"]
+      for (let p = 0; p < 10; p++) {
+        const seed  = p * 61.3
+        const phase = (t2 * (0.18 + p * 0.025) + seed * 0.018) % 1.0
+        const px2   = tLB + trackBot * (0.08 + (Math.sin(seed * 1.4 + t2 * 0.35) * 0.5 + 0.5) * 0.84)
+        const py2   = hitY - phase * hitY * 0.94
+        const sz    = heartSizes[p] * (0.6 + Math.abs(Math.sin(phase * 2 + seed)) * 0.7) * intensity
+        const col   = heartColors[p % heartColors.length]
+        const alpha = (0.55 + Math.abs(Math.sin(phase * 2.5 + seed)) * 0.4) * intensity
+        // Desenhar coração
+        ctx.save()
+        ctx.translate(px2 + Math.sin(t2 * 1.8 + seed) * 10, py2)
+        ctx.rotate(Math.sin(t2 * 0.8 + seed) * 0.2)
+        ctx.globalAlpha = alpha
+        ctx.fillStyle = `rgba(${col},1)`
+        ctx.shadowColor = `rgba(${col},0.8)`; ctx.shadowBlur = 10
+        ctx.beginPath()
+        ctx.moveTo(0, sz * 0.25)
+        ctx.bezierCurveTo(0, -sz * 0.1,  sz * 0.6, -sz * 0.6, sz * 0.6, -sz * 0.2)
+        ctx.bezierCurveTo(sz * 0.6, sz * 0.3, 0, sz * 0.8, 0, sz * 1.1)
+        ctx.bezierCurveTo(0, sz * 0.8, -sz * 0.6, sz * 0.3, -sz * 0.6, -sz * 0.2)
+        ctx.bezierCurveTo(-sz * 0.6, -sz * 0.6, 0, -sz * 0.1, 0, sz * 0.25)
+        ctx.closePath(); ctx.fill()
+        ctx.restore()
       }
-      // Horizontal pink scanlines
-      for (let s = 0; s < 3; s++) {
-        const sy = hitY * ((t2 * 0.3 + s * 0.33) % 1.0)
-        ctx.fillStyle = `rgba(255,0,144,${0.03 * intensity})`
-        ctx.fillRect(tLB, sy - 1, trackBot, 2)
+      // Estrelinhas sparkle
+      for (let s = 0; s < 5; s++) {
+        const seed2 = s * 37.1 + 200
+        const phase2 = (t2 * (0.25 + s * 0.04) + seed2 * 0.02) % 1.0
+        const px3 = tLB + trackBot * (0.05 + (Math.sin(seed2 * 1.7 + t2 * 0.5) * 0.5 + 0.5) * 0.9)
+        const py3 = hitY - phase2 * hitY * 0.9
+        const fade = Math.abs(Math.sin(phase2 * Math.PI))
+        ctx.save()
+        ctx.globalAlpha = fade * 0.85 * intensity
+        ctx.fillStyle = "#ffe0f0"
+        ctx.shadowColor = "#ff69b4"; ctx.shadowBlur = 8
+        ctx.translate(px3, py3)
+        const ss = 3 + s * 0.8
+        // Cruz de 4 pontas brilhante
+        ctx.fillRect(-ss * 0.2, -ss, ss * 0.4, ss * 2)
+        ctx.fillRect(-ss, -ss * 0.2, ss * 2, ss * 0.4)
+        ctx.restore()
       }
     }
 
@@ -1766,7 +1906,11 @@ export function renderFrame(state: RenderState): void {
         ctx.strokeStyle = `${color}${Math.round(fa*180).toString(16).padStart(2,"0")}`
         ctx.lineWidth = 2; ctx.stroke()
       } else {
-        drawHitExplosion(ctx,x,hitY,color,prog,alpha,fx.rating,NRX,NRY,starPower,spPal.primary,spPal.primaryRgb)
+        if (highwayTheme === "level200" || highwayTheme === "kawaii") {
+          drawKawaiiHit(ctx,x,hitY,prog,alpha,fx.rating,NRX,NRY)
+        } else {
+          drawHitExplosion(ctx,x,hitY,color,prog,alpha,fx.rating,NRX,NRY,starPower,spPal.primary,spPal.primaryRgb)
+        }
       }
     } else {
       const xs=NRX*(1.1+prog*0.35)

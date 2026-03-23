@@ -181,7 +181,7 @@ export function MainMenu() {
         const ty = H * 0.08
         // Cone de luz — muito mais visível
         ctx.save()
-        ctx.globalAlpha = sp.alpha
+        ctx.globalAlpha = sp.alpha * 0.5
         const grad = ctx.createLinearGradient(sp.ox, floorY, tx, ty)
         grad.addColorStop(0, `rgba(${sp.color},0.9)`)
         grad.addColorStop(0.6, `rgba(${sp.color},0.3)`)
@@ -197,7 +197,7 @@ export function MainMenu() {
         ctx.restore()
         // Ponto luminoso no topo — brilhante
         ctx.save()
-        ctx.globalAlpha = 0.85
+        ctx.globalAlpha = 0.5
         const glow = ctx.createRadialGradient(tx, ty, 0, tx, ty, sp.gR)
         glow.addColorStop(0, `rgba(${sp.color},1)`)
         glow.addColorStop(0.3, `rgba(${sp.color},0.5)`)
@@ -207,7 +207,7 @@ export function MainMenu() {
         ctx.restore()
         // Reflexo no chão
         ctx.save()
-        ctx.globalAlpha = 0.25
+        ctx.globalAlpha = 0.12
         const floorGlow = ctx.createRadialGradient(sp.ox, floorY, 0, sp.ox, floorY, 80)
         floorGlow.addColorStop(0, `rgba(${sp.color},0.8)`)
         floorGlow.addColorStop(1, "transparent")
@@ -227,7 +227,7 @@ export function MainMenu() {
         const sway = Math.sin(t * 2 + i * 0.9) * 5
         const bh = 32 + Math.sin(i * 1.1) * 10
         // Silhueta mais escura e alta
-        ctx.globalAlpha = 0.55
+        ctx.globalAlpha = 0.35
         ctx.fillStyle = "#050301"
         // Corpo
         ctx.beginPath()
@@ -238,8 +238,8 @@ export function MainMenu() {
         ctx.arc(cx + sway*0.4, floorY - bh*0.85 + sway, 6, 0, Math.PI*2)
         ctx.fill()
         // Braços levantados — mais visíveis
-        ctx.globalAlpha = 0.45
-        ctx.lineWidth = 2.5
+        ctx.globalAlpha = 0.28
+        ctx.lineWidth = 2
         ctx.strokeStyle = "#050301"
         ctx.lineCap = "round"
         const armPhase = Math.floor(t * 1.5 + i * 0.6) % 2
@@ -253,7 +253,7 @@ export function MainMenu() {
         ctx.stroke()
         // Luz da multidão — celulares/lighters
         if (i % 4 === 0) {
-          ctx.globalAlpha = 0.5 + Math.sin(t*3 + i)*0.3
+          ctx.globalAlpha = 0.3 + Math.sin(t*3 + i)*0.15
           ctx.fillStyle = Math.random() > 0.5 ? "#ffffcc" : "#ffaa44"
           ctx.beginPath()
           ctx.arc(cx, floorY - bh*0.9 + sway - 10, 2, 0, Math.PI*2)
@@ -265,14 +265,14 @@ export function MainMenu() {
 
     // ── Relâmpagos ──────────────────────────────────────────────────────────
     const drawLightning = () => {
-      if (Math.random() > 0.025) return
+      if (Math.random() > 0.015) return
       ctx.save()
-      ctx.globalAlpha = 0.85
+      ctx.globalAlpha = 0.55
       const isGold = Math.random() > 0.5
       ctx.strokeStyle = isGold ? "#ffee44" : "#ff5500"
       ctx.shadowColor  = isGold ? "#ffcc00" : "#ff3300"
-      ctx.shadowBlur   = 20
-      ctx.lineWidth = 2
+      ctx.shadowBlur   = 10
+      ctx.lineWidth = 1.5
       let lx = W * (0.1 + Math.random() * 0.8), ly = 0
       ctx.beginPath(); ctx.moveTo(lx, ly)
       while (ly < H * 0.5) {
@@ -364,13 +364,13 @@ export function MainMenu() {
 
       // Topo vermelho intenso
       const redTop = ctx.createLinearGradient(0,0,0,H*0.25)
-      redTop.addColorStop(0,"rgba(100,15,5,0.55)")
+      redTop.addColorStop(0,"rgba(80,12,4,0.35)")
       redTop.addColorStop(1,"transparent")
       ctx.fillStyle = redTop; ctx.fillRect(0,0,W,H*0.25)
 
       // Brilho do palco no centro
       const stageGlow = ctx.createRadialGradient(W/2, floorY, 0, W/2, floorY, W*0.35)
-      stageGlow.addColorStop(0, "rgba(200,120,40,0.3)")
+      stageGlow.addColorStop(0, "rgba(180,100,30,0.15)")
       stageGlow.addColorStop(1, "transparent")
       ctx.fillStyle = stageGlow
       ctx.fillRect(0, floorY-20, W, H-floorY+20)
@@ -386,7 +386,7 @@ export function MainMenu() {
       drawLightning()
 
       // Spawn mais partículas
-      const spawnRate = particles.length < 80 ? 0.35 : 0.18
+      const spawnRate = particles.length < 50 ? 0.20 : 0.10
       if (Math.random() < spawnRate) spawn()
 
       for (let i=particles.length-1; i>=0; i--) {
@@ -411,7 +411,7 @@ export function MainMenu() {
           const fade = (1-lr)*(1-lr)
           ctx.globalAlpha = p.a * fade
           // Core brilhante
-          ctx.shadowColor = p.color!; ctx.shadowBlur = 12
+          ctx.shadowColor = p.color!; ctx.shadowBlur = 6
           ctx.fillStyle = "#ffffff"
           ctx.beginPath(); ctx.arc(p.x,p.y,p.r*0.4*fade+0.5,0,Math.PI*2); ctx.fill()
           // Halo colorido
@@ -426,11 +426,11 @@ export function MainMenu() {
           const colors = ["255,60,60","255,140,0","255,220,0","200,50,255"]
           const col = colors[(p.hue!/40)|0] || colors[0]
           ctx.globalAlpha = p.a * fade
-          ctx.shadowColor = `rgb(${col})`; ctx.shadowBlur = 20
+          ctx.shadowColor = `rgb(${col})`; ctx.shadowBlur = 10
           // Raio principal
           const gL = ctx.createLinearGradient(p.x,0,p.x,H*0.72)
-          gL.addColorStop(0,`rgba(${col},0.95)`)
-          gL.addColorStop(0.5,`rgba(${col},0.6)`)
+          gL.addColorStop(0,`rgba(${col},0.55)`)
+          gL.addColorStop(0.5,`rgba(${col},0.3)`)
           gL.addColorStop(1,`rgba(${col},0)`)
           ctx.fillStyle = gL
           ctx.fillRect(p.x-p.r, 0, p.r*2, H*0.72)
@@ -444,15 +444,15 @@ export function MainMenu() {
           ctx.globalAlpha = p.a * fade
           ctx.font = `${Math.round(p.r)}px serif`
           ctx.textAlign = "center"; ctx.textBaseline = "middle"
-          ctx.shadowColor = p.color!; ctx.shadowBlur = 16
+          ctx.shadowColor = p.color!; ctx.shadowBlur = 8
           ctx.fillStyle = p.color!
           if (p.spin) ctx.translate(p.x,p.y), ctx.rotate(p.life*p.spin), ctx.fillText(p.note!,0,0)
           else ctx.fillText(p.note!, p.x, p.y)
         }
         else if (p.type === "star") {
           const fade = Math.sin(lr * Math.PI)
-          ctx.globalAlpha = fade * 0.95
-          ctx.shadowColor = p.color!; ctx.shadowBlur = 15
+          ctx.globalAlpha = fade * 0.7
+          ctx.shadowColor = p.color!; ctx.shadowBlur = 8
           // Estrela de 4 pontas
           ctx.fillStyle = p.color!
           const sz = p.r * fade
@@ -466,7 +466,7 @@ export function MainMenu() {
         else if (p.type === "spark") {
           const fade = (1-lr)
           ctx.globalAlpha = fade
-          ctx.shadowColor = p.color!; ctx.shadowBlur = 8
+          ctx.shadowColor = p.color!; ctx.shadowBlur = 4
           ctx.fillStyle = lr < 0.3 ? "#ffffff" : p.color!
           ctx.beginPath(); ctx.arc(p.x,p.y,p.r*(1-lr*0.5),0,Math.PI*2); ctx.fill()
         }

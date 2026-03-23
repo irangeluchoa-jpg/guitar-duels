@@ -14,7 +14,7 @@ export interface GameSettings {
   keyBindings5: string[]
   keyboardEnabled: boolean
   gamepadEnabled: boolean
-  highwayTheme: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice" | "random" | "level200"
+  highwayTheme: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice" | "random" | "level200" | "kawaii"
   noteShape: "circle" | "square" | "diamond"
   cameraShake: boolean
   starPowerLite: boolean
@@ -62,7 +62,7 @@ export function loadSettings(): GameSettings {
         keyBindings5: Array.isArray(parsed.keyBindings5) && parsed.keyBindings5.length === 5 ? parsed.keyBindings5 : [...DEFAULT_KEY_BINDINGS5],
         keyboardEnabled: parsed.keyboardEnabled ?? true,
         gamepadEnabled:  parsed.gamepadEnabled  ?? true,
-        highwayTheme:    (["default","neon","fire","space","wood","retro","ice","random","level200"].includes(parsed.highwayTheme) ? parsed.highwayTheme : "default") as GameSettings["highwayTheme"],
+        highwayTheme:    (["default","neon","fire","space","wood","retro","ice","random","level200","kawaii"].includes(parsed.highwayTheme) ? parsed.highwayTheme : "default") as GameSettings["highwayTheme"],
         noteShape:       parsed.noteShape       ?? "circle",
         cameraShake:     parsed.cameraShake     ?? true,
         starPowerLite:   parsed.starPowerLite   ?? false,

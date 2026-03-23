@@ -579,12 +579,12 @@ export const HIGHWAY_THEMES: HighwayThemeInfo[] = [
   },
   {
     id: "level200",
-    label: "??? (Secreto)",
-    description: "Desbloqueado ao atingir o nível 200",
+    label: "Kawaii 💕",
+    description: "Desbloqueado ao atingir o nível 200. Uma highway cheia de corações e sparkles!",
     unlockLevel: 200,
-    preview: "linear-gradient(135deg,#001a0d,#00ff80,#ff0090,#001a0d)",
-    border: "#00ff80",
-    icon: "✨",
+    preview: "linear-gradient(135deg,#1a0010,#ff69b4,#ff1493,#ffb6d9,#1a0010)",
+    border: "#ff69b4",
+    icon: "💕",
   },
 ]
 
