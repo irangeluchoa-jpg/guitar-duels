@@ -842,6 +842,123 @@ export const SPECIAL_TITLES: SpecialTitle[] = [
     icon: "💎", color: "#f59e0b", rarity: "epic",
     check: p => p.totalXP >= 500_000,
   },
+
+  // ── Títulos Engraçados/Memes ─────────────────────────────────────────────
+  {
+    id: "one_more",
+    label: "Só Mais Uma",
+    description: "Jogou mais de 50 músicas — a clássica desculpa",
+    icon: "🎮", color: "#22c55e", rarity: "common",
+    check: (p) => p.songsPlayed >= 50,
+  },
+  {
+    id: "broken_fingers",
+    label: "Dedos Quebrados",
+    description: "Mais de 50.000 notas perfeitas — seus dedos agradecem",
+    icon: "🤌", color: "#f97316", rarity: "rare",
+    check: (p) => p.totalPerfects >= 50000,
+  },
+  {
+    id: "no_sleep",
+    label: "Quem Precisa Dormir",
+    description: "50 horas de jogo — isso é preocupante",
+    icon: "😴", color: "#8b5cf6", rarity: "epic",
+    check: (p) => p.totalPlaytimeMs >= 50 * 3_600_000,
+  },
+  {
+    id: "touch_grass",
+    label: "Toca Grama",
+    description: "200 horas de jogo — sai de casa um dia desses",
+    icon: "🌿", color: "#16a34a", rarity: "legendary",
+    check: (p) => p.totalPlaytimeMs >= 200 * 3_600_000,
+  },
+  {
+    id: "miss_a_lot",
+    label: "Erro? Que Erro?",
+    description: "Mais de 10.000 erros — aprendeu com cada um deles",
+    icon: "💣", color: "#6b7280", rarity: "common",
+    check: (p) => p.totalMisses >= 10000,
+  },
+
+  // ── Títulos por Conquistas Únicas ────────────────────────────────────────
+  {
+    id: "fc_expert",
+    label: "Lenda do Expert",
+    description: "Full Combo em Expert — isso é coisa séria",
+    icon: "🏅", color: "#f59e0b", rarity: "legendary",
+    check: (p) => p.fcCount >= 1 && (p.songsPerDifficulty[6] ?? 0) >= 1,
+  },
+  {
+    id: "accuracy_addict",
+    label: "Viciado em Precisão",
+    description: "Mais de 90% de acertos no geral após 50 músicas",
+    icon: "🎯", color: "#06b6d4", rarity: "epic",
+    check: (p) => p.songsPlayed >= 50 &&
+      (p.totalPerfects / Math.max(1, p.totalPerfects + p.totalGreats + p.totalGoods + p.totalMisses)) >= 0.80,
+  },
+  {
+    id: "combo_god",
+    label: "Rei Absoluto do Combo",
+    description: "Combo máximo acima de 1000",
+    icon: "⚡", color: "#fbbf24", rarity: "legendary",
+    check: (p) => p.bestCombo >= 1000,
+  },
+  {
+    id: "high_scorer",
+    label: "Pontuação Absurda",
+    description: "Score máximo acima de 2.000.000",
+    icon: "🚀", color: "#ec4899", rarity: "legendary",
+    check: (p) => p.bestScore >= 2000000,
+  },
+  {
+    id: "speed_freak",
+    label: "Viciado em Expert",
+    description: "Mais de 50 músicas no modo Expert",
+    icon: "💨", color: "#f43f5e", rarity: "epic",
+    check: (p) => (p.songsPerDifficulty[6] ?? 0) >= 50,
+  },
+  {
+    id: "grinder",
+    label: "No Grind",
+    description: "Score total acima de 50.000.000",
+    icon: "⚙️", color: "#d97706", rarity: "epic",
+    check: (p) => p.totalScore >= 50_000_000,
+  },
+  {
+    id: "s_machine",
+    label: "Máquina de S",
+    description: "200 ranks S ou S+ — você é diferente",
+    icon: "🌠", color: "#7c3aed", rarity: "legendary",
+    check: (p) => p.sRankCount >= 200,
+  },
+  {
+    id: "fc_maniac",
+    label: "Maníaco do FC",
+    description: "100 Full Combos — humanamente impossível",
+    icon: "🔥", color: "#ff4500", rarity: "legendary",
+    check: (p) => p.fcCount >= 100,
+  },
+  {
+    id: "score_3m",
+    label: "Lendário",
+    description: "Score máximo acima de 3.000.000",
+    icon: "👾", color: "#a21caf", rarity: "legendary",
+    check: (p) => p.bestScore >= 3000000,
+  },
+  {
+    id: "note_hunter",
+    label: "Caçador de Notas",
+    description: "Mais de 200.000 notas perfeitas no total",
+    icon: "🎵", color: "#0ea5e9", rarity: "epic",
+    check: (p) => p.totalPerfects >= 200000,
+  },
+  {
+    id: "veteran_hard",
+    label: "Difícil pra Quem?",
+    description: "Mais de 100 músicas no modo Difícil",
+    icon: "💪", color: "#dc2626", rarity: "rare",
+    check: (p) => (p.songsPerDifficulty[5] ?? 0) >= 100,
+  },
 ]
 
 /** Retorna todos os títulos que o jogador desbloqueou */
