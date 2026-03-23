@@ -6,15 +6,16 @@ let socket: Socket | null = null
 export function getSocket(): Socket {
   if (!socket) {
     socket = io({
-      // Tentar WebSocket primeiro, cair para polling se necessário
-      transports: ["websocket", "polling"],
-      upgrade: true,
+      // Polling primeiro: mais estável no Railway (cada request é independente)
+      // WebSocket pode ser fechado pelo proxy do Railway após 30s idle
+      transports: ["polling", "websocket"],
+      upgrade: true,         // tenta upgrade para WebSocket após conectar via polling
       reconnection: true,
       reconnectionAttempts: 20,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 30000,    // Railway pode demorar até 20s para acordar
-      ackTimeout: 10000, // timeout para acks de callbacks
+      timeout: 30000,
+      ackTimeout: 10000,
     })
 
     socket.on("connect_error", (err) => {
@@ -64,8 +65,8 @@ export function waitForConnection(maxWaitMs = 20000): Promise<boolean> {
 }
 
 /**
- * Emite um evento com retry automático se o callback não chegar.
- * Resolve com o resultado ou rejeita após maxWaitMs.
+ * Emite um evento com retry automático se o callback não chegar ou socket reconectar.
+ * Resolve com o resultado ou rejeita após todas as tentativas falharem.
  */
 export function emitWithRetry<T>(
   event: string,
@@ -76,23 +77,40 @@ export function emitWithRetry<T>(
   return new Promise(async (resolve, reject) => {
     for (let attempt = 0; attempt <= retries; attempt++) {
       const s = getSocket()
+
+      // Garantir conexão estável antes de emitir
       if (!s.connected) {
-        const ok = await waitForConnection(10000)
+        const ok = await waitForConnection(15000)
         if (!ok) { reject(new Error("Não foi possível conectar ao servidor")); return }
       }
 
-      const result = await new Promise<T | null>((res) => {
-        const t = setTimeout(() => res(null), maxWaitMs / (retries + 1))
+      const result = await new Promise<T | "reconnected" | null>((res) => {
+        const waitPerAttempt = Math.floor(maxWaitMs / (retries + 1))
+        const t = setTimeout(() => res(null), waitPerAttempt)
+
+        // Se socket reconectar durante o emit, retentar imediatamente
+        const onReconnect = () => {
+          clearTimeout(t)
+          res("reconnected")
+        }
+        s.once("connect", onReconnect)
+
         s.emit(event, data, (response: T) => {
           clearTimeout(t)
+          s.off("connect", onReconnect)
           res(response)
         })
       })
 
+      if (result === "reconnected") {
+        console.warn(`[Socket] ${event} interrompido por reconexão, retentando...`)
+        await new Promise(r => setTimeout(r, 300)) // aguardar socket estabilizar
+        continue
+      }
       if (result !== null) { resolve(result); return }
-      console.warn(`[Socket] ${event} tentativa ${attempt + 1} sem resposta, retentando...`)
+      console.warn(`[Socket] ${event} tentativa ${attempt + 1}/${retries + 1} sem resposta`)
     }
-    reject(new Error("Servidor não respondeu após múltiplas tentativas"))
+    reject(new Error("Servidor não respondeu. Verifique sua conexão."))
   })
 }
 
