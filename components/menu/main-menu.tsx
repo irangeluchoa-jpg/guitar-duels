@@ -81,266 +81,302 @@ export function MainMenu() {
     return () => { window.removeEventListener("keydown", onKey); stopGamepadNav() }
   }, [selected, router, bindings])
 
-  // Background canvas — sepia stage with smoke, flying embers
+  // Background canvas — show épico com efeitos intensos
   useEffect(() => {
     const cv = bgRef.current; if (!cv) return
     const ctx = cv.getContext("2d")!
     let W = 0, H = 0, t = 0
 
     const resize = () => {
-      const dpr = window.devicePixelRatio || 1
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
       W = cv.offsetWidth; H = cv.offsetHeight
       cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr)
       ctx.scale(dpr, dpr)
     }
     resize(); window.addEventListener("resize", resize)
 
-    const MUSIC_NOTES = ["♩","♪","♫","♬","🎵","🎶"]
-    type P = {x:number;y:number;vx:number;vy:number;r:number;a:number;life:number;max:number;type:string;note?:string;hue?:number;spin?:number}
+    // ── Partículas ─────────────────────────────────────────────────────────
+    type P = {x:number;y:number;vx:number;vy:number;r:number;a:number;life:number;max:number;type:string;note?:string;hue?:number;spin?:number;color?:string}
     const particles: P[] = []
+    const NOTES = ["♩","♪","♫","♬","🎵","🎶","🎸","⚡","★"]
+    const COLORS = ["#ff3333","#ff8800","#ffcc00","#ff44aa","#44aaff","#aa44ff"]
 
     const spawn = () => {
       const roll = Math.random()
-      let type = "smoke"
-      if (roll < 0.18) type = "ember"
-      else if (roll < 0.30) type = "laser"
-      else if (roll < 0.42) type = "note"
-      else if (roll < 0.52) type = "star"
-
-      if (type === "laser") {
-        // Raios de luz verticais do palco
-        particles.push({
-          x: W*(0.15 + Math.random()*0.70),
-          y: 0, vx: 0, vy: 0,
-          r: 0.5 + Math.random()*1.5,
-          a: 0.15 + Math.random()*0.25,
-          life: 0, max: 120 + Math.random()*80,
-          type: "laser",
-          hue: 0 + Math.floor(Math.random()*3)*40, // vermelho, laranja, amarelo
+      // Ember — faísca quente subindo
+      if (roll < 0.25) {
+        particles.push({ type:"ember",
+          x: W*(0.05+Math.random()*0.9), y: H*(0.65+Math.random()*0.2),
+          vx:(Math.random()-0.5)*2, vy:-(2+Math.random()*3.5),
+          r:2+Math.random()*4, a:0.9+Math.random()*0.1,
+          life:0, max:60+Math.random()*60,
+          color: COLORS[Math.floor(Math.random()*3)] // vermelho/laranja/amarelo
         })
-        return
       }
-      if (type === "note") {
-        particles.push({
-          x: W*(0.1 + Math.random()*0.8),
-          y: H*(0.5 + Math.random()*0.3),
-          vx: (Math.random()-0.5)*0.8,
-          vy: -(0.6 + Math.random()*1.2),
-          r: 14 + Math.random()*8,
-          a: 0.7 + Math.random()*0.3,
-          life: 0, max: 100 + Math.random()*80,
-          type: "note",
-          note: MUSIC_NOTES[Math.floor(Math.random()*MUSIC_NOTES.length)],
-          spin: (Math.random()-0.5)*0.05,
+      // Raio de luz vertical do palco
+      else if (roll < 0.40) {
+        particles.push({ type:"laser",
+          x: W*(0.08+Math.random()*0.84), y:0, vx:0, vy:0,
+          r:1+Math.random()*3, a:0.35+Math.random()*0.4,
+          life:0, max:90+Math.random()*100,
+          hue: Math.floor(Math.random()*4)*40
         })
-        return
       }
-      if (type === "star") {
-        particles.push({
-          x: Math.random()*W,
-          y: Math.random()*H*0.7,
-          vx: 0, vy: 0,
-          r: 1 + Math.random()*2.5,
-          a: 0, life: 0,
-          max: 80 + Math.random()*120,
-          type: "star",
+      // Nota musical flutuando
+      else if (roll < 0.55) {
+        particles.push({ type:"note",
+          x: W*(0.05+Math.random()*0.9), y: H*(0.45+Math.random()*0.35),
+          vx:(Math.random()-0.5)*1.2, vy:-(0.8+Math.random()*1.8),
+          r:18+Math.random()*12, a:0.9,
+          life:0, max:120+Math.random()*100,
+          note: NOTES[Math.floor(Math.random()*NOTES.length)],
+          spin:(Math.random()-0.5)*0.06,
+          color: COLORS[Math.floor(Math.random()*COLORS.length)]
+        })
+      }
+      // Estrela piscante
+      else if (roll < 0.68) {
+        particles.push({ type:"star",
+          x: Math.random()*W, y: Math.random()*H*0.75,
+          vx:0, vy:0, r:1.5+Math.random()*3, a:0,
+          life:0, max:100+Math.random()*150,
           hue: Math.random()*60,
+          color: COLORS[Math.floor(Math.random()*COLORS.length)]
         })
-        return
       }
-      particles.push({
-        x: W*(0.05 + Math.random()*0.9),
-        y: H*(0.75 + Math.random()*0.15),
-        vx: (Math.random()-0.5)*(type==="ember"?1.2:0.4),
-        vy: -(type==="ember" ? 1.5+Math.random()*2.5 : 0.4+Math.random()*0.9),
-        r: type==="ember" ? 1.5+Math.random()*3 : 20+Math.random()*55,
-        a: type==="ember" ? 0.7+Math.random()*0.3 : 0.025+Math.random()*0.045,
-        life: 0, max: type==="ember" ? 50+Math.random()*50 : 160+Math.random()*120,
-        type,
-      })
+      // Faísca colorida (confete)
+      else if (roll < 0.82) {
+        particles.push({ type:"spark",
+          x: W*(0.1+Math.random()*0.8), y: H*(0.5+Math.random()*0.3),
+          vx:(Math.random()-0.5)*4, vy:-(1+Math.random()*4),
+          r:3+Math.random()*5, a:1,
+          life:0, max:40+Math.random()*50,
+          color: COLORS[Math.floor(Math.random()*COLORS.length)]
+        })
+      }
+      // Fumaça
+      else {
+        particles.push({ type:"smoke",
+          x: W*(0.05+Math.random()*0.9), y: H*(0.7+Math.random()*0.15),
+          vx:(Math.random()-0.5)*0.5, vy:-(0.5+Math.random()*1),
+          r:30+Math.random()*60, a:0.06+Math.random()*0.06,
+          life:0, max:180+Math.random()*120
+        })
+      }
     }
 
-    const drawBg = () => {
-      // Deep sepia-brown background
-      const bg = ctx.createLinearGradient(0, 0, 0, H)
-      bg.addColorStop(0, "#1a0e06")
-      bg.addColorStop(0.4, "#2a1508")
-      bg.addColorStop(0.7, "#1e0f05")
-      bg.addColorStop(1, "#0f0703")
-      ctx.fillStyle = bg; ctx.fillRect(0,0,W,H)
-
-      // Stage floor perspective
-      ctx.save()
-      const floorY = H * 0.72
-      const floorGrad = ctx.createLinearGradient(0, floorY, 0, H)
-      floorGrad.addColorStop(0, "rgba(80,50,20,0.0)")
-      floorGrad.addColorStop(0.3, "rgba(90,55,22,0.85)")
-      floorGrad.addColorStop(1, "rgba(60,35,12,0.95)")
-      ctx.fillStyle = floorGrad
-      ctx.beginPath()
-      ctx.moveTo(0, H); ctx.lineTo(W, H)
-      ctx.lineTo(W*0.85, floorY); ctx.lineTo(W*0.15, floorY)
-      ctx.closePath(); ctx.fill()
-
-      // Floor planks
-      ctx.globalAlpha = 0.25
-      for (let i=0; i<12; i++) {
-        const progress = i/12
-        const y = floorY + (H-floorY)*progress
-        const xL = W*0.15 + (0 - W*0.15)*(progress)
-        const xR = W*0.85 + (W - W*0.85)*(progress)
-        ctx.strokeStyle = i%2===0 ? "rgba(120,80,30,0.6)" : "rgba(60,35,10,0.4)"
-        ctx.lineWidth = 1
-        ctx.beginPath(); ctx.moveTo(xL,y); ctx.lineTo(xR,y); ctx.stroke()
-      }
-      // Vertical plank lines converging
-      for (let i=0; i<=6; i++) {
-        const frac = i/6
-        const topX = W*0.15 + (W*0.7)*frac
-        ctx.strokeStyle = "rgba(80,50,15,0.3)"
-        ctx.lineWidth = 0.8
-        ctx.beginPath()
-        ctx.moveTo(topX, floorY)
-        ctx.lineTo(W*frac, H)
-        ctx.stroke()
-      }
-      ctx.restore()
-
-      // Left poster panel  
-      ctx.save()
-      ctx.globalAlpha = 0.55
-      ctx.fillStyle = "#3d2810"
-      // Left panel (angled)
-      ctx.beginPath()
-      ctx.moveTo(-W*0.05, 0); ctx.lineTo(W*0.28, 0)
-      ctx.lineTo(W*0.22, H*0.72); ctx.lineTo(-W*0.05, H*0.85)
-      ctx.closePath(); ctx.fill()
-      // Sketch lines on poster
-      ctx.globalAlpha = 0.18
-      ctx.strokeStyle = "#8b6030"
-      ctx.lineWidth = 1.5
-      for (let i=0; i<8; i++) {
-        ctx.beginPath()
-        ctx.moveTo(W*0.02+Math.random()*W*0.2, H*0.05+i*H*0.09)
-        ctx.lineTo(W*0.04+Math.random()*W*0.18, H*0.12+i*H*0.09)
-        ctx.stroke()
-      }
-      ctx.restore()
-
-      // Right poster panel
-      ctx.save()
-      ctx.globalAlpha = 0.55
-      ctx.fillStyle = "#3d2810"
-      ctx.beginPath()
-      ctx.moveTo(W*1.05, 0); ctx.lineTo(W*0.72, 0)
-      ctx.lineTo(W*0.78, H*0.72); ctx.lineTo(W*1.05, H*0.85)
-      ctx.closePath(); ctx.fill()
-      ctx.restore()
-
-      // Center vignette/spotlight
-      const spot = ctx.createRadialGradient(W/2, H*0.35, 0, W/2, H*0.35, W*0.6)
-      spot.addColorStop(0, "rgba(80,50,20,0.15)")
-      spot.addColorStop(0.5, "rgba(20,10,3,0.0)")
-      spot.addColorStop(1, "rgba(0,0,0,0.65)")
-      ctx.fillStyle = spot; ctx.fillRect(0,0,W,H)
-
-      // Red tint top
-      const redTop = ctx.createLinearGradient(0,0,0,H*0.3)
-      redTop.addColorStop(0,"rgba(80,15,5,0.3)")
-      redTop.addColorStop(1,"transparent")
-      ctx.fillStyle = redTop; ctx.fillRect(0,0,W,H*0.3)
-    }
-
-    // Spotlights state
-    let spotAngle1 = 0, spotAngle2 = Math.PI/3
+    // ── Refletores ──────────────────────────────────────────────────────────
+    let spotAngle1 = 0, spotAngle2 = Math.PI/3, spotAngle3 = Math.PI
 
     const drawSpotlights = () => {
-      // Dois refletores de palco oscilantes
+      spotAngle1 += 0.012; spotAngle2 -= 0.009; spotAngle3 += 0.007
       const floorY = H * 0.72
-      spotAngle1 += 0.008; spotAngle2 -= 0.006
       const spots = [
-        { ox: W*0.2, angle: spotAngle1, color: "255,80,80" },
-        { ox: W*0.8, angle: spotAngle2, color: "80,120,255" },
+        { ox:W*0.15, angle:spotAngle1, color:"255,60,60",   alpha:0.18, gR:50 },
+        { ox:W*0.85, angle:spotAngle2, color:"60,100,255",  alpha:0.18, gR:50 },
+        { ox:W*0.50, angle:spotAngle3, color:"255,200,40",  alpha:0.12, gR:40 },
       ]
       for (const sp of spots) {
-        const tx = W/2 + Math.sin(sp.angle) * W * 0.35
-        const ty = H * 0.15
-        // Cone de luz
-        ctx.save(); ctx.globalAlpha = 0.06
+        const tx = W/2 + Math.sin(sp.angle) * W * 0.42
+        const ty = H * 0.08
+        // Cone de luz — muito mais visível
+        ctx.save()
+        ctx.globalAlpha = sp.alpha
         const grad = ctx.createLinearGradient(sp.ox, floorY, tx, ty)
-        grad.addColorStop(0, `rgba(${sp.color},0.8)`)
+        grad.addColorStop(0, `rgba(${sp.color},0.9)`)
+        grad.addColorStop(0.6, `rgba(${sp.color},0.3)`)
         grad.addColorStop(1, `rgba(${sp.color},0)`)
         ctx.beginPath()
-        const spread = 0.08
-        ctx.moveTo(sp.ox, floorY)
-        ctx.lineTo(tx - W * spread, ty)
-        ctx.lineTo(tx + W * spread, ty)
+        const spread = 0.12
+        ctx.moveTo(sp.ox-8, floorY)
+        ctx.lineTo(sp.ox+8, floorY)
+        ctx.lineTo(tx + W*spread, ty)
+        ctx.lineTo(tx - W*spread, ty)
         ctx.closePath()
         ctx.fillStyle = grad; ctx.fill()
         ctx.restore()
-        // Ponto de luz no topo
-        ctx.save(); ctx.globalAlpha = 0.35
-        const glow = ctx.createRadialGradient(tx, ty, 0, tx, ty, 30)
-        glow.addColorStop(0, `rgba(${sp.color},0.9)`)
+        // Ponto luminoso no topo — brilhante
+        ctx.save()
+        ctx.globalAlpha = 0.85
+        const glow = ctx.createRadialGradient(tx, ty, 0, tx, ty, sp.gR)
+        glow.addColorStop(0, `rgba(${sp.color},1)`)
+        glow.addColorStop(0.3, `rgba(${sp.color},0.5)`)
         glow.addColorStop(1, "transparent")
-        ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(tx, ty, 30, 0, Math.PI*2); ctx.fill()
+        ctx.fillStyle = glow
+        ctx.beginPath(); ctx.arc(tx, ty, sp.gR, 0, Math.PI*2); ctx.fill()
+        ctx.restore()
+        // Reflexo no chão
+        ctx.save()
+        ctx.globalAlpha = 0.25
+        const floorGlow = ctx.createRadialGradient(sp.ox, floorY, 0, sp.ox, floorY, 80)
+        floorGlow.addColorStop(0, `rgba(${sp.color},0.8)`)
+        floorGlow.addColorStop(1, "transparent")
+        ctx.fillStyle = floorGlow
+        ctx.beginPath(); ctx.ellipse(sp.ox, floorY, 80, 20, 0, 0, Math.PI*2); ctx.fill()
         ctx.restore()
       }
     }
 
+    // ── Multidão ────────────────────────────────────────────────────────────
     const drawCrowd = () => {
-      // Silhuetas de multidão na parte inferior
       ctx.save()
-      ctx.globalAlpha = 0.18
-      const floorY = H * 0.73
-      const crowdCount = Math.floor(W / 22)
+      const floorY = H * 0.715
+      const crowdCount = Math.floor(W / 18)
       for (let i = 0; i < crowdCount; i++) {
-        const cx = (i / crowdCount) * W + 11
-        const sway = Math.sin(t * 1.5 + i * 0.7) * 3
-        const h = 28 + Math.sin(i * 1.3) * 8
+        const cx = (i / crowdCount) * W + 9
+        const sway = Math.sin(t * 2 + i * 0.9) * 5
+        const bh = 32 + Math.sin(i * 1.1) * 10
+        // Silhueta mais escura e alta
+        ctx.globalAlpha = 0.55
+        ctx.fillStyle = "#050301"
         // Corpo
-        ctx.fillStyle = "#0a0501"
         ctx.beginPath()
-        ctx.ellipse(cx, floorY + sway, 7, h * 0.55, 0, 0, Math.PI * 2)
+        ctx.ellipse(cx, floorY - bh*0.3 + sway*0.5, 6, bh*0.5, 0, 0, Math.PI*2)
         ctx.fill()
         // Cabeça
         ctx.beginPath()
-        ctx.arc(cx + sway * 0.3, floorY - h * 0.55 + sway, 5, 0, Math.PI * 2)
+        ctx.arc(cx + sway*0.4, floorY - bh*0.85 + sway, 6, 0, Math.PI*2)
         ctx.fill()
-        // Braços levantados alternando
-        if (Math.floor(t * 1.2 + i * 0.5) % 2 === 0) {
+        // Braços levantados — mais visíveis
+        ctx.globalAlpha = 0.45
+        ctx.lineWidth = 2.5
+        ctx.strokeStyle = "#050301"
+        ctx.lineCap = "round"
+        const armPhase = Math.floor(t * 1.5 + i * 0.6) % 2
+        ctx.beginPath()
+        ctx.moveTo(cx - 5, floorY - bh*0.5 + sway)
+        ctx.lineTo(cx - (armPhase===0?14:8), floorY - bh*0.85 + sway - (armPhase===0?12:4))
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(cx + 5, floorY - bh*0.5 + sway)
+        ctx.lineTo(cx + (armPhase===1?14:8), floorY - bh*0.85 + sway - (armPhase===1?12:4))
+        ctx.stroke()
+        // Luz da multidão — celulares/lighters
+        if (i % 4 === 0) {
+          ctx.globalAlpha = 0.5 + Math.sin(t*3 + i)*0.3
+          ctx.fillStyle = Math.random() > 0.5 ? "#ffffcc" : "#ffaa44"
           ctx.beginPath()
-          ctx.moveTo(cx - 4, floorY - h * 0.2 + sway)
-          ctx.lineTo(cx - 12, floorY - h * 0.55 + sway - 8)
-          ctx.lineWidth = 2; ctx.strokeStyle = "#0a0501"; ctx.stroke()
-        } else {
-          ctx.beginPath()
-          ctx.moveTo(cx + 4, floorY - h * 0.2 + sway)
-          ctx.lineTo(cx + 12, floorY - h * 0.55 + sway - 8)
-          ctx.lineWidth = 2; ctx.strokeStyle = "#0a0501"; ctx.stroke()
+          ctx.arc(cx, floorY - bh*0.9 + sway - 10, 2, 0, Math.PI*2)
+          ctx.fill()
         }
       }
       ctx.restore()
     }
 
+    // ── Relâmpagos ──────────────────────────────────────────────────────────
     const drawLightning = () => {
-      // Relâmpagos aleatórios ocasionais
-      if (Math.random() > 0.015) return
-      ctx.save(); ctx.globalAlpha = 0.7
-      ctx.strokeStyle = Math.random() > 0.5 ? "#ffcc44" : "#ff6644"
-      ctx.lineWidth = 1.5
-      ctx.shadowColor = "#ff8800"; ctx.shadowBlur = 12
-      const sx = Math.random() * W
-      let lx = sx, ly = H * 0.05
+      if (Math.random() > 0.025) return
+      ctx.save()
+      ctx.globalAlpha = 0.85
+      const isGold = Math.random() > 0.5
+      ctx.strokeStyle = isGold ? "#ffee44" : "#ff5500"
+      ctx.shadowColor  = isGold ? "#ffcc00" : "#ff3300"
+      ctx.shadowBlur   = 20
+      ctx.lineWidth = 2
+      let lx = W * (0.1 + Math.random() * 0.8), ly = 0
       ctx.beginPath(); ctx.moveTo(lx, ly)
-      while (ly < H * 0.45) {
-        lx += (Math.random() - 0.5) * 40
-        ly += 15 + Math.random() * 20
+      while (ly < H * 0.5) {
+        lx += (Math.random()-0.5)*60
+        ly += 20 + Math.random()*30
         ctx.lineTo(lx, ly)
+        // Branch
+        if (Math.random() > 0.6) {
+          ctx.save()
+          ctx.globalAlpha = 0.4
+          ctx.lineWidth = 1
+          ctx.moveTo(lx, ly)
+          ctx.lineTo(lx+(Math.random()-0.5)*80, ly+40+Math.random()*40)
+          ctx.stroke()
+          ctx.restore()
+        }
       }
-      ctx.stroke(); ctx.restore()
+      ctx.stroke()
+      ctx.restore()
     }
 
+    // ── Background ──────────────────────────────────────────────────────────
+    const drawBg = () => {
+      const bg = ctx.createLinearGradient(0, 0, 0, H)
+      bg.addColorStop(0,   "#110806")
+      bg.addColorStop(0.3, "#200d04")
+      bg.addColorStop(0.6, "#180a03")
+      bg.addColorStop(1,   "#0c0502")
+      ctx.fillStyle = bg; ctx.fillRect(0,0,W,H)
+
+      // Palco com perspectiva
+      ctx.save()
+      const floorY = H * 0.72
+      const flG = ctx.createLinearGradient(0, floorY, 0, H)
+      flG.addColorStop(0, "rgba(100,60,20,0)")
+      flG.addColorStop(0.2, "rgba(110,65,22,0.9)")
+      flG.addColorStop(1,   "rgba(70,40,12,1)")
+      ctx.fillStyle = flG
+      ctx.beginPath()
+      ctx.moveTo(0,H); ctx.lineTo(W,H)
+      ctx.lineTo(W*0.82, floorY); ctx.lineTo(W*0.18, floorY)
+      ctx.closePath(); ctx.fill()
+
+      // Tábuas do palco
+      ctx.globalAlpha = 0.35
+      for (let i=0; i<14; i++) {
+        const pr = i/14
+        const y  = floorY + (H-floorY)*pr
+        const xL = W*0.18 - W*0.18*pr
+        const xR = W*0.82 + (W-W*0.82)*pr
+        ctx.strokeStyle = i%2===0 ? "rgba(150,90,30,0.7)" : "rgba(80,45,12,0.5)"
+        ctx.lineWidth = 1.5
+        ctx.beginPath(); ctx.moveTo(xL,y); ctx.lineTo(xR,y); ctx.stroke()
+      }
+      // Linhas de perspectiva
+      ctx.globalAlpha = 0.2
+      for (let i=0; i<=8; i++) {
+        const frac = i/8
+        ctx.strokeStyle = "rgba(100,60,18,0.5)"
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.moveTo(W*0.18+W*0.64*frac, floorY)
+        ctx.lineTo(W*frac, H)
+        ctx.stroke()
+      }
+      ctx.restore()
+
+      // Painéis laterais escuros
+      ctx.save(); ctx.globalAlpha = 0.7
+      ctx.fillStyle = "#2a1608"
+      // Esquerdo
+      ctx.beginPath()
+      ctx.moveTo(0,0); ctx.lineTo(W*0.25,0)
+      ctx.lineTo(W*0.18, floorY); ctx.lineTo(0, H*0.8)
+      ctx.closePath(); ctx.fill()
+      // Direito
+      ctx.beginPath()
+      ctx.moveTo(W,0); ctx.lineTo(W*0.75,0)
+      ctx.lineTo(W*0.82, floorY); ctx.lineTo(W, H*0.8)
+      ctx.closePath(); ctx.fill()
+      ctx.restore()
+
+      // Vinheta central intensa
+      const spot = ctx.createRadialGradient(W/2, H*0.4, 0, W/2, H*0.4, W*0.55)
+      spot.addColorStop(0,   "rgba(0,0,0,0)")
+      spot.addColorStop(0.6, "rgba(0,0,0,0.1)")
+      spot.addColorStop(1,   "rgba(0,0,0,0.75)")
+      ctx.fillStyle = spot; ctx.fillRect(0,0,W,H)
+
+      // Topo vermelho intenso
+      const redTop = ctx.createLinearGradient(0,0,0,H*0.25)
+      redTop.addColorStop(0,"rgba(100,15,5,0.55)")
+      redTop.addColorStop(1,"transparent")
+      ctx.fillStyle = redTop; ctx.fillRect(0,0,W,H*0.25)
+
+      // Brilho do palco no centro
+      const stageGlow = ctx.createRadialGradient(W/2, floorY, 0, W/2, floorY, W*0.35)
+      stageGlow.addColorStop(0, "rgba(200,120,40,0.3)")
+      stageGlow.addColorStop(1, "transparent")
+      ctx.fillStyle = stageGlow
+      ctx.fillRect(0, floorY-20, W, H-floorY+20)
+    }
+
+    // ── Draw ────────────────────────────────────────────────────────────────
     const draw = (ts: number) => {
       t = ts * 0.001
       ctx.clearRect(0,0,W,H)
@@ -349,42 +385,98 @@ export function MainMenu() {
       drawCrowd()
       drawLightning()
 
-      if (Math.random() < 0.14) spawn()
+      // Spawn mais partículas
+      const spawnRate = particles.length < 80 ? 0.35 : 0.18
+      if (Math.random() < spawnRate) spawn()
 
       for (let i=particles.length-1; i>=0; i--) {
         const p = particles[i]; p.life++
         if (p.life >= p.max) { particles.splice(i,1); continue }
         const lr = p.life/p.max
-        p.x += p.vx + Math.sin(p.life*0.1+i)*0.2
-        p.y += p.vy; p.vy *= 0.994
+        p.x += p.vx + Math.sin(p.life*0.12+i)*0.3
+        p.y += p.vy; p.vy *= 0.992
+
+        ctx.save()
         if (p.type === "smoke") {
-          p.r *= 1.004
-          const fade = lr<0.15 ? lr/0.15 : 1-(lr-0.15)/0.85
-          ctx.save(); ctx.globalAlpha = p.a * fade
+          p.r *= 1.006
+          const fade = lr<0.2 ? lr/0.2 : 1-(lr-0.2)/0.8
+          ctx.globalAlpha = p.a * fade
           const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r)
-          g.addColorStop(0,"rgba(50,32,14,0.9)")
-          g.addColorStop(0.5,"rgba(30,18,7,0.5)")
+          g.addColorStop(0,"rgba(60,35,14,0.8)")
+          g.addColorStop(0.5,"rgba(35,20,8,0.4)")
           g.addColorStop(1,"transparent")
           ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill()
-          ctx.restore()
-        } else {
-          const fade = (1-lr)*(1-lr)
-          const gv = Math.round(Math.max(0,120*(1-lr*1.5)))
-          ctx.save(); ctx.globalAlpha = p.a*fade*0.8
-          const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r)
-          g.addColorStop(0,"rgba(255,240,160,1)")
-          g.addColorStop(0.4,`rgba(255,${gv},0,1)`)
-          g.addColorStop(1,"transparent")
-          ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill()
-          ctx.restore()
         }
+        else if (p.type === "ember") {
+          const fade = (1-lr)*(1-lr)
+          ctx.globalAlpha = p.a * fade
+          // Core brilhante
+          ctx.shadowColor = p.color!; ctx.shadowBlur = 12
+          ctx.fillStyle = "#ffffff"
+          ctx.beginPath(); ctx.arc(p.x,p.y,p.r*0.4*fade+0.5,0,Math.PI*2); ctx.fill()
+          // Halo colorido
+          const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*2)
+          g.addColorStop(0, p.color!+"ff")
+          g.addColorStop(0.5, p.color!+"88")
+          g.addColorStop(1,"transparent")
+          ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,p.r*2,0,Math.PI*2); ctx.fill()
+        }
+        else if (p.type === "laser") {
+          const fade = lr<0.1 ? lr/0.1 : lr>0.7 ? (1-lr)/0.3 : 1
+          const colors = ["255,60,60","255,140,0","255,220,0","200,50,255"]
+          const col = colors[(p.hue!/40)|0] || colors[0]
+          ctx.globalAlpha = p.a * fade
+          ctx.shadowColor = `rgb(${col})`; ctx.shadowBlur = 20
+          // Raio principal
+          const gL = ctx.createLinearGradient(p.x,0,p.x,H*0.72)
+          gL.addColorStop(0,`rgba(${col},0.95)`)
+          gL.addColorStop(0.5,`rgba(${col},0.6)`)
+          gL.addColorStop(1,`rgba(${col},0)`)
+          ctx.fillStyle = gL
+          ctx.fillRect(p.x-p.r, 0, p.r*2, H*0.72)
+          // Raio fino brilhante no centro
+          ctx.globalAlpha = p.a * fade * 0.9
+          ctx.fillStyle = "rgba(255,255,255,0.9)"
+          ctx.fillRect(p.x-0.8, 0, 1.6, H*0.72)
+        }
+        else if (p.type === "note") {
+          const fade = lr<0.15 ? lr/0.15 : lr>0.7 ? (1-lr)/0.3 : 1
+          ctx.globalAlpha = p.a * fade
+          ctx.font = `${Math.round(p.r)}px serif`
+          ctx.textAlign = "center"; ctx.textBaseline = "middle"
+          ctx.shadowColor = p.color!; ctx.shadowBlur = 16
+          ctx.fillStyle = p.color!
+          if (p.spin) ctx.translate(p.x,p.y), ctx.rotate(p.life*p.spin), ctx.fillText(p.note!,0,0)
+          else ctx.fillText(p.note!, p.x, p.y)
+        }
+        else if (p.type === "star") {
+          const fade = Math.sin(lr * Math.PI)
+          ctx.globalAlpha = fade * 0.95
+          ctx.shadowColor = p.color!; ctx.shadowBlur = 15
+          // Estrela de 4 pontas
+          ctx.fillStyle = p.color!
+          const sz = p.r * fade
+          ctx.beginPath()
+          ctx.moveTo(p.x,p.y-sz*2.5); ctx.lineTo(p.x+sz*0.4,p.y-sz*0.4)
+          ctx.lineTo(p.x+sz*2.5,p.y); ctx.lineTo(p.x+sz*0.4,p.y+sz*0.4)
+          ctx.lineTo(p.x,p.y+sz*2.5); ctx.lineTo(p.x-sz*0.4,p.y+sz*0.4)
+          ctx.lineTo(p.x-sz*2.5,p.y); ctx.lineTo(p.x-sz*0.4,p.y-sz*0.4)
+          ctx.closePath(); ctx.fill()
+        }
+        else if (p.type === "spark") {
+          const fade = (1-lr)
+          ctx.globalAlpha = fade
+          ctx.shadowColor = p.color!; ctx.shadowBlur = 8
+          ctx.fillStyle = lr < 0.3 ? "#ffffff" : p.color!
+          ctx.beginPath(); ctx.arc(p.x,p.y,p.r*(1-lr*0.5),0,Math.PI*2); ctx.fill()
+        }
+        ctx.restore()
       }
 
-      // Scanlines
-      ctx.save(); ctx.globalAlpha = 0.03
-      for (let y=0; y<H; y+=3) {
-        ctx.fillStyle = "rgba(0,0,0,1)"
-        ctx.fillRect(0,y,W,1)
+      // Scanlines sutis
+      ctx.save(); ctx.globalAlpha = 0.04
+      for (let y=0; y<H; y+=4) {
+        ctx.fillStyle="rgba(0,0,0,1)"; ctx.fillRect(0,y,W,2)
       }
       ctx.restore()
 
@@ -394,6 +486,7 @@ export function MainMenu() {
     animRef.current = requestAnimationFrame(draw)
     return () => { cancelAnimationFrame(animRef.current); window.removeEventListener("resize", resize) }
   }, [])
+
 
   const handleClick = useCallback((i:number, path:string) => {
     playClickSound(getVol()); setPressed(i)
