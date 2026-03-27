@@ -680,9 +680,9 @@ function getFretboard(w: number, h: number, starPower: boolean, diff: number, lc
 }
 
 // ── Star Power: raios na hit line + bordas laterais da TELA ─────────────────
-function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: number, now: number, combo: number, theme = "default") {
-  if (combo < STAR_POWER_COMBO) return
-  const intensity = Math.min(1, (combo-STAR_POWER_COMBO)/25)
+function drawStarPowerLightning(ctx: CanvasRenderingContext2D, w: number, h: number, now: number, spActive: boolean, theme = "default") {
+  if (!spActive) return
+  const intensity = 1.0  // sempre intensidade total quando ativo
   const hitY = h*HIT_LINE_Y_RATIO
   const tBot = w*TRACK_WIDTH_RATIO, tL=(w-tBot)/2, tR=tL+tBot
   const t = now*0.001
@@ -1373,7 +1373,8 @@ export function renderFrame(state: RenderState): void {
   // Escala de UI: 1.0 em 1080p, menor em telas pequenas, maior em 4K
   const uiScale = Math.max(0.5, Math.min(1.6, w / 1200))
   const now=performance.now()
-  const starPower=stats.combo>=STAR_POWER_COMBO
+  // Star Power: agora baseado em spActive (ativado manualmente com R)
+  const starPower = stats.spActive === true
   const spPal = getSPPalette(highwayTheme)  // paleta SP do tema ativo
   // Limpa o canvas (bordas ficam transparentes — mostra o background da música)
   ctx.clearRect(0, 0, w, h)
@@ -1466,7 +1467,7 @@ export function renderFrame(state: RenderState): void {
 
   // 3 – Star Power efeitos visuais completos
   if (starPower && !starPowerLite) {
-    const intensity = Math.min(1, (stats.combo - STAR_POWER_COMBO) / 25)
+    const intensity = 1.0  // SP ativo = sempre intensidade total
     const t = now * 0.001
     const sp = spPal
 
@@ -1511,7 +1512,7 @@ export function renderFrame(state: RenderState): void {
 
   // 3b – Star Power efeitos TEMÁTICOS (partículas únicas por tema)
   if (starPower && !starPowerLite) {
-    const intensity = Math.min(1, (stats.combo - STAR_POWER_COMBO) / 25)
+    const intensity = 1.0  // SP ativo = sempre intensidade total
     const t2 = now * 0.001
     ctx.save()
 
@@ -1765,7 +1766,7 @@ export function renderFrame(state: RenderState): void {
   }
 
   // 3c – Star Power lightning (hit line + raios nas bordas)
-  if (!starPowerLite) drawStarPowerLightning(ctx,w,h,now,stats.combo,highwayTheme)
+  if (!starPowerLite) drawStarPowerLightning(ctx,w,h,now,starPower,highwayTheme)
 
   // 4 – Sustain tails
   for (const note of notes) {
@@ -2092,23 +2093,60 @@ export function renderFrame(state: RenderState): void {
       cY += mh + Math.round(10 * uS)
     }
 
-    // ── Star Power meter (orbs enchendo até 30 combos) ─────────────────
+    // ── Star Power meter (carrega ao acertar notas, ativa com R) ──────────
     {
-      const spProgress = Math.min(1, stats.combo / STAR_POWER_COMBO)
+      const spMeter    = stats.spMeter ?? 0         // 0–100
+      const spActive2  = stats.spActive === true
+      const spReady    = spMeter >= 50 && !spActive2 // pode ativar
       const orbCount   = 6
       const orbR       = Math.round(7 * uS)
       const orbGap     = Math.round(18 * uS)
       const orbsW      = orbCount * orbGap
       const ox0        = pX + (pW - orbsW) / 2
-      const orbY2      = cY + orbR
 
-      // Label
+      // Label + hint de ativação
       ctx.textAlign = "left"; ctx.textBaseline = "top"
-      ctx.fillStyle = "rgba(255,255,255,0.28)"
-      ctx.font = `600 ${Math.round(7*uS)}px 'Inter',Arial,sans-serif`
-      ctx.fillText(sp ? "⚡ STAR POWER ATIVO" : "STAR POWER", padX, cY - Math.round(2*uS))
+      ctx.fillStyle = spActive2
+        ? spPal.primary
+        : spReady
+          ? `rgba(255,220,80,${0.7 + Math.sin(now * 0.006) * 0.3})`  // pisca quando pronto
+          : "rgba(255,255,255,0.28)"
+      ctx.font = `700 ${Math.round(7*uS)}px 'Inter',Arial,sans-serif`
+      ctx.fillText(
+        spActive2 ? "⚡ STAR POWER ATIVO" : spReady ? "⚡ STAR POWER  [R]" : "STAR POWER",
+        padX, cY - Math.round(2*uS)
+      )
       cY += Math.round(9 * uS)
 
+      // Barra de progresso do meter (debaixo dos orbs)
+      const barW = pW - Math.round(24 * uS)
+      const barH = Math.round(4 * uS)
+      ctx.fillStyle = "rgba(255,255,255,0.07)"
+      ctx.beginPath(); ctx.roundRect(padX, cY, barW, barH, barH/2); ctx.fill()
+      if (spMeter > 0) {
+        const barFill = spMeter / 100
+        const bG = ctx.createLinearGradient(padX, 0, padX + barW, 0)
+        if (spActive2) {
+          // Enquanto ativo: cor do tema SP pulsando
+          const pulse = 0.85 + Math.sin(now * 0.008) * 0.15
+          bG.addColorStop(0, `rgba(${spPal.primaryRgb},${pulse})`)
+          bG.addColorStop(1, `rgba(${spPal.secondaryRgb},${pulse})`)
+        } else if (spReady) {
+          // Pronto para ativar: dourado pulsante
+          const pulse = 0.8 + Math.sin(now * 0.007) * 0.2
+          bG.addColorStop(0, `rgba(255,220,80,${pulse})`)
+          bG.addColorStop(1, `rgba(255,160,20,${pulse})`)
+        } else {
+          bG.addColorStop(0, "#60a5fa")
+          bG.addColorStop(1, "#1d4ed8")
+        }
+        ctx.fillStyle = bG
+        ctx.beginPath(); ctx.roundRect(padX, cY, barW * barFill, barH, barH/2); ctx.fill()
+      }
+      cY += barH + Math.round(6 * uS)
+
+      // Orbs
+      const spProgress = spMeter / 100
       for (let o = 0; o < orbCount; o++) {
         const ox = ox0 + o * orbGap + orbR
         const oy = cY + orbR
@@ -2116,32 +2154,41 @@ export function renderFrame(state: RenderState): void {
         const partialFill = Math.max(0, Math.min(1, (spProgress * orbCount) - o))
 
         ctx.beginPath(); ctx.arc(ox, oy, orbR, 0, Math.PI * 2)
-        ctx.fillStyle = filled || sp
-          ? "transparent"
-          : "rgba(255,255,255,0.05)"
+        ctx.fillStyle = "rgba(255,255,255,0.05)"
         ctx.fill()
 
-        if (partialFill > 0 || sp) {
-          const orbFill = sp ? 1 : partialFill
+        if (partialFill > 0 || spActive2) {
+          const orbFill = spActive2 ? 1 : partialFill
           ctx.beginPath()
           ctx.arc(ox, oy, orbR, -Math.PI/2, -Math.PI/2 + orbFill * Math.PI * 2)
           ctx.lineTo(ox, oy)
           ctx.closePath()
           const oG = ctx.createRadialGradient(ox, oy - orbR*0.2, 0, ox, oy, orbR)
-          oG.addColorStop(0, sp ? spPal.starFill1 : "#ffffff")
-          oG.addColorStop(0.5, sp ? spPal.primary : "#60a5fa")
-          oG.addColorStop(1, sp ? spPal.secondary : "#1d4ed8")
+          if (spActive2) {
+            oG.addColorStop(0, spPal.starFill1)
+            oG.addColorStop(0.5, spPal.primary)
+            oG.addColorStop(1, spPal.secondary)
+          } else if (spReady) {
+            oG.addColorStop(0, "#fffde0")
+            oG.addColorStop(0.5, "#ffd740")
+            oG.addColorStop(1, "#ff9800")
+          } else {
+            oG.addColorStop(0, "#ffffff")
+            oG.addColorStop(0.5, "#60a5fa")
+            oG.addColorStop(1, "#1d4ed8")
+          }
           ctx.fillStyle = oG
-          ctx.shadowColor = sp ? spPal.primary : "#60a5fa"
-          ctx.shadowBlur = 0
           ctx.fill()
-          ctx.shadowBlur = 0
         }
 
         // Borda do orb
         ctx.beginPath(); ctx.arc(ox, oy, orbR, 0, Math.PI * 2)
-        ctx.strokeStyle = sp ? spPal.primary : (filled ? "#60a5fa" : "rgba(255,255,255,0.15)")
-        ctx.lineWidth = sp ? 1.5 : 1
+        ctx.strokeStyle = spActive2
+          ? spPal.primary
+          : spReady
+            ? `rgba(255,220,80,${0.6 + Math.sin(now * 0.007 + o) * 0.4})`
+            : (filled ? "#60a5fa" : "rgba(255,255,255,0.15)")
+        ctx.lineWidth = spActive2 ? 1.5 : 1
         ctx.stroke()
       }
 

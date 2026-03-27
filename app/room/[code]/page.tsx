@@ -235,7 +235,9 @@ export default function RoomPage() {
         const pid=sessionStorage.getItem("playerId")
         router.push(`/play/${encodeURIComponent(data.songId!)}?room=${code}&player=${pid}&lanes=${laneCountRef.current}&ws=1`)
       }
-      if (data.state==="ended"||data.state==="waiting") startedRef.current=false
+      if (data.state==="ended" || data.state==="waiting") {
+        startedRef.current=false
+      }
     }
 
     const onGameStart = (data: RoomData) => {

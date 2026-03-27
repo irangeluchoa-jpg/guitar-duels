@@ -355,3 +355,46 @@ export function playComboSound(combo: number, volume = 1) {
     osc.start(now); osc.stop(now + 0.3)
   } catch {}
 }
+
+/** Som de ativação do Star Power (estilo Guitar Flash: acorde ascendente energético) */
+export function playStarPowerSound(volume = 1) {
+  try {
+    const ac  = getCtx()
+    const now = ac.currentTime
+    const gain = master(volume * 0.5)
+
+    // Acorde de 3 osciladores em harmônica ascendente
+    const freqs = [440, 554, 659]  // Lá, Dó#, Mi — acorde de Lá maior
+    freqs.forEach((freq, i) => {
+      const osc  = ac.createOscillator()
+      const env  = ac.createGain()
+      osc.type   = i === 0 ? "sawtooth" : "sine"
+      const startFreq = freq * 0.5
+      osc.frequency.setValueAtTime(startFreq, now + i * 0.03)
+      osc.frequency.exponentialRampToValueAtTime(freq * 2, now + i * 0.03 + 0.12)
+      env.gain.setValueAtTime(0, now + i * 0.03)
+      env.gain.linearRampToValueAtTime(0.6, now + i * 0.03 + 0.04)
+      env.gain.exponentialRampToValueAtTime(0.001, now + i * 0.03 + 0.55)
+      osc.connect(env); env.connect(gain)
+      osc.start(now + i * 0.03)
+      osc.stop(now + i * 0.03 + 0.6)
+    })
+
+    // Whoosh de energia (ruído filtrado subindo)
+    const buf = ac.createBuffer(1, ac.sampleRate * 0.4, ac.sampleRate)
+    const data = buf.getChannelData(0)
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.3
+    const src  = ac.createBufferSource()
+    src.buffer = buf
+    const filter = ac.createBiquadFilter()
+    filter.type = "bandpass"
+    filter.frequency.setValueAtTime(800, now)
+    filter.frequency.exponentialRampToValueAtTime(4000, now + 0.35)
+    filter.Q.value = 1.5
+    const noiseEnv = ac.createGain()
+    noiseEnv.gain.setValueAtTime(0.4, now)
+    noiseEnv.gain.exponentialRampToValueAtTime(0.001, now + 0.4)
+    src.connect(filter); filter.connect(noiseEnv); noiseEnv.connect(gain)
+    src.start(now); src.stop(now + 0.4)
+  } catch {}
+}

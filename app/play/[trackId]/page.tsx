@@ -635,12 +635,11 @@ function PlayInner() {
   const handleBack = useCallback(() => {
     if (isLeavingRef.current) return
     isLeavingRef.current = true
-    if (roomCode && playerId) {
-      getSocket().emit("leave-room", { code: roomCode, playerId })
-    }
     if (roomCode) {
-      // Verificar via socket se a sala ainda existe
+      // Check if room still exists BEFORE leaving, so we know where to go
       getSocket().emit("get-room", { code: roomCode }, (room: any) => {
+        // Now leave room (so scores/state are cleaned up server-side)
+        if (playerId) getSocket().emit("leave-room", { code: roomCode, playerId })
         if (room) {
           router.push(`/room/${roomCode}`)
         } else {

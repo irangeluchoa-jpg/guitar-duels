@@ -189,10 +189,29 @@ app.prepare().then(() => {
 
     // ── END GAME ─────────────────────────────────────────────────────────────
     socket.on("end-game", ({ code }) => {
-      const room = rooms.get(normalizeCode(code))
+      const nc = normalizeCode(code)
+      const room = rooms.get(nc)
       if (!room) return
+
+      // Prevent double-trigger (both players emit end-game)
+      if (room.state === "ended" || room.state === "waiting") return
+
       room.state = "ended"
-      io.to(code).emit("room-update", serializeRoom(room))
+      io.to(nc).emit("room-update", serializeRoom(room))
+
+      // After 3s reset to waiting so players can queue another song
+      setTimeout(() => {
+        const r = rooms.get(nc)
+        if (!r || r.state !== "ended") return
+        r.state = "waiting"
+        for (const p of r.players.values()) {
+          p.ready = false
+          p.score = 0
+          p.combo = 0
+          p.rockMeter = 50
+        }
+        io.to(nc).emit("room-update", serializeRoom(r))
+      }, 3000)
     })
 
     // ── LEAVE ────────────────────────────────────────────────────────────────

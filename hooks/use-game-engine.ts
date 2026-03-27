@@ -3,6 +3,8 @@ import type { ChartData as Chart, SongMeta } from "@/lib/songs/types"
 import {
   ALL_LANE_KEYS,
   applyHit,
+  activateStarPower,
+  tickStarPower,
   createInitialStats,
   getRating,
   prepareNotes,
@@ -20,7 +22,7 @@ import {
   LANE_COUNT,
 } from "@/lib/game/engine"
 import { renderFrame, getHitLineY, clearFretCache } from "@/lib/game/renderer"
-import { playComboSound, playPauseSound, playResumeSound, playGameOverSound, playCountdownBeep } from "@/lib/game/sounds"
+import { playComboSound, playPauseSound, playResumeSound, playGameOverSound, playCountdownBeep, playStarPowerSound } from "@/lib/game/sounds"
 import { loadSettings, getKeyBindingsForLanes } from "@/lib/settings"
 import { useGamepad } from "@/hooks/use-gamepad"
 
@@ -194,6 +196,18 @@ export function useGameEngine({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return
       if (e.key === "Escape" && gameStateRef.current === "playing") { pause(); return }
+      // Tecla R: ativa Star Power manualmente (estilo Guitar Flash)
+      if ((e.key === "r" || e.key === "R") && gameStateRef.current === "playing") {
+        e.preventDefault()
+        const now = performance.now()
+        const newStats = activateStarPower(statsRef.current, now)
+        if (newStats.spActive && !statsRef.current.spActive) {
+          // Só toca o som se realmente ativou (tinha meter suficiente)
+          playStarPowerSound(sfxVolRef.current)
+        }
+        statsRef.current = newStats
+        return
+      }
       if (!keyboardEnabledRef.current) return
       const laneIndex = keyBindingsRef.current.indexOf(e.key.toLowerCase())
       if (laneIndex !== -1) {
@@ -268,6 +282,9 @@ export function useGameEngine({
 
     const now = performance.now()
     hitEffectsRef.current = hitEffectsRef.current.filter(e => now - e.time < 400)
+
+    // ── Tick Star Power: drena o meter e desativa quando acabar ───────────────
+    statsRef.current = tickStarPower(statsRef.current, now)
 
     // ── Rock meter chegou a zero: apenas reseta para 1 (sem game over) ───────
     if (statsRef.current.rockMeter <= 0) {

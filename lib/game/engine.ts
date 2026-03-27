@@ -66,11 +66,21 @@ export interface GameStats {
   totalNotes: number
   rockMeter: number
   streak: number
+  // Star Power manual (estilo Guitar Flash)
+  spMeter: number      // 0–100: carrega ao acertar notas (toda nota acertada += SP_NOTE_CHARGE)
+  spActive: boolean    // true quando o SP está ativado pelo player (tecla R)
+  spActiveUntil: number // timestamp (ms) até quando o SP fica ativo
 }
+
+// Quanto o meter carrega por nota acertada (perfect/great/good)
+export const SP_NOTE_CHARGE  = 5    // 20 notas perfeitas = meter cheio
+export const SP_DURATION_MS  = 8000 // 8s de star power ativo
+export const SP_THRESHOLD    = 50   // meter mínimo para poder ativar (50%)
 
 export function createInitialStats(totalNotes: number): GameStats {
   return { score: 0, combo: 0, maxCombo: 0, multiplier: 1, perfect: 0, great: 0,
-    good: 0, miss: 0, totalNotes, rockMeter: 50, streak: 0 }
+    good: 0, miss: 0, totalNotes, rockMeter: 50, streak: 0,
+    spMeter: 0, spActive: false, spActiveUntil: 0 }
 }
 
 export function getRating(deltaMs: number, windows?: { perfect:number; great:number; good:number; miss:number }): HitRating | null {
@@ -121,9 +131,39 @@ export function applyHit(stats: GameStats, rating: HitRating): GameStats {
   s.combo += 1; s.streak += 1
   s.maxCombo = Math.max(s.maxCombo, s.combo)
   s.multiplier = calculateMultiplier(s.combo)
-  s.score += getScoreForRating(rating, s.multiplier)
+  // Bônus de score em Star Power: 2× pontos
+  const spBonus = s.spActive ? 2 : 1
+  s.score += getScoreForRating(rating, s.multiplier) * spBonus
   s.rockMeter = updateRockMeter(s.rockMeter, rating)
+  // Carrega o SP meter ao acertar notas (só quando SP não está ativo)
+  if (!s.spActive) {
+    const charge = rating === "perfect" ? SP_NOTE_CHARGE : rating === "great" ? SP_NOTE_CHARGE * 0.7 : SP_NOTE_CHARGE * 0.4
+    s.spMeter = Math.min(100, s.spMeter + charge)
+  }
   return s
+}
+
+/** Ativa o Star Power manualmente (tecla R) — só funciona se meter >= SP_THRESHOLD */
+export function activateStarPower(stats: GameStats, now: number): GameStats {
+  if (stats.spActive || stats.spMeter < SP_THRESHOLD) return stats
+  return {
+    ...stats,
+    spActive: true,
+    spActiveUntil: now + SP_DURATION_MS,
+    spMeter: 100, // meter cheio ao ativar, vai draining no tick
+  }
+}
+
+/** Deve ser chamada a cada frame do game loop para drenar o SP e desativá-lo quando acabar */
+export function tickStarPower(stats: GameStats, now: number): GameStats {
+  if (!stats.spActive) return stats
+  if (now >= stats.spActiveUntil) {
+    return { ...stats, spActive: false, spMeter: 0, spActiveUntil: 0 }
+  }
+  // Drena o meter proporcional ao tempo restante
+  const remaining = stats.spActiveUntil - now
+  const spMeter   = Math.max(0, (remaining / SP_DURATION_MS) * 100)
+  return { ...stats, spMeter }
 }
 
 export function prepareNotes(chart: Chart, laneCount = 5): ActiveNote[] {
