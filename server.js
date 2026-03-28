@@ -122,6 +122,41 @@ app.prepare().then(() => {
       cb?.({ success: true, playerId, room: serialized })
     })
 
+    // ── REJOIN ROOM (volta da partida com o mesmo playerId) ───────────────────
+    socket.on("rejoin-room", ({ code, playerId, playerName, playerTitle, playerBorder, avatarUrl }, cb) => {
+      const nc = normalizeCode(code)
+      const room = rooms.get(nc)
+      if (!room) return cb?.({ success: false, error: "Sala não encontrada" })
+
+      // Atualiza o player se já existe, ou readiciona se foi removido
+      if (room.players.has(playerId)) {
+        const p = room.players.get(playerId)
+        p.socketId = socket.id
+        p.ready    = false
+        p.score    = 0
+        p.combo    = 0
+        p.rockMeter = 50
+      } else {
+        // Player não está mais na sala (foi removido); readiciona com mesmo ID
+        if (room.players.size >= room.maxPlayers) return cb?.({ success: false, error: "Sala cheia" })
+        room.players.set(playerId, {
+          id: playerId, name: playerName || "Jogador",
+          title: playerTitle || "", border: playerBorder || "none",
+          avatarUrl: avatarUrl || "",
+          score: 0, combo: 0, rockMeter: 50,
+          ready: false, socketId: socket.id,
+        })
+      }
+
+      socket.join(nc)
+      socket.data.roomCode = nc
+      socket.data.playerId = playerId
+
+      const serialized = serializeRoom(room)
+      io.to(nc).emit("room-update", serialized)
+      cb?.({ success: true, playerId, room: serialized })
+    })
+
     // ── SET SONG ─────────────────────────────────────────────────────────────
     socket.on("set-song", ({ code, songId }) => {
       const room = rooms.get(normalizeCode(code))
@@ -194,24 +229,19 @@ app.prepare().then(() => {
       if (!room) return
 
       // Prevent double-trigger (both players emit end-game)
-      if (room.state === "ended" || room.state === "waiting") return
+      if (room.state === "waiting") return
 
-      room.state = "ended"
+      // Reset imediato para waiting: players podem jogar de novo
+      room.state = "waiting"
+      room.pausedBy = null
+      room.startTime = null
+      for (const p of room.players.values()) {
+        p.ready = false
+        p.score = 0
+        p.combo = 0
+        p.rockMeter = 50
+      }
       io.to(nc).emit("room-update", serializeRoom(room))
-
-      // After 3s reset to waiting so players can queue another song
-      setTimeout(() => {
-        const r = rooms.get(nc)
-        if (!r || r.state !== "ended") return
-        r.state = "waiting"
-        for (const p of r.players.values()) {
-          p.ready = false
-          p.score = 0
-          p.combo = 0
-          p.rockMeter = 50
-        }
-        io.to(nc).emit("room-update", serializeRoom(r))
-      }, 3000)
     })
 
     // ── LEAVE ────────────────────────────────────────────────────────────────

@@ -571,6 +571,8 @@ function PlayInner() {
     gameEndedRef.current = true
     // Notifica sala via WebSocket
     if (roomCode) {
+      // Marca retorno para a sala ANTES de emitir end-game, para evitar loop de redirect
+      sessionStorage.setItem(`returnedFromGame:${roomCode}`, "1")
       getSocket().emit("end-game", { code: roomCode })
     }
     const stats = latestStatsRef.current
@@ -635,17 +637,27 @@ function PlayInner() {
   const handleBack = useCallback(() => {
     if (isLeavingRef.current) return
     isLeavingRef.current = true
-    if (roomCode) {
-      // Check if room still exists BEFORE leaving, so we know where to go
-      getSocket().emit("get-room", { code: roomCode }, (room: any) => {
-        // Now leave room (so scores/state are cleaned up server-side)
-        if (playerId) getSocket().emit("leave-room", { code: roomCode, playerId })
-        if (room) {
+    if (roomCode && playerId) {
+      // Volta para a sala via rejoin (mantém o player na sala, não remove)
+      // Isso garante que a sala aparece com os jogadores corretos ao voltar
+      getSocket().emit("rejoin-room", {
+        code: roomCode,
+        playerId,
+        playerName:   sessionStorage.getItem("playerName")   ?? "Jogador",
+        playerTitle:  sessionStorage.getItem("playerTitle")  ?? "",
+        playerBorder: sessionStorage.getItem("playerBorder") ?? "none",
+        avatarUrl:    sessionStorage.getItem("playerAvatar") ?? "",
+      }, (res: any) => {
+        if (res?.success) {
           router.push(`/room/${roomCode}`)
         } else {
+          // Sala sumiu (servidor reiniciou etc) — vai pro lobby
           router.push("/lobby")
         }
       })
+    } else if (roomCode) {
+      // Sem playerId — tenta direto
+      router.push(`/room/${roomCode}`)
     } else {
       router.push("/songs")
     }

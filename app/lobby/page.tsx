@@ -77,8 +77,11 @@ export default function LobbyPage() {
       }, 12000, 2)
       setLoading(null)
       if (!res?.success) { setError(res?.error || "Erro ao criar sala"); return }
-      sessionStorage.setItem("playerId", res.playerId)
-      sessionStorage.setItem("playerName", playerName)
+      sessionStorage.setItem("playerId",     res.playerId)
+      sessionStorage.setItem("playerName",   playerName)
+      sessionStorage.setItem("playerTitle",  activeTitle?.label ?? "")
+      sessionStorage.setItem("playerBorder", profile?.selectedBorder ?? "none")
+      sessionStorage.setItem("playerAvatar", avatarUrl)
       router.push(`/room/${res.room.code}`)
     } catch (e: any) {
       setLoading(null)
@@ -111,8 +114,11 @@ export default function LobbyPage() {
       }, 12000, 2)
       setLoading(null)
       if (!res?.success) { setError(res?.error || "Sala não encontrada"); return }
-      sessionStorage.setItem("playerId", res.playerId)
-      sessionStorage.setItem("playerName", playerName)
+      sessionStorage.setItem("playerId",     res.playerId)
+      sessionStorage.setItem("playerName",   playerName)
+      sessionStorage.setItem("playerTitle",  activeTitle?.label ?? "")
+      sessionStorage.setItem("playerBorder", profile?.selectedBorder ?? "none")
+      sessionStorage.setItem("playerAvatar", avatarUrl)
       router.push(`/room/${res.room.code}`)
     } catch (e: any) {
       setLoading(null)

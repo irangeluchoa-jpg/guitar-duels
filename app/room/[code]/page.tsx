@@ -227,23 +227,38 @@ export default function RoomPage() {
   // Socket events
   useEffect(()=>{
     const socket = socketRef.current
+    const pid = sessionStorage.getItem("playerId")
 
+    // Ao entrar na página da sala, sempre faz rejoin para garantir que o
+    // player está na lista (lida com retorno de partida e reconexões)
+    const doRejoin = (cb?: (r: RoomData) => void) => {
+      if (!pid) { setError("Sessão inválida"); router.push("/lobby"); return }
+      socket.emit("rejoin-room", {
+        code,
+        playerId: pid,
+        playerName:   sessionStorage.getItem("playerName")   ?? "Jogador",
+        playerTitle:  sessionStorage.getItem("playerTitle")  ?? "",
+        playerBorder: sessionStorage.getItem("playerBorder") ?? "none",
+        avatarUrl:    sessionStorage.getItem("playerAvatar") ?? "",
+      }, (res: any) => {
+        if (!res?.success) { setError("Sala não encontrada"); return }
+        setRoom(res.room)
+        cb?.(res.room)
+      })
+    }
+
+    // Redireciona para o jogo só via game-start (não via room-update state "playing")
+    // Isso evita o loop: ao voltar da partida a sala pode estar "playing" por 3s
     const onRoomUpdate = (data: RoomData) => {
       setRoom(data)
-      if (data.state==="playing" && !startedRef.current) {
-        startedRef.current=true
-        const pid=sessionStorage.getItem("playerId")
-        router.push(`/play/${encodeURIComponent(data.songId!)}?room=${code}&player=${pid}&lanes=${laneCountRef.current}&ws=1`)
-      }
       if (data.state==="ended" || data.state==="waiting") {
-        startedRef.current=false
+        startedRef.current = false
       }
     }
 
     const onGameStart = (data: RoomData) => {
       if (startedRef.current) return
-      startedRef.current=true
-      const pid=sessionStorage.getItem("playerId")
+      startedRef.current = true
       router.push(`/play/${encodeURIComponent(data.songId!)}?room=${code}&player=${pid}&lanes=${laneCountRef.current}&ws=1`)
     }
 
@@ -253,23 +268,16 @@ export default function RoomPage() {
     socket.on("game-start",  onGameStart)
     socket.on("player-left", onPlayerLeft)
 
-    // Obter estado inicial da sala
-    const fetchRoom = () => {
-      socket.emit("get-room", { code }, (r: RoomData | null) => {
-        if (!r) { setError("Sala não encontrada"); return }
-        setRoom(r)
-      })
-    }
-    fetchRoom()
+    doRejoin()
 
-    // Re-sincronizar após reconexão (socket perde o join automaticamente)
-    socket.on("connect", fetchRoom)
+    // Re-entrar na sala após reconexão do socket
+    socket.on("connect", () => doRejoin())
 
     return ()=>{
       socket.off("room-update", onRoomUpdate)
       socket.off("game-start",  onGameStart)
       socket.off("player-left", onPlayerLeft)
-      socket.off("connect", fetchRoom)
+      socket.off("connect")
     }
   },[code, router])
 
