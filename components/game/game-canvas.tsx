@@ -12,6 +12,7 @@ import { PauseOverlay } from "./pause-overlay"
 import { TouchLanes } from "./touch-lanes"
 import { loadSettings, toGain } from "@/lib/settings"
 import { useGamepad } from "@/hooks/use-gamepad"
+import { KeyRemapModal } from "./key-remap-modal"
 
 function getMimeType(src: string): string {
   if (src.endsWith(".mp3"))  return "audio/mpeg"
@@ -39,9 +40,11 @@ interface GameCanvasProps {
   playlistCount?: number
   playlistPosition?: number
   hideTopBar?: boolean
+  potatoMode?: boolean
+  songDuration?: number   // segundos; passado pelo multiplayer para exibir o timer
 }
 
-export const GameCanvas = React.memo(function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused, frozen = false, laneCount = 5, isDaily = false, onNextSong, playlistCount = 0, playlistPosition = 0, hideTopBar = false }: GameCanvasProps) {
+export const GameCanvas = React.memo(function GameCanvas({ chart, meta, audioUrls, backgroundUrl, speed, onBack, onScoreUpdate, onSongEnd, externalPaused, frozen = false, laneCount = 5, isDaily = false, onNextSong, playlistCount = 0, playlistPosition = 0, hideTopBar = false, potatoMode: potatoModeProp, songDuration }: GameCanvasProps) {
   // Unlock audio on first interaction (browser autoplay policy)
   useEffect(() => {
     const unlock = () => {
@@ -55,6 +58,20 @@ export const GameCanvas = React.memo(function GameCanvas({ chart, meta, audioUrl
       window.removeEventListener("keydown", unlock)
     }
   }, [])
+
+  // Tab key opens remap modal (pauses game)
+  useEffect(() => {
+    const onTab = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return
+      e.preventDefault()
+      setRemapOpen(open => {
+        if (!open) pause()
+        return !open
+      })
+    }
+    window.addEventListener("keydown", onTab)
+    return () => window.removeEventListener("keydown", onTab)
+  }, [pause])
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const isLeavingRef = useRef(false)   // impede startGame após navegar para fora
@@ -118,8 +135,9 @@ export const GameCanvas = React.memo(function GameCanvas({ chart, meta, audioUrl
 
 
   const [gpConnected, setGpConnected] = useState(false)
+  const [remapOpen, setRemapOpen] = useState(false)
 
-  const { gameState, stats, countdown, startGame, pause, resume, restart, accuracy, grade, isFC, failed, touchPress, touchRelease } =
+  const { gameState, stats, countdown, startGame, pause, resume, restart, accuracy, grade, isFC, failed, touchPress, touchRelease, setKeyBindings, setStarPowerKey } =
     useGameEngine({
       chart, meta,
       audioRef: primaryAudioRef,
@@ -132,7 +150,7 @@ export const GameCanvas = React.memo(function GameCanvas({ chart, meta, audioUrl
       highwayTheme: resolvedTheme as any,
       cameraShake: settings.cameraShake,
       // starPowerLite é lido direto das settings no renderFrame via potatoMode
-      potatoMode: settings.potatoMode || settings.starPowerLite,
+      potatoMode: potatoModeProp ?? settings.potatoMode ?? settings.starPowerLite,
       onSongEnd: (stats) => { onSongEnd?.(stats) },
       onScoreUpdate,
     })
@@ -445,12 +463,18 @@ export const GameCanvas = React.memo(function GameCanvas({ chart, meta, audioUrl
       })()}
 
       {gameState === "playing" && (
-        <div className="absolute top-[72px] right-4 z-10 pointer-events-none flex flex-col items-end gap-1">
-          <span className="text-[10px] tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.12)" }}>
+        <div className="absolute top-[72px] right-4 z-10 flex flex-col items-end gap-1">
+          <span className="text-[10px] tracking-widest uppercase pointer-events-none" style={{ color: "rgba(255,255,255,0.12)" }}>
             ESC pausar
           </span>
-          {settings.potatoMode && (
-            <span style={{
+          <button
+            onClick={() => { pause(); setRemapOpen(true) }}
+            className="text-[9px] tracking-widest uppercase transition-opacity hover:opacity-80"
+            style={{ color: "rgba(255,255,255,0.18)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+            TAB teclas
+          </button>
+          {(potatoModeProp ?? settings.potatoMode) && (
+            <span className="pointer-events-none" style={{
               fontSize: 9, fontWeight: 700, color: "rgba(255,200,80,0.55)",
               background: "rgba(0,0,0,0.35)", borderRadius: 4,
               padding: "1px 5px", letterSpacing: "0.08em",
@@ -471,9 +495,21 @@ export const GameCanvas = React.memo(function GameCanvas({ chart, meta, audioUrl
       )}
 
       {gameState === "countdown" && <GameCountdown count={countdown} />}
-      {gameState === "paused" && externalPaused === undefined && <PauseOverlay onResume={resume} onRestart={handleRestart} onQuit={handleBack} />}
+      {gameState === "paused" && externalPaused === undefined && !remapOpen && <PauseOverlay onResume={resume} onRestart={handleRestart} onQuit={handleBack} />}
       {gameState === "ended"     && (
         <GameOverScreen stats={stats} accuracy={accuracy} grade={grade} isFC={isFC} meta={meta} onRestart={handleRestart} onBack={handleBack} failed={failed.current} isDaily={isDaily} onNextSong={onNextSong} playlistCount={playlistCount} playlistPosition={playlistPosition} />
+      )}
+      {remapOpen && (
+        <KeyRemapModal
+          laneCount={laneCount}
+          onClose={() => { setRemapOpen(false); resume() }}
+          onApply={(bindings, spKey) => {
+            setKeyBindings(bindings)
+            setStarPowerKey(spKey)
+            setRemapOpen(false)
+            resume()
+          }}
+        />
       )}
     </div>
   )

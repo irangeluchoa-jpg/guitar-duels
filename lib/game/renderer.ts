@@ -838,7 +838,8 @@ function drawNoteGH(
 }
 
 
-// ── Helper interno para renderizar nota em OffscreenCanvas (sem animação) ──────
+// ── Helper interno para renderizar nota em OffscreenCanvas — estilo Guitar Flash ──
+// Elíptica colorida sólida com aro branco e glow — sem o look metálico GH
 function _drawNoteGHInner(
   ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D,
   x: number, y: number,
@@ -849,85 +850,55 @@ function _drawNoteGHInner(
   spColor = "#00ffff",
   potato = false
 ) {
-  const laneCol  = NOTE_COLORS[laneIdx]  ?? "#00e5ff"
-  const laneAnim = NOTE_ANIM_COLORS[laneIdx] ?? laneCol
-  const rimCol   = sp ? spColor : laneCol
-  const rimAnim  = sp ? spColor : laneAnim
-  const rimRgb   = hexToRgb(rimCol)
-  const rimAnimRgb = hexToRgb(rimAnim)
-  const glowInt  = sp ? 28 : 20
-
+  const laneCol = NOTE_COLORS[laneIdx] ?? "#00e5ff"
+  const col     = sp ? spColor : laneCol
+  const colRgb  = hexToRgb(col)
   ctx.save()
 
+  // Glow externo (skip em modo batata)
   if (!potato) {
-    // Glow externo (caro — skip no modo batata)
-    const haloG = (ctx as CanvasRenderingContext2D).createRadialGradient(x, y, rx*0.5, x, y, rx*3.2)
-    haloG.addColorStop(0,   `rgba(${rimAnimRgb},${sp?0.30:0.18})`)
-    haloG.addColorStop(1,   "transparent")
-    ctx.fillStyle = haloG
-    noteShapePath(ctx as CanvasRenderingContext2D, x, y, rx*3.2, ry*3.2, shape); ctx.fill()
+    ctx.shadowColor = col
+    ctx.shadowBlur  = sp ? 22 : 14
   }
 
-  // Shadow drop
-  ctx.save(); ctx.globalAlpha = 0.35
-  ctx.beginPath(); ctx.ellipse(x, y + ry*1.0, rx*0.82, ry*0.20, 0, 0, Math.PI*2)
-  ctx.fillStyle = "rgba(0,0,0,1)"; ctx.fill(); ctx.restore()
-
-  // Glow edge — só se não for batata
-  if (!potato) { ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt }
-
-  // Base metálica
-  const baseG = (ctx as CanvasRenderingContext2D).createRadialGradient(x - rx*0.20, y - ry*0.35, 0, x, y, rx*1.05)
-  baseG.addColorStop(0,    "#3a3a3a")
-  baseG.addColorStop(0.30, "#1e1e1e")
-  baseG.addColorStop(0.70, "#111111")
-  baseG.addColorStop(1,    "#080808")
+  // Corpo principal: elipse colorida sólida com gradiente leve
   noteShapePath(ctx as CanvasRenderingContext2D, x, y, rx, ry, shape)
-  ctx.fillStyle = baseG; ctx.fill()
+  const bodyG = (ctx as CanvasRenderingContext2D).createRadialGradient(x - rx*0.25, y - ry*0.35, 0, x, y, rx)
+  bodyG.addColorStop(0,   shade(col, 60))   // centro mais claro
+  bodyG.addColorStop(0.5, col)
+  bodyG.addColorStop(1,   shade(col, -40))  // borda mais escura
+  ctx.fillStyle = bodyG
+  ctx.fill()
   ctx.shadowBlur = 0
 
-  // Aro externo
+  // Aro branco externo (assinatura do Guitar Flash)
   noteShapePath(ctx as CanvasRenderingContext2D, x, y, rx, ry, shape)
-  ctx.strokeStyle = rimCol
-  ctx.lineWidth = Math.max(1.8, rx * 0.12)
-  if (!potato) { ctx.shadowColor = rimCol; ctx.shadowBlur = glowInt * 0.7 }
-  ctx.stroke(); ctx.shadowBlur = 0
-
-  // Anel interno
-  ctx.beginPath(); ctx.ellipse(x, y, rx*0.68, ry*0.68, 0, 0, Math.PI*2)
-  ctx.strokeStyle = `rgba(${rimRgb},${sp?0.70:0.45})`
-  ctx.lineWidth = 1.0; ctx.stroke()
-
-  // Centro escuro
-  ctx.beginPath(); ctx.ellipse(x, y, rx*0.46, ry*0.46, 0, 0, Math.PI*2)
-  ctx.fillStyle = "#0a0a0a"; ctx.fill()
+  ctx.strokeStyle = sp ? `rgba(255,255,255,0.95)` : `rgba(255,255,255,0.85)`
+  ctx.lineWidth   = Math.max(1.5, rx * 0.10)
+  ctx.stroke()
 
   if (!potato) {
-    // Dot reflexo (gradiente — caro)
-    const dotG = (ctx as CanvasRenderingContext2D).createRadialGradient(x - rx*0.08, y - ry*0.15, 0, x, y, rx*0.32)
-    dotG.addColorStop(0,    `rgba(${rimRgb},${sp?0.85:0.60})`)
-    dotG.addColorStop(0.5,  `rgba(${rimRgb},0.12)`)
-    dotG.addColorStop(1,    "transparent")
-    ctx.fillStyle = dotG; ctx.fill()
-
-    // Shine especular
+    // Reflexo especular (brilho branco no topo-esquerdo)
     ctx.save()
-    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2); ctx.clip()
-    const shG = (ctx as CanvasRenderingContext2D).createRadialGradient(x - rx*0.28, y - ry*0.48, 0, x, y - ry*0.1, rx*0.58)
-    shG.addColorStop(0,    "rgba(255,255,255,0.75)")
-    shG.addColorStop(0.18, "rgba(255,255,255,0.18)")
+    noteShapePath(ctx as CanvasRenderingContext2D, x, y, rx, ry, shape)
+    ;(ctx as CanvasRenderingContext2D).clip?.()
+    const shG = (ctx as CanvasRenderingContext2D).createRadialGradient(x - rx*0.30, y - ry*0.45, 0, x, y, rx*0.65)
+    shG.addColorStop(0,    "rgba(255,255,255,0.72)")
+    shG.addColorStop(0.25, "rgba(255,255,255,0.20)")
     shG.addColorStop(1,    "transparent")
-    ctx.fillStyle = shG; ctx.fill(); ctx.restore()
-  } else {
-    // Modo batata: só um ponto branco simples no centro como reflexo
-    ctx.beginPath(); ctx.ellipse(x - rx*0.2, y - ry*0.3, rx*0.18, ry*0.18, 0, 0, Math.PI*2)
-    ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.fill()
+    ctx.fillStyle = shG; ctx.fill()
+    ctx.restore()
   }
+
+  // Sombra sutil embaixo
+  ctx.save(); ctx.globalAlpha = 0.28
+  ctx.beginPath(); ctx.ellipse(x, y + ry * 1.1, rx * 0.75, ry * 0.18, 0, 0, Math.PI*2)
+  ctx.fillStyle = "rgba(0,0,0,1)"; ctx.fill(); ctx.restore()
 
   ctx.restore()
 }
 
-// ── Hit target estilo GH:WoR — anel duplo, centro escuro, aro colorido por lane ─
+// ── Hit target estilo Guitar Flash — elipse colorida sólida com aro branco ──
 function drawHitTarget(
   ctx: CanvasRenderingContext2D,
   x: number, baseHitY: number,
@@ -939,146 +910,82 @@ function drawHitTarget(
   spColorRgb = "0,255,255",
   potato = false
 ) {
-  const hitY  = baseHitY - jumpY
-  const sp    = starPower
-  const laneColor = STRIKER_COVER[laneIdx] ?? "#ffffff"
-  const headLight = STRIKER_HEAD_LIGHT[laneIdx] ?? laneColor
-  const c     = sp ? spColor : laneColor
-  const cRgb  = sp ? spColorRgb : hexToRgb(laneColor)
-  const rx    = (baseRX + 8) * scaleX
-  const ry    = (baseRY + 8) * scaleY
-  const t     = now * 0.003
+  const hitY = baseHitY - jumpY
+  const sp   = starPower
+  const col  = sp ? spColor : (NOTE_COLORS[laneIdx] ?? "#ffffff")
+  const colRgb = sp ? spColorRgb : hexToRgb(col)
+  const rx   = (baseRX + 6) * scaleX
+  const ry   = (baseRY + 6) * scaleY
+  const t    = now * 0.003
 
   ctx.save()
 
-  // ── Glow halo ao pressionar (skip no modo batata)
-  if (pressed && !potato) {
-    const halo = ctx.createRadialGradient(x, hitY, 0, x, hitY, rx * 3.5)
-    halo.addColorStop(0,   `rgba(${cRgb},0.40)`)
-    halo.addColorStop(0.5, `rgba(${cRgb},0.10)`)
+  // Glow halo (quando pressionado ou SP ativo)
+  if ((pressed || sp) && !potato) {
+    ctx.beginPath(); ctx.ellipse(x, hitY, rx * 2.2, ry * 2.2, 0, 0, Math.PI*2)
+    const halo = ctx.createRadialGradient(x, hitY, 0, x, hitY, rx * 2.2)
+    halo.addColorStop(0,   `rgba(${colRgb},${pressed ? 0.35 : 0.18})`)
     halo.addColorStop(1,   "transparent")
-    ctx.fillStyle = halo
-    ctx.beginPath(); ctx.ellipse(x, hitY, rx*3.5, ry*3.5, 0, 0, Math.PI*2); ctx.fill()
+    ctx.fillStyle = halo; ctx.fill()
   }
 
-  // ── Anel exterior decorativo (halo externo sempre visível) ─────────────
-  ctx.beginPath(); ctx.ellipse(x, hitY, rx + 12, ry + 12, 0, 0, Math.PI*2)
-  ctx.strokeStyle = pressed
-    ? `rgba(${cRgb},0.70)`
-    : sp ? `rgba(${spColorRgb},0.40)` : "rgba(255,255,255,0.08)"
-  ctx.lineWidth = 1.2; ctx.stroke()
+  // Aro externo escuro (sempre presente — moldura)
+  ctx.beginPath(); ctx.ellipse(x, hitY, rx + 4, ry + 4, 0, 0, Math.PI*2)
+  ctx.fillStyle = "rgba(0,0,0,0.75)"; ctx.fill()
 
-  // ── Anel externo (outer ring) — prata escuro ───────────────────────────
-  ctx.beginPath(); ctx.ellipse(x, hitY, rx + 5, ry + 5, 0, 0, Math.PI*2)
-  const outerG = ctx.createRadialGradient(x, hitY - ry, 0, x, hitY, rx + 5)
-  outerG.addColorStop(0,    "#2a2a2a")
-  outerG.addColorStop(0.6,  "#151515")
-  outerG.addColorStop(1,    "#0a0a0a")
-  ctx.fillStyle = outerG
-  if (!potato) { ctx.shadowColor = pressed ? c : "rgba(0,0,0,0.8)"; ctx.shadowBlur = pressed ? 10 : 3 }
+  // Corpo colorido (estado pressionado: mais claro)
+  ctx.beginPath(); ctx.ellipse(x, hitY, rx, ry, 0, 0, Math.PI*2)
+  const bodyG = ctx.createRadialGradient(x - rx*0.25, hitY - ry*0.35, 0, x, hitY, rx)
+  if (pressed) {
+    bodyG.addColorStop(0,   "rgba(255,255,255,0.95)")
+    bodyG.addColorStop(0.2, shade(col, 80))
+    bodyG.addColorStop(0.7, col)
+    bodyG.addColorStop(1,   shade(col, -50))
+  } else {
+    bodyG.addColorStop(0,   shade(col, 30))
+    bodyG.addColorStop(0.5, col)
+    bodyG.addColorStop(1,   shade(col, -60))
+  }
+  ctx.fillStyle = bodyG
+  if (!potato) { ctx.shadowColor = col; ctx.shadowBlur = pressed ? 18 : 8 }
   ctx.fill(); ctx.shadowBlur = 0
 
-  // Borda do outer ring na cor da lane
-  ctx.beginPath(); ctx.ellipse(x, hitY, rx + 5, ry + 5, 0, 0, Math.PI*2)
-  ctx.strokeStyle = pressed ? `rgba(${cRgb},1.0)` : `rgba(${cRgb},0.75)`
-  ctx.lineWidth = pressed ? 3.5 : 2.5
-  if (!potato) { ctx.shadowColor = c; ctx.shadowBlur = pressed ? 12 : 6 }
-  ctx.stroke(); ctx.shadowBlur = 0
-
-  // ── Gap escuro entre os aros (WoR signature) ──────────────────────────
-  ctx.beginPath(); ctx.ellipse(x, hitY, rx + 1, ry + 1, 0, 0, Math.PI*2)
-  ctx.fillStyle = "#060606"; ctx.fill()
-
-  // ── Anel interno (inner ring) — body principal ────────────────────────
+  // Aro branco (assinatura GF)
   ctx.beginPath(); ctx.ellipse(x, hitY, rx, ry, 0, 0, Math.PI*2)
-  const innerG = ctx.createRadialGradient(x - rx*0.18, hitY - ry*0.30, 0, x, hitY, rx)
-  if (pressed) {
-    innerG.addColorStop(0,    "#ffffff")
-    innerG.addColorStop(0.15, sp ? spColor : headLight)
-    innerG.addColorStop(0.50, c)
-    innerG.addColorStop(1,    `rgba(${cRgb},0.15)`)
-  } else {
-    innerG.addColorStop(0,    "#222222")
-    innerG.addColorStop(0.50, "#111111")
-    innerG.addColorStop(1,    "#070707")
-  }
-  ctx.fillStyle = innerG; ctx.fill()
+  ctx.strokeStyle = pressed ? "rgba(255,255,255,1.0)" : "rgba(255,255,255,0.75)"
+  ctx.lineWidth   = Math.max(1.5, rx * 0.09)
+  ctx.stroke()
 
-  // Borda interna fina na cor da lane
-  ctx.beginPath(); ctx.ellipse(x, hitY, rx, ry, 0, 0, Math.PI*2)
-  ctx.strokeStyle = pressed ? `rgba(${cRgb},0.90)` : `rgba(${cRgb},0.50)`
-  ctx.lineWidth = 1.5; ctx.stroke()
-
-  // ── Aro do head light (círculo interno médio) ─────────────────────────
-  const hlRgb = sp ? spColorRgb : hexToRgb(headLight)
-  ctx.beginPath(); ctx.ellipse(x, hitY, rx*0.62, ry*0.62, 0, 0, Math.PI*2)
-  ctx.strokeStyle = pressed
-    ? `rgba(${hlRgb},0.95)`
-    : `rgba(${hlRgb},${sp?0.60:0.35})`
-  ctx.lineWidth = pressed ? 2.0 : 1.2; ctx.stroke()
-
-  // ── Centro escuro (WoR: centro sempre vazio/escuro) ───────────────────
-  if (!pressed) {
-    ctx.beginPath(); ctx.ellipse(x, hitY, rx*0.46, ry*0.46, 0, 0, Math.PI*2)
-    ctx.fillStyle = "#080808"; ctx.fill()
-    // Dot de luz sutil no centro
-    const dotG = ctx.createRadialGradient(x, hitY - ry*0.15, 0, x, hitY, rx*0.35)
-    dotG.addColorStop(0,   `rgba(${hlRgb},0.45)`)
-    dotG.addColorStop(1,   "transparent")
-    ctx.fillStyle = dotG; ctx.fill()
-  }
-
-  // ── Shine especular ao pressionar ────────────────────────────────────
-  if (pressed) {
-    ctx.save(); ctx.beginPath(); ctx.ellipse(x, hitY, rx, ry, 0, 0, Math.PI*2); ctx.clip()
-    const sh = ctx.createRadialGradient(x - rx*0.22, hitY - ry*0.48, 0, x, hitY, rx*0.80)
-    sh.addColorStop(0,    "rgba(255,255,255,0.90)")
-    sh.addColorStop(0.25, "rgba(255,255,255,0.18)")
+  // Reflexo superior
+  if (!potato) {
+    ctx.save()
+    ctx.beginPath(); ctx.ellipse(x, hitY, rx, ry, 0, 0, Math.PI*2); ctx.clip()
+    const sh = ctx.createRadialGradient(x - rx*0.25, hitY - ry*0.42, 0, x, hitY, rx*0.60)
+    sh.addColorStop(0,    pressed ? "rgba(255,255,255,0.90)" : "rgba(255,255,255,0.55)")
+    sh.addColorStop(0.3,  "rgba(255,255,255,0.12)")
     sh.addColorStop(1,    "transparent")
     ctx.fillStyle = sh; ctx.fill(); ctx.restore()
   }
 
-  // ── Chamas ao pressionar — estilo WoR: energia lateral ────────────────
+  // Chamas ao pressionar (simples, estilo GF)
   if (pressed || sp) {
-    const flameRgb   = sp ? spColorRgb : hexToRgb(HIT_FLAME_COLOR)
-    const flameAlpha = pressed ? 1.0 : 0.4 + Math.sin(t + x*0.01)*0.15
-    const flicker    = 0.70 + Math.sin(t*2.5 + x*0.02)*0.30
-
-    // Chamas saindo para cima (como no WoR)
-    for (let f = 0; f < 4; f++) {
-      const fh  = (ry * 4.5 + Math.sin(t*3.0 + f*1.4)*ry*1.2) * flicker
-      const fw  = rx * (0.32 - f*0.06) * flicker
-      const fy  = hitY - ry * 0.5
-      const dx  = Math.sin(t*1.6 + f*2.0 + x*0.01) * fw * 0.4
+    const flameRgb = sp ? spColorRgb : colRgb
+    const flicker  = 0.7 + Math.sin(t*3 + x*0.02) * 0.3
+    for (let f = 0; f < 3; f++) {
+      const fh  = (ry * 3.5 + Math.sin(t*2.5 + f*1.5)*ry) * flicker
+      const fw  = rx * (0.28 - f*0.07)
+      const fy  = hitY - ry * 0.4
+      const dx  = Math.sin(t*1.8 + f*2.1 + x*0.01) * fw * 0.35
       const flG = ctx.createLinearGradient(x, fy, x, fy - fh)
-      flG.addColorStop(0,    `rgba(255,255,255,${flameAlpha})`)
-      flG.addColorStop(0.20, `rgba(${flameRgb},${flameAlpha*0.90})`)
-      flG.addColorStop(0.65, `rgba(${flameRgb},${flameAlpha*0.35})`)
+      flG.addColorStop(0,    `rgba(255,255,255,${pressed ? 0.9 : 0.4})`)
+      flG.addColorStop(0.25, `rgba(${flameRgb},${pressed ? 0.75 : 0.30})`)
       flG.addColorStop(1,    "transparent")
       ctx.fillStyle = flG
-      ctx.shadowColor = `rgba(${flameRgb},0.8)`; ctx.shadowBlur = 6
       ctx.beginPath()
       ctx.moveTo(x - fw, fy)
-      ctx.quadraticCurveTo(x - fw*0.3 + dx, fy - fh*0.4, x + dx*0.5, fy - fh)
-      ctx.quadraticCurveTo(x + fw*0.3 + dx, fy - fh*0.4, x + fw, fy)
+      ctx.quadraticCurveTo(x + dx, fy - fh*0.5, x + dx, fy - fh)
+      ctx.quadraticCurveTo(x + fw + dx, fy - fh*0.5, x + fw, fy)
       ctx.closePath(); ctx.fill()
-    }
-    ctx.shadowBlur = 0
-
-    // Faíscas orbitando
-    if (pressed) {
-      const sparkRgb = sp ? spColorRgb : hexToRgb(HIT_PARTICLE_COLOR)
-      for (let s = 0; s < 6; s++) {
-        const ang  = (s/6)*Math.PI*2 + t*4
-        const dist = rx*(0.85 + Math.abs(Math.sin(t*5+s))*0.7)
-        const sx   = x + Math.cos(ang)*dist
-        const sy   = hitY + Math.sin(ang)*dist*0.42
-        const sr   = 1.5 + Math.abs(Math.sin(t*6+s))*2.5
-        ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2)
-        ctx.fillStyle = `rgba(${sparkRgb},0.95)`
-        ctx.shadowColor = `rgba(${sparkRgb},1)`; ctx.shadowBlur = 5
-        ctx.fill(); ctx.shadowBlur = 0
-      }
     }
   }
 
@@ -2093,109 +2000,70 @@ export function renderFrame(state: RenderState): void {
       cY += mh + Math.round(10 * uS)
     }
 
-    // ── Star Power meter (carrega ao acertar notas, ativa com R) ──────────
+    // ── Star Power meter — barra vertical estilo Guitar Flash (lado direito da highway) ──
     {
-      const spMeter    = stats.spMeter ?? 0         // 0–100
+      const spMeter2   = stats.spMeter ?? 0
       const spActive2  = stats.spActive === true
-      const spReady    = spMeter >= 50 && !spActive2 // pode ativar
-      const orbCount   = 6
-      const orbR       = Math.round(7 * uS)
-      const orbGap     = Math.round(18 * uS)
-      const orbsW      = orbCount * orbGap
-      const ox0        = pX + (pW - orbsW) / 2
+      const spReady2   = spMeter2 >= 50 && !spActive2
+      const spPulse    = 0.85 + Math.sin(now * 0.008) * 0.15
+      const spBarX     = tRB + Math.round(12 * uiScale)
+      const spBarTop   = vanishY + Math.round(8 * uiScale)
+      const spBarBot   = hitY - Math.round(8 * uiScale)
+      const spBarH     = spBarBot - spBarTop
+      const spBarW     = Math.round(10 * uiScale)
+      const spBarRad   = spBarW / 2
 
-      // Label + hint de ativação
-      ctx.textAlign = "left"; ctx.textBaseline = "top"
-      ctx.fillStyle = spActive2
-        ? spPal.primary
-        : spReady
-          ? `rgba(255,220,80,${0.7 + Math.sin(now * 0.006) * 0.3})`  // pisca quando pronto
-          : "rgba(255,255,255,0.28)"
-      ctx.font = `700 ${Math.round(7*uS)}px 'Inter',Arial,sans-serif`
-      ctx.fillText(
-        spActive2 ? "⚡ STAR POWER ATIVO" : spReady ? "⚡ STAR POWER  [R]" : "STAR POWER",
-        padX, cY - Math.round(2*uS)
-      )
-      cY += Math.round(9 * uS)
+      ctx.save()
+      // Fundo
+      ctx.beginPath(); ctx.roundRect(spBarX, spBarTop, spBarW, spBarH, spBarRad)
+      ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fill()
+      ctx.strokeStyle = "rgba(255,255,255,0.10)"; ctx.lineWidth = 1; ctx.stroke()
 
-      // Barra de progresso do meter (debaixo dos orbs)
-      const barW = pW - Math.round(24 * uS)
-      const barH = Math.round(4 * uS)
-      ctx.fillStyle = "rgba(255,255,255,0.07)"
-      ctx.beginPath(); ctx.roundRect(padX, cY, barW, barH, barH/2); ctx.fill()
-      if (spMeter > 0) {
-        const barFill = spMeter / 100
-        const bG = ctx.createLinearGradient(padX, 0, padX + barW, 0)
+      // Preenchimento de baixo pra cima
+      if (spMeter2 > 0) {
+        const spFillH = spBarH * (spMeter2 / 100)
+        const spFillY = spBarBot - spFillH
+        ctx.save()
+        ctx.beginPath(); ctx.roundRect(spBarX, spFillY, spBarW, spFillH, spBarRad); ctx.clip()
+        const spFillG = ctx.createLinearGradient(0, spBarBot, 0, spBarTop)
         if (spActive2) {
-          // Enquanto ativo: cor do tema SP pulsando
-          const pulse = 0.85 + Math.sin(now * 0.008) * 0.15
-          bG.addColorStop(0, `rgba(${spPal.primaryRgb},${pulse})`)
-          bG.addColorStop(1, `rgba(${spPal.secondaryRgb},${pulse})`)
-        } else if (spReady) {
-          // Pronto para ativar: dourado pulsante
-          const pulse = 0.8 + Math.sin(now * 0.007) * 0.2
-          bG.addColorStop(0, `rgba(255,220,80,${pulse})`)
-          bG.addColorStop(1, `rgba(255,160,20,${pulse})`)
+          spFillG.addColorStop(0,   `rgba(${spPal.primaryRgb},${spPulse})`)
+          spFillG.addColorStop(0.5, `rgba(${spPal.secondaryRgb},${spPulse * 0.9})`)
+          spFillG.addColorStop(1,   `rgba(${spPal.primaryRgb},${spPulse * 0.7})`)
+        } else if (spReady2) {
+          const p2 = 0.8 + Math.sin(now * 0.007) * 0.2
+          spFillG.addColorStop(0, `rgba(255,220,60,${p2})`)
+          spFillG.addColorStop(1, `rgba(255,160,20,${p2 * 0.7})`)
         } else {
-          bG.addColorStop(0, "#60a5fa")
-          bG.addColorStop(1, "#1d4ed8")
+          spFillG.addColorStop(0, "#3b82f6")
+          spFillG.addColorStop(1, "#60a5fa")
         }
-        ctx.fillStyle = bG
-        ctx.beginPath(); ctx.roundRect(padX, cY, barW * barFill, barH, barH/2); ctx.fill()
-      }
-      cY += barH + Math.round(6 * uS)
-
-      // Orbs
-      const spProgress = spMeter / 100
-      for (let o = 0; o < orbCount; o++) {
-        const ox = ox0 + o * orbGap + orbR
-        const oy = cY + orbR
-        const filled = (o / orbCount) < spProgress
-        const partialFill = Math.max(0, Math.min(1, (spProgress * orbCount) - o))
-
-        ctx.beginPath(); ctx.arc(ox, oy, orbR, 0, Math.PI * 2)
-        ctx.fillStyle = "rgba(255,255,255,0.05)"
-        ctx.fill()
-
-        if (partialFill > 0 || spActive2) {
-          const orbFill = spActive2 ? 1 : partialFill
-          ctx.beginPath()
-          ctx.arc(ox, oy, orbR, -Math.PI/2, -Math.PI/2 + orbFill * Math.PI * 2)
-          ctx.lineTo(ox, oy)
-          ctx.closePath()
-          const oG = ctx.createRadialGradient(ox, oy - orbR*0.2, 0, ox, oy, orbR)
-          if (spActive2) {
-            oG.addColorStop(0, spPal.starFill1)
-            oG.addColorStop(0.5, spPal.primary)
-            oG.addColorStop(1, spPal.secondary)
-          } else if (spReady) {
-            oG.addColorStop(0, "#fffde0")
-            oG.addColorStop(0.5, "#ffd740")
-            oG.addColorStop(1, "#ff9800")
-          } else {
-            oG.addColorStop(0, "#ffffff")
-            oG.addColorStop(0.5, "#60a5fa")
-            oG.addColorStop(1, "#1d4ed8")
-          }
-          ctx.fillStyle = oG
-          ctx.fill()
-        }
-
-        // Borda do orb
-        ctx.beginPath(); ctx.arc(ox, oy, orbR, 0, Math.PI * 2)
-        ctx.strokeStyle = spActive2
-          ? spPal.primary
-          : spReady
-            ? `rgba(255,220,80,${0.6 + Math.sin(now * 0.007 + o) * 0.4})`
-            : (filled ? "#60a5fa" : "rgba(255,255,255,0.15)")
-        ctx.lineWidth = spActive2 ? 1.5 : 1
-        ctx.stroke()
+        ctx.fillStyle = spFillG; ctx.fillRect(spBarX, spFillY, spBarW, spFillH)
+        ctx.restore()
       }
 
-      cY += orbR * 2 + Math.round(4 * uS)
+      // Marcador de 50%
+      const sp50Y = spBarBot - spBarH * 0.5
+      ctx.strokeStyle = "rgba(255,255,255,0.30)"; ctx.lineWidth = 1
+      ctx.setLineDash([2,2])
+      ctx.beginPath(); ctx.moveTo(spBarX - 2, sp50Y); ctx.lineTo(spBarX + spBarW + 2, sp50Y); ctx.stroke()
+      ctx.setLineDash([])
+
+      // Label ⚡
+      ctx.textAlign = "center"; ctx.textBaseline = "bottom"
+      ctx.font = `bold ${Math.round(9 * uiScale)}px Arial,sans-serif`
+      ctx.fillStyle = spActive2 ? spPal.primary : spReady2 ? `rgba(255,220,60,${0.7 + Math.sin(now*0.006)*0.3})` : "rgba(255,255,255,0.35)"
+      ctx.fillText("⚡", spBarX + spBarW / 2, spBarTop - 2)
+
+      // Dica [R]
+      if (spReady2 && !spActive2) {
+        ctx.textAlign = "center"; ctx.textBaseline = "top"
+        ctx.font = `bold ${Math.round(7 * uiScale)}px Arial,sans-serif`
+        ctx.fillStyle = `rgba(255,220,60,${0.6 + Math.sin(now*0.007)*0.4})`
+        ctx.fillText("R", spBarX + spBarW / 2, spBarBot + 4)
+      }
+      ctx.restore()
     }
-
-    ctx.restore()
 
     // ── Feedback de hit lateral (estilo Fortnite — aparece à esquerda da highway) ──
     {
@@ -2222,9 +2090,8 @@ export function renderFrame(state: RenderState): void {
         ctx.restore()
       }
     }
-  }
-
-  // ── Multiplicador central embaixo da highway (estilo Fortnite) ────────
+  }  // fecha // 9 – HUD ctx.save()
+  ctx.restore()
   {
     const mulR  = Math.round(28 * uiScale)
     const mulX  = w / 2

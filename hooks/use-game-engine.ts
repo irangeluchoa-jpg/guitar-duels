@@ -66,27 +66,42 @@ export function useGameEngine({
   // Carrega volume de SFX das configurações
   const sfxVolRef = useRef(1)
   const keyBindingsRef    = useRef<string[]>(getKeyBindingsForLanes(loadSettings(), laneCount))
+  const starPowerKeyRef   = useRef<string>(loadSettings().starPowerKey ?? "r")
   const keyboardEnabledRef = useRef<boolean>(true)
   const gamepadEnabledRef  = useRef<boolean>(true)
+  const gamepadSpButtonRef = useRef<number>(loadSettings().gamepadSpButton ?? 4)
 
   useEffect(() => {
     const s = loadSettings()
     sfxVolRef.current       = (s.masterVolume / 100) * (s.sfxVolume / 100)
     keyBindingsRef.current  = getKeyBindingsForLanes(s, laneCount)
+    starPowerKeyRef.current = s.starPowerKey ?? "r"
     keyboardEnabledRef.current = s.keyboardEnabled ?? true
     gamepadEnabledRef.current  = s.gamepadEnabled  ?? true
+    gamepadSpButtonRef.current = s.gamepadSpButton ?? 4
   }, [])
 
-  // Reload key bindings when settings change (e.g. user edits in settings page)
+  // Reload key bindings when settings change (e.g. user edits in settings page or remap in-game)
   useEffect(() => {
     const onStorage = () => {
       const s = loadSettings()
       keyBindingsRef.current     = getKeyBindingsForLanes(s, laneCount)
+      starPowerKeyRef.current    = s.starPowerKey ?? "r"
       keyboardEnabledRef.current = s.keyboardEnabled ?? true
       gamepadEnabledRef.current  = s.gamepadEnabled  ?? true
+      gamepadSpButtonRef.current = s.gamepadSpButton ?? 4
     }
     window.addEventListener("storage", onStorage)
     return () => window.removeEventListener("storage", onStorage)
+  }, [])
+
+  /** Remap de teclas em tempo real (chamado pelo modal in-game) */
+  const setKeyBindings = useCallback((bindings: string[]) => {
+    keyBindingsRef.current = bindings
+  }, [])
+
+  const setStarPowerKey = useCallback((key: string) => {
+    starPowerKeyRef.current = key
   }, [])
 
   const notesRef        = useRef<ActiveNote[]>([])
@@ -196,13 +211,12 @@ export function useGameEngine({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return
       if (e.key === "Escape" && gameStateRef.current === "playing") { pause(); return }
-      // Tecla R: ativa Star Power manualmente (estilo Guitar Flash)
-      if ((e.key === "r" || e.key === "R") && gameStateRef.current === "playing") {
+      // Tecla configurável de Star Power (padrão R)
+      if (e.key.toLowerCase() === starPowerKeyRef.current.toLowerCase() && gameStateRef.current === "playing") {
         e.preventDefault()
         const now = performance.now()
         const newStats = activateStarPower(statsRef.current, now)
         if (newStats.spActive && !statsRef.current.spActive) {
-          // Só toca o som se realmente ativou (tinha meter suficiente)
           playStarPowerSound(sfxVolRef.current)
         }
         statsRef.current = newStats
@@ -475,5 +489,10 @@ export function useGameEngine({
     // Touch bridge: allows touch controls to drive the same hit logic as keyboard
     touchPress:   (lane: number) => { keysDownRef.current.add(lane); processHit(lane) },
     touchRelease: (lane: number) => { keysDownRef.current.delete(lane) },
+    // Remap in-game
+    setKeyBindings,
+    setStarPowerKey,
+    keyBindingsRef,
+    starPowerKeyRef,
   }
 }

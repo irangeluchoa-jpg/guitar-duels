@@ -34,6 +34,7 @@ interface RoomSnapshot {
   state: "waiting" | "playing" | "paused" | "ended"
   pausedBy: string | null
   players: RoomPlayer[]
+  startTime?: number | null
 }
 
 // PlayerCard agora usa PlayerCardGH internamente
@@ -77,9 +78,23 @@ function PlayerCard(props: { key?: React.Key; p: RoomPlayer; color: string; isMe
 
 
 // ── MultiplayerHUD ────────────────────────────────────────────────────────────
-const MultiplayerHUD = React.memo(function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResume, canResume, leftPlayers = [] }:
+const MultiplayerHUD = React.memo(function MultiplayerHUD({ players, myId, isPaused, pausedByName, onPause, onResume, canResume, leftPlayers = [], potatoMode = false, onPotatoToggle, meta, roomStartTime }:
   { players: RoomPlayer[]; myId: string; isPaused: boolean; pausedByName: string
-    onPause: () => void; onResume: () => void; canResume: boolean; leftPlayers?: string[] }) {
+    onPause: () => void; onResume: () => void; canResume: boolean; leftPlayers?: string[]
+    potatoMode?: boolean; onPotatoToggle?: () => void
+    meta?: { songLength?: number }; roomStartTime?: number | null }) {
+
+  const [elapsed, setElapsed] = React.useState(0)
+  React.useEffect(() => {
+    if (!roomStartTime) return
+    const tick = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - roomStartTime) / 1000))
+    }, 500)
+    return () => clearInterval(tick)
+  }, [roomStartTime])
+  const totalSecs = meta?.songLength ? Math.floor(meta.songLength / 1000) : 0
+  const remaining = totalSecs > 0 ? Math.max(0, totalSecs - elapsed) : 0
+  function fmt(s: number) { const m=Math.floor(s/60); return `${m}:${String(s%60).padStart(2,"0")}` }
 
   // Ordenado por score decrescente — maior pontuação no topo
   const sorted = [...players].sort((a, b) => b.score - a.score)
@@ -154,9 +169,31 @@ const MultiplayerHUD = React.memo(function MultiplayerHUD({ players, myId, isPau
         })}
       </div>
 
+      {/* Timer + controles topo direito */}
+      <div className="fixed top-2 right-3 z-30 flex items-center gap-2">
+        {totalSecs > 0 && (
+          <div className="flex items-baseline gap-0.5 px-2.5 py-1 rounded-xl"
+            style={{ background: "rgba(0,0,0,0.60)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <span className="text-sm font-black font-mono text-white">{fmt(elapsed)}</span>
+            <span className="text-[9px] text-white/25 font-mono">/</span>
+            <span className="text-xs font-bold font-mono" style={{ color: "rgba(255,255,255,0.40)" }}>{fmt(totalSecs)}</span>
+          </div>
+        )}
+        <button onClick={onPotatoToggle}
+          className="px-2 py-1 rounded-lg text-[10px] font-bold transition-all"
+          style={{
+            background: potatoMode ? "rgba(255,200,80,0.20)" : "rgba(0,0,0,0.55)",
+            border: `1px solid ${potatoMode ? "rgba(255,200,80,0.50)" : "rgba(255,255,255,0.10)"}`,
+            color: potatoMode ? "#fcd34d" : "rgba(255,255,255,0.30)",
+            backdropFilter: "blur(8px)",
+          }}>
+          🥔{potatoMode ? " ON" : ""}
+        </button>
+      </div>
+
       {/* Notificação de jogador que saiu */}
       {leftPlayers.length > 0 && (
-        <div className="fixed top-16 left-0 right-0 z-30 flex justify-center pointer-events-none">
+        <div className="fixed top-14 left-0 right-0 z-30 flex justify-center pointer-events-none">
           <div className="px-4 py-1.5 rounded-full text-xs font-bold"
             style={{
               background: "rgba(239,68,68,0.15)",
@@ -407,6 +444,7 @@ function PlayInner() {
   const gamePausedRef                   = useRef(false)
   const [gameStarted, setGameStarted]   = useState(false)
   const [iAmReady, setIAmReady]         = useState(false)
+  const [potatoMode, setPotatoMode]     = useState(() => { try { return JSON.parse(localStorage.getItem("guitar-duels-settings") || "{}").potatoMode ?? false } catch { return false } })
   const [leftPlayers, setLeftPlayers]   = useState<string[]>([])  // nomes de jogadores que saíram
   const prevPlayersRef = useRef<string[]>([])  // IDs dos jogadores no último poll
   const latestStatsRef = useRef<GameStats | null>(null)
@@ -714,6 +752,7 @@ function PlayInner() {
             playlistCount={playlist.length}
             playlistPosition={playlist.indexOf(trackId) + 1}
             hideTopBar={isMultiplayer}
+            potatoMode={isMultiplayer ? potatoMode : undefined}
           />
         </div>
       )}
@@ -751,6 +790,10 @@ function PlayInner() {
           onResume={handleResume}
           canResume={canResume}
           leftPlayers={leftPlayers}
+          potatoMode={potatoMode}
+          onPotatoToggle={() => setPotatoMode(p => !p)}
+          meta={meta ?? undefined}
+          roomStartTime={roomSnapshot.startTime ?? null}
         />
       )}
     </>

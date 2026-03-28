@@ -12,13 +12,15 @@ export interface GameSettings {
   keyBindings: string[]
   keyBindings4: string[]
   keyBindings5: string[]
+  starPowerKey: string        // tecla para ativar star power (padrão "r")
   keyboardEnabled: boolean
   gamepadEnabled: boolean
+  gamepadSpButton: number     // índice do botão do controle para SP (padrão 4 = LB)
   highwayTheme: "default" | "neon" | "fire" | "space" | "wood" | "retro" | "ice" | "random" | "level200" | "kawaii"
   noteShape: "circle" | "square" | "diamond"
   cameraShake: boolean
   starPowerLite: boolean
-  potatoMode: boolean   // modo batata: desativa todos efeitos pesados, mantém jogabilidade
+  potatoMode: boolean
   audioOutputDeviceId: string
 }
 
@@ -36,8 +38,10 @@ export const DEFAULT_SETTINGS: GameSettings = {
   keyBindings:  [...DEFAULT_KEY_BINDINGS],
   keyBindings4: [...DEFAULT_KEY_BINDINGS4],
   keyBindings5: [...DEFAULT_KEY_BINDINGS5],
+  starPowerKey: "r",
   keyboardEnabled: true,
   gamepadEnabled: true,
+  gamepadSpButton: 4,
   highwayTheme: "default",
   noteShape: "circle",
   cameraShake: true,
@@ -60,8 +64,10 @@ export function loadSettings(): GameSettings {
         keyBindings:  Array.isArray(parsed.keyBindings)  && parsed.keyBindings.length  === 6 ? parsed.keyBindings  : [...DEFAULT_KEY_BINDINGS],
         keyBindings4: Array.isArray(parsed.keyBindings4) && parsed.keyBindings4.length === 4 ? parsed.keyBindings4 : [...DEFAULT_KEY_BINDINGS4],
         keyBindings5: Array.isArray(parsed.keyBindings5) && parsed.keyBindings5.length === 5 ? parsed.keyBindings5 : [...DEFAULT_KEY_BINDINGS5],
+        starPowerKey: typeof parsed.starPowerKey === "string" && parsed.starPowerKey.length > 0 ? parsed.starPowerKey : "r",
         keyboardEnabled: parsed.keyboardEnabled ?? true,
         gamepadEnabled:  parsed.gamepadEnabled  ?? true,
+        gamepadSpButton: typeof parsed.gamepadSpButton === "number" ? parsed.gamepadSpButton : 4,
         highwayTheme:    (["default","neon","fire","space","wood","retro","ice","random","level200","kawaii"].includes(parsed.highwayTheme) ? parsed.highwayTheme : "default") as GameSettings["highwayTheme"],
         noteShape:       parsed.noteShape       ?? "circle",
         cameraShake:     parsed.cameraShake     ?? true,
