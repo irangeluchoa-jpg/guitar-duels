@@ -12,32 +12,11 @@ function fmtDate(ts: number) {
   return d.toLocaleDateString("pt-BR", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" })
 }
 
-export interface GameRecord {
-  id: string; songId: string; songName: string; artist: string; albumArt?: string
-  score: number; accuracy: number; combo: number; grade: string
-  laneCount: 4|5|6; noteSpeed: number
-  perfect: number; great: number; good: number; miss: number
-  timestamp: number
-}
-
-export const HISTORY_KEY = "guitar-duels-history"
-export function saveRecord(record: Omit<GameRecord, "id">) {
-  if (typeof window === "undefined") return
-  try {
-    const history: GameRecord[] = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]")
-    const newRecord = { ...record, id: `${Date.now()}-${Math.random().toString(36).slice(2,7)}` }
-    // Substituir se o novo score for melhor para a mesma música, senão ignorar
-    const existingIdx = history.findIndex(r => r.songId === record.songId)
-    if (existingIdx === -1) {
-      history.unshift(newRecord)
-    } else if (record.score > history[existingIdx].score) {
-      history.splice(existingIdx, 1)
-      history.unshift(newRecord)
-    }
-    if (history.length > 200) history.splice(200)
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
-  } catch {}
-}
+// Tipos e funções movidos para @/lib/history para evitar circular dependency
+export type { GameRecord } from "@/lib/history"
+export { HISTORY_KEY, saveRecord } from "@/lib/history"
+import type { GameRecord } from "@/lib/history"
+import { HISTORY_KEY } from "@/lib/history"
 
 const GRADE_COLORS: Record<string, string> = {
   "S+":"#ffd700","S":"#ffd700","A":"#22c55e","B":"#3b82f6","C":"#f97316","D":"#ef4444","F":"#6b7280"

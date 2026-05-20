@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Star, Trophy, Target, Zap, Clock, Music2, Edit2, Check, Download, Upload, RefreshCw, Camera } from "lucide-react"
-import { HISTORY_KEY } from "@/app/history/page"
+import { HISTORY_KEY } from "@/lib/history"
 import { PlayerAvatar } from "@/components/ui/player-avatar"
 import { uploadAvatar } from "@/lib/supabase"
 import {
