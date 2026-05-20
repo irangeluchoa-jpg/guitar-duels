@@ -1,8 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // ── Ignora erros de TS/ESLint no build (mantido) ──────────────────────
+  // ── Ignora erros de TS no build ─────────────────────────────────────
   typescript: { ignoreBuildErrors: true },
-  eslint:     { ignoreDuringBuilds: true },
 
   // ── Compressão gzip/brotli automática nas respostas ───────────────────
   compress: true,
